@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --aa-blue: #0078D2;
+  --aa-red: #C8102E;
+}
+
+/* Large, accessible focus rings */
+*:focus {
+  outline: 4px solid var(--aa-blue);
+  outline-offset: 2px;
+}
+
+/* Smooth animations for voice states */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes listening-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+.animate-listening {
+  animation: listening-pulse 1s ease-in-out infinite;
+}
+
+/* High contrast button styles */
+.btn-primary {
+  @apply bg-aa-blue text-white font-bold text-body-lg px-8 py-6 rounded-2xl;
+  @apply hover:bg-blue-700 active:bg-blue-800;
+  @apply focus:ring-4 focus:ring-blue-300;
+  @apply transition-all duration-200;
+  @apply min-w-[200px] min-h-[60px];
+}
+
+.btn-success {
+  @apply bg-green-600 text-white font-bold text-body-lg px-8 py-6 rounded-2xl;
+  @apply hover:bg-green-700 active:bg-green-800;
+  @apply focus:ring-4 focus:ring-green-300;
+  @apply transition-all duration-200;
+  @apply min-w-[200px] min-h-[60px];
+}
+
+.btn-secondary {
+  @apply bg-gray-200 text-gray-800 font-bold text-body-lg px-8 py-6 rounded-2xl;
+  @apply hover:bg-gray-300 active:bg-gray-400;
+  @apply focus:ring-4 focus:ring-gray-300;
+  @apply transition-all duration-200;
+  @apply min-w-[200px] min-h-[60px];
+}
