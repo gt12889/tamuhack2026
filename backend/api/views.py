@@ -757,7 +757,7 @@ def retell_end_call(request, call_id):
 class PassengerViewSet(viewsets.ModelViewSet):
     """
     CRUD operations for Passengers.
-    
+
     list:   GET /api/passengers/
     create: POST /api/passengers/
     read:   GET /api/passengers/{id}/
@@ -777,7 +777,7 @@ class PassengerViewSet(viewsets.ModelViewSet):
 class FlightViewSet(viewsets.ModelViewSet):
     """
     CRUD operations for Flights.
-    
+
     list:   GET /api/flights-db/
     create: POST /api/flights-db/
     read:   GET /api/flights-db/{id}/
@@ -797,7 +797,7 @@ class FlightViewSet(viewsets.ModelViewSet):
 class ReservationViewSet(viewsets.ModelViewSet):
     """
     CRUD operations for Reservations.
-    
+
     list:   GET /api/reservations/
     create: POST /api/reservations/
     read:   GET /api/reservations/{id}/
@@ -817,7 +817,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
 class FlightSegmentViewSet(viewsets.ModelViewSet):
     """
     CRUD operations for Flight Segments.
-    
+
     list:   GET /api/flight-segments/
     create: POST /api/flight-segments/
     read:   GET /api/flight-segments/{id}/
@@ -836,7 +836,7 @@ class FlightSegmentViewSet(viewsets.ModelViewSet):
 class SessionViewSet(viewsets.ModelViewSet):
     """
     CRUD operations for Sessions.
-    
+
     list:   GET /api/sessions/
     create: POST /api/sessions/
     read:   GET /api/sessions/{id}/
@@ -856,7 +856,7 @@ class SessionViewSet(viewsets.ModelViewSet):
 class MessageViewSet(viewsets.ModelViewSet):
     """
     CRUD operations for Messages.
-    
+
     list:   GET /api/messages/
     create: POST /api/messages/
     read:   GET /api/messages/{id}/
@@ -871,3 +871,84 @@ class MessageViewSet(viewsets.ModelViewSet):
     search_fields = ['content', 'intent']
     ordering_fields = ['timestamp']
     ordering = ['timestamp']
+
+
+# ==================== Retell Webhook Endpoints ====================
+
+from .services.retell_webhook_handler import retell_webhook_handler, RETELL_FUNCTION_DEFINITIONS
+
+
+@api_view(['POST'])
+def retell_webhook(request):
+    """
+    Main webhook endpoint for Retell AI events.
+
+    Retell sends events here for:
+    - call_started: New call initiated
+    - call_ended: Call completed
+    - call_analyzed: Post-call analysis ready
+    - function_call: Agent requesting to call a function
+
+    Configure this URL in Retell dashboard:
+    https://yourdomain.com/api/retell/webhook
+    """
+    # Verify signature (optional but recommended for production)
+    signature = request.headers.get('X-Retell-Signature', '')
+
+    event_type = request.data.get('event')
+    data = request.data
+
+    if not event_type:
+        return Response(
+            {'error': 'Missing event type'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = retell_webhook_handler.handle_webhook(event_type, data)
+
+    return Response(result)
+
+
+@api_view(['POST'])
+def retell_function_call(request):
+    """
+    Direct function call endpoint for Retell agent.
+
+    This endpoint can be called directly by Retell when using
+    the "external function" feature. Configure functions in
+    the Retell dashboard with this URL.
+
+    URL: https://yourdomain.com/api/retell/function/{function_name}
+    """
+    function_name = request.data.get('function_name')
+    arguments = request.data.get('arguments', {})
+    call_id = request.data.get('call_id', '')
+
+    if not function_name:
+        return Response(
+            {'error': 'Missing function_name'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = retell_webhook_handler._handle_function_call({
+        'function_name': function_name,
+        'arguments': arguments,
+        'call_id': call_id,
+    })
+
+    return Response(result)
+
+
+@api_view(['GET'])
+def retell_function_definitions(request):
+    """
+    Get the function definitions for Retell agent configuration.
+
+    Use these definitions when setting up your Retell agent
+    to enable function calling capabilities.
+    """
+    return Response({
+        'functions': RETELL_FUNCTION_DEFINITIONS,
+        'webhook_url': request.build_absolute_uri('/api/retell/webhook'),
+        'function_url': request.build_absolute_uri('/api/retell/function'),
+    })

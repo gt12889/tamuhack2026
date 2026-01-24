@@ -63,29 +63,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'voice_concierge.wsgi.application'
 
-# Database
-# if os.getenv('DATABASE_URL'):
-#     import dj_database_url
-#     DATABASES = {
-#         'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
-#     }
-# else:
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.sqlite3',
-#             'NAME': BASE_DIR / 'db.sqlite3',
-#         }
-#     }
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB_NAME", ""),
-        "USER": os.getenv("POSTGRES_DB_USER", ""),
-        "PASSWORD": os.getenv("POSTGRES_DB_PASSWORD", ""),
-        "HOST": os.getenv("POSTGRES_DB_HOST", ""),
-        "PORT": os.getenv("POSTGRES_DB_PORT", "5432"),
+# Database - Use PostgreSQL in production, SQLite for local development
+if os.getenv('POSTGRES_DB_HOST'):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB_NAME", ""),
+            "USER": os.getenv("POSTGRES_DB_USER", ""),
+            "PASSWORD": os.getenv("POSTGRES_DB_PASSWORD", ""),
+            "HOST": os.getenv("POSTGRES_DB_HOST", ""),
+            "PORT": os.getenv("POSTGRES_DB_PORT", "5432"),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 AUTH_PASSWORD_VALIDATORS = [

@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer';
 import { CallToAction } from './CallToAction';
 import { HowItWorks } from './HowItWorks';
 import { FeatureList } from './FeatureList';
+import { FamilyHelp } from './FamilyHelp';
 
 interface LandingPageProps {
   phoneNumber?: string;
@@ -45,8 +46,13 @@ export function LandingPage({
         </section>
 
         {/* Features Section */}
-        <section className="px-4 pb-12">
+        <section className="px-4">
           <FeatureList />
+        </section>
+
+        {/* Family Help Section */}
+        <section className="px-4 pb-12">
+          <FamilyHelp />
         </section>
       </main>
 

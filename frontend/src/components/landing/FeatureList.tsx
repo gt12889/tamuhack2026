@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Plane, Search, CreditCard } from 'lucide-react';
+import { CalendarDays, Plane, Search, CreditCard, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -29,6 +29,11 @@ const features = [
     icon: CreditCard,
     title: 'Book a new flight',
     description: 'Search and book flights with voice commands',
+  },
+  {
+    icon: Users,
+    title: 'Get help from family',
+    description: 'Share a link so family can assist you remotely',
   },
 ];
 

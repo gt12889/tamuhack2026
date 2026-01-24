@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Monitor, Phone, ExternalLink } from 'lucide-react';
+import { Monitor, Phone, Users, Copy, Check, ExternalLink } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CallToAction } from '@/components/landing/CallToAction';
@@ -10,6 +10,7 @@ import { TranscriptPanel } from './TranscriptPanel';
 import { useRetell } from '@/hooks/useRetell';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { startConversation, createHelperLink } from '@/lib/api';
 
 interface TranscriptMessage {
   id: string;
@@ -32,6 +33,13 @@ export function LiveDemo({
 }: LiveDemoProps) {
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
   const [currentSpeaker, setCurrentSpeaker] = useState<'agent' | 'user' | null>(null);
+
+  // Family Helper state
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [helperLink, setHelperLink] = useState<string | null>(null);
+  const [helperLinkExpiry, setHelperLinkExpiry] = useState<string | null>(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const handleTranscript = useCallback((role: 'agent' | 'user', text: string, isFinal: boolean) => {
     setCurrentSpeaker(role);
@@ -78,6 +86,38 @@ export function LiveDemo({
   const handleCallEnd = useCallback(() => {
     setCurrentSpeaker(null);
   }, []);
+
+  // Generate family helper link
+  const handleGenerateHelperLink = useCallback(async () => {
+    setIsGeneratingLink(true);
+    try {
+      // Start a conversation session if we don't have one
+      let currentSessionId = sessionId;
+      if (!currentSessionId) {
+        const sessionResponse = await startConversation();
+        currentSessionId = sessionResponse.session_id;
+        setSessionId(currentSessionId);
+      }
+
+      // Create the helper link
+      const response = await createHelperLink(currentSessionId);
+      setHelperLink(response.helper_link);
+      setHelperLinkExpiry(response.expires_at);
+    } catch (err) {
+      console.error('Failed to generate helper link:', err);
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  }, [sessionId]);
+
+  // Copy helper link to clipboard
+  const handleCopyLink = useCallback(() => {
+    if (helperLink) {
+      navigator.clipboard.writeText(helperLink);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }, [helperLink]);
 
   const {
     isConfigured,
@@ -178,6 +218,69 @@ export function LiveDemo({
               />
             </motion.div>
           </div>
+
+          {/* Family Helper Panel */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-6 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl p-4"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 rounded-full p-2">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold">Family Helper Demo</h3>
+                  <p className="text-sm opacity-90">Generate a link to show family assistance feature</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {!helperLink ? (
+                  <Button
+                    onClick={handleGenerateHelperLink}
+                    disabled={isGeneratingLink}
+                    className="bg-white text-purple-700 hover:bg-gray-100"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    {isGeneratingLink ? 'Generating...' : 'Generate Helper Link'}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="bg-white/10 rounded-lg px-3 py-2 text-sm font-mono max-w-xs truncate">
+                      {helperLink}
+                    </div>
+                    <Button
+                      onClick={handleCopyLink}
+                      size="icon"
+                      className="bg-white/20 hover:bg-white/30"
+                    >
+                      {linkCopied ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => window.open(helperLink, '_blank')}
+                      size="icon"
+                      className="bg-white/20 hover:bg-white/30"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {helperLink && helperLinkExpiry && (
+              <p className="text-xs opacity-75 mt-2">
+                Link expires at {new Date(helperLinkExpiry).toLocaleTimeString()}
+              </p>
+            )}
+          </motion.div>
 
           {/* Error Display */}
           {error && (

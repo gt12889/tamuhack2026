@@ -8,7 +8,7 @@ export { TextInput } from './TextInput';
 export { Header, Footer } from './layout';
 
 // Landing page components
-export { LandingPage, CallToAction, HowItWorks, FeatureList } from './landing';
+export { LandingPage, CallToAction, HowItWorks, FeatureList, FamilyHelp } from './landing';
 
 // Demo components
 export { LiveDemo, TranscriptPanel } from './demo';

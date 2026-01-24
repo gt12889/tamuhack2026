@@ -54,4 +54,9 @@ urlpatterns = [
     path('retell/calls/phone', views.retell_create_phone_call, name='retell_create_phone_call'),
     path('retell/calls/<str:call_id>', views.retell_get_call, name='retell_get_call'),
     path('retell/calls/<str:call_id>/end', views.retell_end_call, name='retell_end_call'),
+
+    # Retell Webhook endpoints (for Retell to call your backend)
+    path('retell/webhook', views.retell_webhook, name='retell_webhook'),
+    path('retell/function', views.retell_function_call, name='retell_function_call'),
+    path('retell/functions', views.retell_function_definitions, name='retell_function_definitions'),
 ]
