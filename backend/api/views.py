@@ -137,6 +137,7 @@ def start_conversation(request):
 @api_view(['POST'])
 def send_message(request):
     """Process a user message and return AI response."""
+
     session_id = request.data.get('session_id')
     transcript = request.data.get('transcript', '').strip()
 
@@ -187,17 +188,10 @@ def send_message(request):
     suggested_actions = []
 
     # Try to extract confirmation code if in lookup state
-    import sys
-    print(f"DEBUG: session.state={session.state}, has_reservation={bool(session.reservation)}", flush=True)
-    sys.stdout.flush()
     if session.state in ['greeting', 'lookup'] and not session.reservation:
         code = gemini_service.extract_confirmation_code(transcript)
-        print(f"DEBUG: Extracted code={code} from transcript={transcript[:50]}", flush=True)
-        sys.stdout.flush()
         if code:
             reservation = get_or_create_mock_reservation(code)
-            print(f"DEBUG: Found reservation={reservation}", flush=True)
-            sys.stdout.flush()
             if reservation:
                 session.reservation = reservation
                 session.state = 'viewing'

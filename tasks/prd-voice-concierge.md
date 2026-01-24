@@ -58,12 +58,36 @@
 - Visual text display (for hearing-impaired)
 - Warm, clear voice (Rachel or similar)
 
-### 4. AI Conversation
-- Gemini processes user speech
-- Understands: change flight, lookup reservation
-- Extracts: dates, confirmation codes, cities
-- Maintains conversation context
-- Elderly-friendly prompts (patient, simple)
+### 4. AI Conversation (Gemini)
+Gemini handles 4 critical functions:
+
+**A. Intent Detection**
+- Figures out what passenger wants:
+  - Change flight
+  - Change seat
+  - Add bags
+  - Request wheelchair
+  - Check status
+  - Lookup reservation
+
+**B. Guided Dialog Flow (Elderly-First)**
+- Asks ONE question at a time (not overwhelming)
+- Repeats back what it heard (confirmation)
+- Keeps conversation on rails (not open-ended chatbot)
+- Maintains context across turns
+
+**C. Reservation Change Reasoning**
+- Selects best next steps based on mock reservation + constraints
+- Generates 1-2 simple options for passenger (not 10+ choices)
+- Considers: dates, connections, passenger preferences
+
+**D. Output Formatting for UI**
+- Returns structured JSON:
+  - `reply`: Assistant message to speak
+  - `intent`: Detected intent
+  - `entities`: Extracted data (dates, codes, cities)
+  - `action`: Next step (lookup, show_options, confirm_change)
+- Makes frontend reliable and demo-safe
 
 ### 5. Reservation Lookup
 - Handles confirmation codes (spelled or spoken)
@@ -127,7 +151,41 @@
 
 ---
 
-## 🎤 Gemini Prompt Template
+## 🎤 Gemini Integration
+
+### 4 Main Functions
+
+**1. Intent Detection**
+- Detects: change_flight, change_seat, add_bags, request_wheelchair, check_status, lookup_reservation
+- Returns structured intent classification
+
+**2. Guided Dialog Flow (Elderly-First)**
+- Asks ONE question at a time
+- Repeats back what it heard: "So you want to fly on the 26th instead?"
+- Keeps conversation on rails (not open-ended chatbot)
+- Maintains context across turns
+
+**3. Reservation Change Reasoning**
+- Analyzes mock reservation + passenger constraints
+- Generates 1-2 simple options (not overwhelming)
+- Considers: dates, connections, preferences
+
+**4. Output Formatting for UI**
+- Returns structured JSON:
+```json
+{
+  "reply": "I found a flight tomorrow at 2pm. Would you like this one?",
+  "intent": "change_flight",
+  "entities": {
+    "date": "2026-01-26",
+    "confirmation_code": "DEMO123"
+  },
+  "action": "show_options"
+}
+```
+- Makes frontend reliable and demo-safe
+
+### Prompt Template
 
 ```
 You are a friendly American Airlines assistant helping elderly passengers change flights.
@@ -146,11 +204,17 @@ RULES:
 5. Use 12-hour time with AM/PM
 6. Spell out months (January, not 1/25)
 
+IMPORTANT: Return valid JSON only with:
+- reply: conversational response
+- intent: detected intent
+- entities: extracted data
+- action: next step (lookup, show_options, confirm_change, complete)
+
 Current reservation: {reservation_details}
 Conversation history: {messages}
 User just said: "{user_transcript}"
 
-Respond naturally. If you need information, ask. If you can help, do so clearly.
+Respond with JSON only.
 ```
 
 ---
@@ -211,7 +275,10 @@ Respond naturally. If you need information, ask. If you can help, do so clearly.
 - ✅ Innovative solution (voice-first)
 
 ### Gemini
-- ✅ Natural language conversation (not just Q&A)
+- ✅ **Intent Detection**: Identifies passenger needs (change flight, seat, bags, wheelchair)
+- ✅ **Guided Dialog Flow**: One question at a time, repeats back, keeps conversation on rails
+- ✅ **Reservation Reasoning**: Selects best options based on constraints (1-2 options)
+- ✅ **Output Formatting**: Structured JSON for reliable frontend integration
 - ✅ Multi-turn dialogue with context
 - ✅ Elderly-optimized prompt engineering
 

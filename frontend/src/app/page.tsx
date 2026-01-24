@@ -8,6 +8,7 @@ import { ConfirmationScreen } from '@/components/ConfirmationScreen';
 import { TextInput } from '@/components/TextInput';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
+import { useBrowserTTS } from '@/hooks/useBrowserTTS';
 import { startConversation, sendMessage } from '@/lib/api';
 import type { Message, VoiceState, Reservation, FlightSegment, ConversationResponse } from '@/types';
 
@@ -23,7 +24,7 @@ export default function Home() {
   const [selectedFlight, setSelectedFlight] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { play: playAudio, isPlaying } = useAudioPlayer({
+  const { playWithFallback, isPlaying } = useAudioPlayer({
     onStart: () => setVoiceState('speaking'),
     onEnd: () => setVoiceState('idle'),
     onError: (err) => setError(err),
@@ -71,15 +72,13 @@ export default function Home() {
         setAppState('confirmed');
       }
 
-      // Play audio response
-      if (response.audio_url) {
-        await playAudio(response.audio_url);
-      }
+      // Play audio response (with browser TTS fallback)
+      await playWithFallback(response.audio_url || null, response.reply);
     } catch (err) {
       setError('Something went wrong. Please try again.');
       setVoiceState('idle');
     }
-  }, [sessionId, playAudio]);
+  }, [sessionId, playWithFallback]);
 
   const {
     isListening,
@@ -94,7 +93,7 @@ export default function Home() {
     silenceTimeout: 2000,
   });
 
-  // Update voice state based on listening status
+  // Update voice state based on listening/playing status
   useEffect(() => {
     if (isListening) {
       setVoiceState('listening');
@@ -121,10 +120,8 @@ export default function Home() {
       setMessages([greetingMessage]);
       setAppState('conversation');
 
-      // Play greeting
-      if (response.audio_url) {
-        await playAudio(response.audio_url);
-      }
+      // Play greeting (with browser TTS fallback)
+      await playWithFallback(response.audio_url || null, response.greeting);
     } catch (err) {
       setError('Could not connect to the assistant. Please try again.');
       setVoiceState('idle');

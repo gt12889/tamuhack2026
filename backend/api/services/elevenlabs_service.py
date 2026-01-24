@@ -61,12 +61,10 @@ class ElevenLabsService:
 
             data = {
                 "text": text,
-                "model_id": "eleven_monolingual_v1",
+                "model_id": "eleven_turbo_v2_5",
                 "voice_settings": {
                     "stability": 0.7,
                     "similarity_boost": 0.8,
-                    "style": 0.0,
-                    "use_speaker_boost": True,
                 }
             }
 
@@ -98,7 +96,7 @@ class ElevenLabsService:
 
                     return result
                 else:
-                    logger.error(f"ElevenLabs API error: {response.status_code}")
+                    logger.error(f"ElevenLabs API error: {response.status_code} - {response.text}")
                     return self._fallback_response(text)
 
         except Exception as e:
