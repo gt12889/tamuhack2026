@@ -8,7 +8,6 @@ import { ConfirmationScreen } from '@/components/ConfirmationScreen';
 import { TextInput } from '@/components/TextInput';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
-import { useBrowserTTS } from '@/hooks/useBrowserTTS';
 import { startConversation, sendMessage } from '@/lib/api';
 import type { Message, VoiceState, Reservation, FlightSegment, ConversationResponse } from '@/types';
 
