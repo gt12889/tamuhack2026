@@ -7,12 +7,18 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import viewsets
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Session, Message, Reservation, Passenger, Flight, FlightSegment
 from .serializers import (
     ReservationSerializer,
     SessionSerializer,
     MessageSerializer,
+    PassengerSerializer,
+    FlightSerializer,
+    FlightSegmentSerializer,
 )
 from .services import GeminiService, ElevenLabsService
 from .mock_data import (
@@ -593,3 +599,124 @@ def search_flights(request):
         'flights': flights,
         'count': len(flights)
     })
+
+
+# ==================== CRUD ViewSets ====================
+
+class PassengerViewSet(viewsets.ModelViewSet):
+    """
+    CRUD operations for Passengers.
+    
+    list:   GET /api/passengers/
+    create: POST /api/passengers/
+    read:   GET /api/passengers/{id}/
+    update: PUT /api/passengers/{id}/
+    patch:  PATCH /api/passengers/{id}/
+    delete: DELETE /api/passengers/{id}/
+    """
+    queryset = Passenger.objects.all()
+    serializer_class = PassengerSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['language_preference', 'seat_preference']
+    search_fields = ['first_name', 'last_name', 'email', 'aadvantage_number']
+    ordering_fields = ['first_name', 'last_name', 'email']
+    ordering = ['last_name', 'first_name']
+
+
+class FlightViewSet(viewsets.ModelViewSet):
+    """
+    CRUD operations for Flights.
+    
+    list:   GET /api/flights-db/
+    create: POST /api/flights-db/
+    read:   GET /api/flights-db/{id}/
+    update: PUT /api/flights-db/{id}/
+    patch:  PATCH /api/flights-db/{id}/
+    delete: DELETE /api/flights-db/{id}/
+    """
+    queryset = Flight.objects.all()
+    serializer_class = FlightSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['origin', 'destination', 'status', 'flight_number']
+    search_fields = ['flight_number', 'origin', 'destination']
+    ordering_fields = ['departure_time', 'arrival_time', 'flight_number']
+    ordering = ['departure_time']
+
+
+class ReservationViewSet(viewsets.ModelViewSet):
+    """
+    CRUD operations for Reservations.
+    
+    list:   GET /api/reservations/
+    create: POST /api/reservations/
+    read:   GET /api/reservations/{id}/
+    update: PUT /api/reservations/{id}/
+    patch:  PATCH /api/reservations/{id}/
+    delete: DELETE /api/reservations/{id}/
+    """
+    queryset = Reservation.objects.select_related('passenger').prefetch_related('flight_segments__flight').all()
+    serializer_class = ReservationSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'confirmation_code']
+    search_fields = ['confirmation_code', 'passenger__first_name', 'passenger__last_name', 'passenger__email']
+    ordering_fields = ['created_at', 'updated_at', 'confirmation_code']
+    ordering = ['-created_at']
+
+
+class FlightSegmentViewSet(viewsets.ModelViewSet):
+    """
+    CRUD operations for Flight Segments.
+    
+    list:   GET /api/flight-segments/
+    create: POST /api/flight-segments/
+    read:   GET /api/flight-segments/{id}/
+    update: PUT /api/flight-segments/{id}/
+    patch:  PATCH /api/flight-segments/{id}/
+    delete: DELETE /api/flight-segments/{id}/
+    """
+    queryset = FlightSegment.objects.select_related('reservation', 'flight').all()
+    serializer_class = FlightSegmentSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['reservation', 'flight']
+    ordering_fields = ['segment_order']
+    ordering = ['segment_order']
+
+
+class SessionViewSet(viewsets.ModelViewSet):
+    """
+    CRUD operations for Sessions.
+    
+    list:   GET /api/sessions/
+    create: POST /api/sessions/
+    read:   GET /api/sessions/{id}/
+    update: PUT /api/sessions/{id}/
+    patch:  PATCH /api/sessions/{id}/
+    delete: DELETE /api/sessions/{id}/
+    """
+    queryset = Session.objects.select_related('reservation').prefetch_related('messages').all()
+    serializer_class = SessionSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['state', 'helper_link']
+    search_fields = ['helper_link']
+    ordering_fields = ['created_at', 'expires_at']
+    ordering = ['-created_at']
+
+
+class MessageViewSet(viewsets.ModelViewSet):
+    """
+    CRUD operations for Messages.
+    
+    list:   GET /api/messages/
+    create: POST /api/messages/
+    read:   GET /api/messages/{id}/
+    update: PUT /api/messages/{id}/
+    patch:  PATCH /api/messages/{id}/
+    delete: DELETE /api/messages/{id}/
+    """
+    queryset = Message.objects.select_related('session').all()
+    serializer_class = MessageSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['session', 'role', 'intent']
+    search_fields = ['content', 'intent']
+    ordering_fields = ['timestamp']
+    ordering = ['timestamp']

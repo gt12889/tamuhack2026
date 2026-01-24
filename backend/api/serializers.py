@@ -23,44 +23,136 @@ class FlightSerializer(serializers.ModelSerializer):
 
 
 class FlightSegmentSerializer(serializers.ModelSerializer):
+    """Serializer for FlightSegment with nested flight details (read) and IDs (write)."""
+    # Read-only nested flight details
     flight_number = serializers.CharField(source='flight.flight_number', read_only=True)
     origin = serializers.CharField(source='flight.origin', read_only=True)
     destination = serializers.CharField(source='flight.destination', read_only=True)
     departure_time = serializers.DateTimeField(source='flight.departure_time', read_only=True)
     arrival_time = serializers.DateTimeField(source='flight.arrival_time', read_only=True)
     gate = serializers.CharField(source='flight.gate', read_only=True)
-    status = serializers.CharField(source='flight.status', read_only=True)
+    flight_status = serializers.CharField(source='flight.status', read_only=True)
+    
+    # Write fields for creating/updating
+    reservation_id = serializers.UUIDField(write_only=True, required=False)
+    flight_id = serializers.UUIDField(write_only=True, required=False)
 
     class Meta:
         model = FlightSegment
         fields = [
-            'id', 'flight_number', 'origin', 'destination',
-            'departure_time', 'arrival_time', 'gate', 'status', 'seat'
+            'id', 'reservation', 'flight', 'seat', 'segment_order',
+            # Nested read-only fields
+            'flight_number', 'origin', 'destination',
+            'departure_time', 'arrival_time', 'gate', 'flight_status',
+            # Write-only fields
+            'reservation_id', 'flight_id',
         ]
+        extra_kwargs = {
+            'reservation': {'read_only': True},
+            'flight': {'read_only': True},
+        }
+    
+    def create(self, validated_data):
+        reservation_id = validated_data.pop('reservation_id', None)
+        flight_id = validated_data.pop('flight_id', None)
+        
+        if reservation_id:
+            validated_data['reservation_id'] = reservation_id
+        if flight_id:
+            validated_data['flight_id'] = flight_id
+            
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        reservation_id = validated_data.pop('reservation_id', None)
+        flight_id = validated_data.pop('flight_id', None)
+        
+        if reservation_id:
+            instance.reservation_id = reservation_id
+        if flight_id:
+            instance.flight_id = flight_id
+            
+        return super().update(instance, validated_data)
 
 
 class ReservationSerializer(serializers.ModelSerializer):
+    """Serializer for Reservation with nested passenger and flights."""
     passenger = PassengerSerializer(read_only=True)
     flights = FlightSegmentSerializer(source='flight_segments', many=True, read_only=True)
+    
+    # Write field for linking to passenger
+    passenger_id = serializers.UUIDField(write_only=True, required=False)
 
     class Meta:
         model = Reservation
-        fields = ['id', 'confirmation_code', 'passenger', 'flights', 'status', 'created_at']
+        fields = [
+            'id', 'confirmation_code', 'passenger', 'passenger_id',
+            'flights', 'status', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def create(self, validated_data):
+        passenger_id = validated_data.pop('passenger_id', None)
+        if passenger_id:
+            validated_data['passenger_id'] = passenger_id
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        passenger_id = validated_data.pop('passenger_id', None)
+        if passenger_id:
+            instance.passenger_id = passenger_id
+        return super().update(instance, validated_data)
 
 
 class MessageSerializer(serializers.ModelSerializer):
+    """Serializer for Message with session linkage."""
+    session_id = serializers.UUIDField(write_only=True, required=False)
+    
     class Meta:
         model = Message
-        fields = ['id', 'role', 'content', 'audio_url', 'intent', 'entities', 'timestamp']
+        fields = [
+            'id', 'session', 'session_id', 'role', 'content',
+            'audio_url', 'intent', 'entities', 'timestamp'
+        ]
+        read_only_fields = ['id', 'timestamp']
+        extra_kwargs = {
+            'session': {'read_only': True},
+        }
+    
+    def create(self, validated_data):
+        session_id = validated_data.pop('session_id', None)
+        if session_id:
+            validated_data['session_id'] = session_id
+        return super().create(validated_data)
 
 
 class SessionSerializer(serializers.ModelSerializer):
+    """Serializer for Session with nested messages and reservation."""
     messages = MessageSerializer(many=True, read_only=True)
     reservation = ReservationSerializer(read_only=True)
+    
+    # Write field for linking to reservation
+    reservation_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Session
-        fields = ['id', 'state', 'reservation', 'messages', 'helper_link', 'created_at', 'expires_at']
+        fields = [
+            'id', 'state', 'reservation', 'reservation_id', 'messages',
+            'helper_link', 'context', 'created_at', 'expires_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+    
+    def create(self, validated_data):
+        reservation_id = validated_data.pop('reservation_id', None)
+        if reservation_id:
+            validated_data['reservation_id'] = reservation_id
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        reservation_id = validated_data.pop('reservation_id', None)
+        if reservation_id is not None:
+            instance.reservation_id = reservation_id
+        return super().update(instance, validated_data)
 
 
 # Request/Response serializers
