@@ -189,14 +189,14 @@ class GeminiService:
         """Extract confirmation code from text, handling spelled-out letters."""
         import re
 
-        # Direct 6-character code
-        match = re.search(r'\b([A-Z0-9]{6})\b', text.upper())
+        # Direct 6-7 character code (AA uses both formats)
+        match = re.search(r'\b([A-Z0-9]{6,7})\b', text.upper())
         if match:
             return match.group(1)
 
         # Handle spelled out letters like "D E M O 1 2 3" or "D-E-M-O-1-2-3"
         spelled = re.sub(r'[\s\-]+', '', text.upper())
-        if len(spelled) == 6 and spelled.isalnum():
+        if 6 <= len(spelled) <= 7 and spelled.isalnum():
             return spelled
 
         # Handle phonetic alphabet ("Delta Echo Mike Oscar One Two Three")
@@ -220,7 +220,7 @@ class GeminiService:
             elif len(word) == 1 and word.isalnum():
                 code += word
 
-        if len(code) == 6:
+        if 6 <= len(code) <= 7:
             return code
 
         return None
