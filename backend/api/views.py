@@ -15,7 +15,14 @@ from .serializers import (
     MessageSerializer,
 )
 from .services import GeminiService, ElevenLabsService
-from .mock_data import get_demo_reservations, get_alternative_flights, CITY_NAMES
+from .mock_data import (
+    get_demo_reservations,
+    get_alternative_flights,
+    get_flights_for_date,
+    get_airport_info,
+    get_all_airports,
+    CITY_NAMES
+)
 
 # Initialize services
 gemini_service = GeminiService()
@@ -130,6 +137,7 @@ def start_conversation(request):
 @api_view(['POST'])
 def send_message(request):
     """Process a user message and return AI response."""
+
     session_id = request.data.get('session_id')
     transcript = request.data.get('transcript', '').strip()
 
@@ -457,3 +465,131 @@ def send_helper_suggestion(request, link_id):
     )
 
     return Response({'success': True})
+
+
+@api_view(['GET'])
+def health_check(request):
+    """Health check endpoint for deployment monitoring."""
+    from django.db import connection
+    try:
+        # Test database connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        
+        return Response({
+            'status': 'healthy',
+            'database': 'connected',
+            'service': 'AA Voice Concierge API'
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e)
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+# ==================== Flight-Engine API Endpoints ====================
+
+@api_view(['GET'])
+def get_airports(request):
+    """
+    Get airport information.
+
+    Query params:
+        code: Single airport IATA code (e.g., 'DFW')
+        If no code provided, returns all airports.
+    """
+    code = request.query_params.get('code')
+
+    if code:
+        airport = get_airport_info(code)
+        if airport:
+            return Response(airport)
+        return Response(
+            {'error': f'Airport not found: {code}'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Return all airports
+    airports = get_all_airports()
+    return Response(airports)
+
+
+@api_view(['GET'])
+def get_flights(request):
+    """
+    Get flights using AA Flight-Engine API.
+
+    Query params:
+        date: Required. Date in YYYY-MM-DD format
+        origin: Optional. Filter by origin airport code
+        destination: Optional. Filter by destination airport code
+        flightNumber: Optional. Filter by flight number
+    """
+    date = request.query_params.get('date')
+
+    if not date:
+        return Response(
+            {'error': 'date parameter is required (YYYY-MM-DD format)'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    origin = request.query_params.get('origin')
+    destination = request.query_params.get('destination')
+    flight_number = request.query_params.get('flightNumber')
+
+    # If origin and destination provided, use alternative flights function
+    if origin and destination:
+        flights = get_alternative_flights(origin, destination, date)
+    else:
+        flights = get_flights_for_date(date)
+
+        # Apply filters
+        if origin:
+            flights = [f for f in flights if f.get('origin', '').upper() == origin.upper()]
+        if destination:
+            flights = [f for f in flights if f.get('destination', '').upper() == destination.upper()]
+        if flight_number:
+            # Strip 'AA' prefix if present
+            fn = flight_number.upper()
+            if fn.startswith('AA'):
+                fn = fn[2:]
+            flights = [f for f in flights if fn in f.get('flight_number', '')]
+
+    return Response({'flights': flights, 'count': len(flights)})
+
+
+@api_view(['GET'])
+def search_flights(request):
+    """
+    Search for flights between two airports (convenience endpoint).
+
+    Query params:
+        origin: Required. Origin airport code
+        destination: Required. Destination airport code
+        date: Optional. Date in YYYY-MM-DD format (defaults to tomorrow)
+    """
+    origin = request.query_params.get('origin')
+    destination = request.query_params.get('destination')
+    date = request.query_params.get('date')
+
+    if not origin or not destination:
+        return Response(
+            {'error': 'origin and destination parameters are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not date:
+        from datetime import datetime, timedelta
+        date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+
+    flights = get_alternative_flights(origin.upper(), destination.upper(), date)
+
+    return Response({
+        'origin': origin.upper(),
+        'destination': destination.upper(),
+        'date': date,
+        'flights': flights,
+        'count': len(flights)
+    })

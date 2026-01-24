@@ -131,3 +131,7 @@ ELEVENLABS_VOICE_ID_ES = os.getenv('ELEVENLABS_VOICE_ID_ES', 'ErXwobaYiN019PkySv
 
 # Session expiry (30 minutes)
 SESSION_EXPIRY_MINUTES = 30
+
+# AA Flight-Engine API (mock flight data)
+# Public API from: https://github.com/AmericanAirlines/Flight-Engine
+FLIGHT_ENGINE_URL = os.getenv('FLIGHT_ENGINE_URL', 'https://flight-engine-api.onrender.com')

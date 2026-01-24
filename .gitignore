@@ -17,8 +17,17 @@ dist/
 *.egg-info/
 
 # Environment files
+# Ignore all .env files except .env.example templates
 .env
+.env.*
+!.env.example
 .env.local
+.env.production
+.env.production.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
 .env.*.local
 
 # IDE
@@ -31,6 +40,7 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Django
 *.log

@@ -106,6 +106,7 @@ tamuhack2026/
 
 ## API Endpoints
 
+### Core Conversation
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/conversation/start` | POST | Start new session |
@@ -113,6 +114,17 @@ tamuhack2026/
 | `/api/reservation/lookup` | GET | Look up by code/name |
 | `/api/voice/synthesize` | POST | Text-to-speech |
 | `/api/helper/create-link` | POST | Create family helper link |
+
+### Flight-Engine Integration
+Uses [AA Flight-Engine API](https://github.com/AmericanAirlines/Flight-Engine) for realistic mock flight data.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/flights/?date=YYYY-MM-DD` | GET | Get all flights for date |
+| `/api/flights/search?origin=DFW&destination=ORD` | GET | Search flights between airports |
+| `/api/airports/` | GET | Get all airports |
+| `/api/airports/?code=DFW` | GET | Get airport by code |
+| `/api/health/` | GET | Health check |
 
 ## Environment Variables
 
