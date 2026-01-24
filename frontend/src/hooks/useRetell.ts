@@ -151,10 +151,11 @@ export function useRetell({
         // Agent stopped speaking
       });
 
-      webClient.on('update', (update: { transcript?: Array<{ role: string; content: string; isFinal: boolean }> }) => {
+      webClient.on('update', (update: unknown) => {
         // Handle transcript updates
-        if (update.transcript && onTranscript) {
-          const latest = update.transcript[update.transcript.length - 1];
+        const typedUpdate = update as { transcript?: Array<{ role: string; content: string; isFinal: boolean }> };
+        if (typedUpdate.transcript && onTranscript) {
+          const latest = typedUpdate.transcript[typedUpdate.transcript.length - 1];
           if (latest) {
             onTranscript(
               latest.role as 'agent' | 'user',
@@ -165,8 +166,8 @@ export function useRetell({
         }
       });
 
-      webClient.on('error', (err: Error) => {
-        const errorMsg = err.message || 'Call error occurred';
+      webClient.on('error', (err: unknown) => {
+        const errorMsg = err instanceof Error ? err.message : 'Call error occurred';
         setError(errorMsg);
         setIsConnecting(false);
         setIsConnected(false);
