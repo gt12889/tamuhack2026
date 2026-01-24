@@ -72,3 +72,45 @@ export interface SuggestedAction {
 }
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
+
+// Retell AI Types
+export interface RetellAgent {
+  agent_id: string;
+  agent_name: string;
+  voice_id: string;
+  language: string;
+  voice_speed: number;
+  voice_temperature: number;
+  created_at?: string;
+}
+
+export interface RetellWebCall {
+  call_id: string;
+  agent_id: string;
+  access_token: string;
+  call_type: 'web_call';
+  call_status: 'registered' | 'ongoing' | 'ended' | 'error';
+  metadata?: Record<string, unknown>;
+}
+
+export interface RetellPhoneCall {
+  call_id: string;
+  agent_id: string;
+  to_number: string;
+  from_number?: string;
+  call_type: 'phone_call';
+  call_status: 'registered' | 'ongoing' | 'ended' | 'error';
+  direction: 'outbound' | 'inbound';
+  start_time?: string;
+  end_time?: string;
+  transcript?: Array<{
+    role: 'agent' | 'user';
+    content: string;
+    timestamp: number;
+  }>;
+}
+
+export interface RetellStatus {
+  configured: boolean;
+  service: string;
+}

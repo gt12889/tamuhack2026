@@ -31,7 +31,7 @@ export function useSpeechRecognition({
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(false);
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function useSpeechRecognition({
       recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = language;
 
-      recognitionRef.current.onresult = (event) => {
+      recognitionRef.current.onresult = (event: any) => {
         let finalTranscript = '';
         let interimTranscript = '';
 
@@ -79,7 +79,7 @@ export function useSpeechRecognition({
         }
       };
 
-      recognitionRef.current.onerror = (event) => {
+      recognitionRef.current.onerror = (event: any) => {
         const errorMessage = getErrorMessage(event.error);
         setError(errorMessage);
         setIsListening(false);
@@ -159,7 +159,7 @@ function getErrorMessage(error: string): string {
 // Type declarations for Web Speech API
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
   }
 }
