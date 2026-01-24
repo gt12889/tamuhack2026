@@ -110,14 +110,20 @@ export function LiveDemo({
     }
   }, [sessionId]);
 
+  // Get full helper URL
+  const getHelperUrl = useCallback(() => {
+    if (!helperLink) return '';
+    return `${window.location.origin}/help/${helperLink}`;
+  }, [helperLink]);
+
   // Copy helper link to clipboard
   const handleCopyLink = useCallback(() => {
     if (helperLink) {
-      navigator.clipboard.writeText(helperLink);
+      navigator.clipboard.writeText(getHelperUrl());
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     }
-  }, [helperLink]);
+  }, [helperLink, getHelperUrl]);
 
   const {
     isConfigured,
@@ -250,12 +256,13 @@ export function LiveDemo({
                 ) : (
                   <div className="flex items-center gap-2">
                     <div className="bg-white/10 rounded-lg px-3 py-2 text-sm font-mono max-w-xs truncate">
-                      {helperLink}
+                      {getHelperUrl()}
                     </div>
                     <Button
                       onClick={handleCopyLink}
                       size="icon"
                       className="bg-white/20 hover:bg-white/30"
+                      title="Copy link"
                     >
                       {linkCopied ? (
                         <Check className="w-4 h-4" />
@@ -264,9 +271,10 @@ export function LiveDemo({
                       )}
                     </Button>
                     <Button
-                      onClick={() => window.open(helperLink, '_blank')}
+                      onClick={() => window.open(getHelperUrl(), '_blank')}
                       size="icon"
                       className="bg-white/20 hover:bg-white/30"
+                      title="Open in new tab"
                     >
                       <ExternalLink className="w-4 h-4" />
                     </Button>
