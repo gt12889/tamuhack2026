@@ -1,13 +1,36 @@
-"""Mock data for AA Voice Concierge demo."""
+"""Mock data for AA Voice Concierge demo.
 
+Uses AA Flight-Engine API when available, falls back to hardcoded data.
+Flight-Engine: https://github.com/AmericanAirlines/Flight-Engine
+"""
+
+import logging
 from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
 from django.utils import timezone
 
-def get_demo_reservations():
-    """Return mock reservation data for the demo."""
+logger = logging.getLogger(__name__)
+
+# Try to import Flight-Engine service
+try:
+    from .services.flight_engine_service import flight_engine
+    FLIGHT_ENGINE_AVAILABLE = True
+except ImportError:
+    FLIGHT_ENGINE_AVAILABLE = False
+    flight_engine = None
+
+
+def get_demo_reservations() -> List[Dict[str, Any]]:
+    """
+    Return mock reservation data for the demo.
+
+    These are pre-seeded reservations that users can look up
+    with confirmation codes like DEMO123.
+    """
     now = timezone.now()
 
-    return [
+    # Base reservations (always available)
+    reservations = [
         {
             'confirmation_code': 'DEMO123',
             'passenger': {
@@ -140,49 +163,181 @@ def get_demo_reservations():
         },
     ]
 
+    return reservations
 
-def get_alternative_flights(origin: str, destination: str, date: str):
-    """Return mock alternative flight options."""
+
+def get_alternative_flights(
+    origin: str,
+    destination: str,
+    date: str,
+    use_flight_engine: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Get alternative flight options for rebooking.
+
+    Tries Flight-Engine API first, falls back to generated mock data.
+
+    Args:
+        origin: Origin airport code (e.g., 'DFW')
+        destination: Destination airport code (e.g., 'ORD')
+        date: Target date in YYYY-MM-DD or ISO format
+        use_flight_engine: Whether to try Flight-Engine API
+
+    Returns:
+        List of flight option dicts
+    """
+    # Try Flight-Engine API first
+    if use_flight_engine and FLIGHT_ENGINE_AVAILABLE and flight_engine:
+        try:
+            # Parse date if it's ISO format
+            if 'T' in date:
+                date = date.split('T')[0]
+
+            flights = flight_engine.get_alternative_flights_formatted(
+                origin=origin,
+                destination=destination,
+                date=date
+            )
+
+            if flights:
+                logger.info(f"Got {len(flights)} flights from Flight-Engine API")
+                return flights
+
+        except Exception as e:
+            logger.warning(f"Flight-Engine API failed, using fallback: {e}")
+
+    # Fallback to generated mock data
+    return _generate_mock_flights(origin, destination, date)
+
+
+def _generate_mock_flights(
+    origin: str,
+    destination: str,
+    date: str
+) -> List[Dict[str, Any]]:
+    """Generate mock flight options when Flight-Engine is unavailable."""
     from dateutil.parser import parse
 
     try:
-        target_date = parse(date)
+        if 'T' in date:
+            target_date = parse(date)
+        else:
+            target_date = parse(date)
     except:
         target_date = timezone.now() + timedelta(days=1)
+
+    # Make target_date timezone aware if it isn't
+    if target_date.tzinfo is None:
+        target_date = timezone.make_aware(target_date)
+
+    origin_city = CITY_NAMES.get(origin, origin)
+    dest_city = CITY_NAMES.get(destination, destination)
 
     # Generate 3 alternative flights
     return [
         {
-            'id': f'alt-{origin}-{destination}-1',
-            'flight_number': f'AA{1000 + hash(f"{origin}{destination}1") % 9000}',
+            'id': f'mock-{origin}-{destination}-1',
+            'flight_number': f'AA{1000 + abs(hash(f"{origin}{destination}1")) % 9000}',
             'origin': origin,
             'destination': destination,
+            'origin_city': origin_city,
+            'destination_city': dest_city,
             'departure_time': target_date.replace(hour=8, minute=0).isoformat(),
             'arrival_time': (target_date.replace(hour=8, minute=0) + timedelta(hours=3)).isoformat(),
             'gate': 'TBD',
             'status': 'scheduled',
+            'duration': '3h 0m',
         },
         {
-            'id': f'alt-{origin}-{destination}-2',
-            'flight_number': f'AA{1000 + hash(f"{origin}{destination}2") % 9000}',
+            'id': f'mock-{origin}-{destination}-2',
+            'flight_number': f'AA{1000 + abs(hash(f"{origin}{destination}2")) % 9000}',
             'origin': origin,
             'destination': destination,
+            'origin_city': origin_city,
+            'destination_city': dest_city,
             'departure_time': target_date.replace(hour=14, minute=0).isoformat(),
             'arrival_time': (target_date.replace(hour=14, minute=0) + timedelta(hours=3)).isoformat(),
             'gate': 'TBD',
             'status': 'scheduled',
+            'duration': '3h 0m',
         },
         {
-            'id': f'alt-{origin}-{destination}-3',
-            'flight_number': f'AA{1000 + hash(f"{origin}{destination}3") % 9000}',
+            'id': f'mock-{origin}-{destination}-3',
+            'flight_number': f'AA{1000 + abs(hash(f"{origin}{destination}3")) % 9000}',
             'origin': origin,
             'destination': destination,
+            'origin_city': origin_city,
+            'destination_city': dest_city,
             'departure_time': target_date.replace(hour=19, minute=0).isoformat(),
             'arrival_time': (target_date.replace(hour=19, minute=0) + timedelta(hours=3)).isoformat(),
             'gate': 'TBD',
             'status': 'scheduled',
+            'duration': '3h 0m',
         },
     ]
+
+
+def get_flights_for_date(date: str) -> List[Dict[str, Any]]:
+    """
+    Get all flights for a specific date using Flight-Engine.
+
+    Args:
+        date: Date in YYYY-MM-DD format
+
+    Returns:
+        List of flight dicts
+    """
+    if FLIGHT_ENGINE_AVAILABLE and flight_engine:
+        try:
+            flights = flight_engine.get_flights(date=date)
+            return [flight_engine.format_flight_for_frontend(f) for f in flights]
+        except Exception as e:
+            logger.warning(f"Flight-Engine API failed: {e}")
+
+    return []
+
+
+def get_airport_info(code: str) -> Optional[Dict[str, Any]]:
+    """
+    Get airport information.
+
+    Args:
+        code: 3-letter IATA airport code
+
+    Returns:
+        Airport dict or None
+    """
+    if FLIGHT_ENGINE_AVAILABLE and flight_engine:
+        try:
+            return flight_engine.get_airport(code)
+        except Exception as e:
+            logger.warning(f"Flight-Engine API failed: {e}")
+
+    # Fallback to basic info
+    if code.upper() in CITY_NAMES:
+        return {
+            'code': code.upper(),
+            'city': CITY_NAMES[code.upper()],
+        }
+
+    return None
+
+
+def get_all_airports() -> List[Dict[str, Any]]:
+    """
+    Get all supported airports.
+
+    Returns:
+        List of airport dicts
+    """
+    if FLIGHT_ENGINE_AVAILABLE and flight_engine:
+        try:
+            return flight_engine.get_all_airports()
+        except Exception as e:
+            logger.warning(f"Flight-Engine API failed: {e}")
+
+    # Fallback to basic list
+    return [{'code': code, 'city': city} for code, city in CITY_NAMES.items()]
 
 
 # City name mappings for natural language understanding
@@ -206,6 +361,23 @@ AIRPORT_CODES = {
     'honolulu': 'HNL',
     'hawaii': 'HNL',
     'hnl': 'HNL',
+    'boston': 'BOS',
+    'bos': 'BOS',
+    'san francisco': 'SFO',
+    'sfo': 'SFO',
+    'seattle': 'SEA',
+    'sea': 'SEA',
+    'denver': 'DEN',
+    'den': 'DEN',
+    'atlanta': 'ATL',
+    'atl': 'ATL',
+    'charlotte': 'CLT',
+    'clt': 'CLT',
+    'philadelphia': 'PHL',
+    'phl': 'PHL',
+    'washington': 'DCA',
+    'dca': 'DCA',
+    'reagan': 'DCA',
 }
 
 CITY_NAMES = {
@@ -216,4 +388,12 @@ CITY_NAMES = {
     'MIA': 'Miami',
     'PHX': 'Phoenix',
     'HNL': 'Honolulu',
+    'BOS': 'Boston',
+    'SFO': 'San Francisco',
+    'SEA': 'Seattle',
+    'DEN': 'Denver',
+    'ATL': 'Atlanta',
+    'CLT': 'Charlotte',
+    'PHL': 'Philadelphia',
+    'DCA': 'Washington D.C.',
 }
