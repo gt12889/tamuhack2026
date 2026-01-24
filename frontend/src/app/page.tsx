@@ -5,6 +5,7 @@ import { VoiceButton } from '@/components/VoiceButton';
 import { MessageDisplay } from '@/components/MessageDisplay';
 import { FlightCard } from '@/components/FlightCard';
 import { ConfirmationScreen } from '@/components/ConfirmationScreen';
+import { TextInput } from '@/components/TextInput';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { startConversation, sendMessage } from '@/lib/api';
@@ -234,6 +235,15 @@ export default function Home() {
               isListening={isListening}
             />
             <VoiceButton state={voiceState} onClick={handleVoiceButtonClick} />
+
+            {/* Text input fallback */}
+            {!isSupported || voiceState === 'idle' ? (
+              <TextInput
+                onSubmit={handleVoiceResult}
+                disabled={voiceState !== 'idle'}
+                placeholder="Or type your message here..."
+              />
+            ) : null}
           </>
         )}
 
