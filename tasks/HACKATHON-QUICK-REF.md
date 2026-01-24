@@ -1,15 +1,29 @@
 # 🚀 Hackathon Quick Reference
 
-## Demo Flow (2 minutes)
+## Demo Flows
 
+### Flow 1: Rebooking (2 minutes)
 1. Open app → Click "Talk to AA"
 2. Say: "I need to change my flight"
 3. Say: "D-E-M-O-1-2-3" (spell confirmation code)
-4. Say: "I need to go on the 26th instead"
+4. Say: "I need to go on Saturday instead"
 5. Click "Yes" or say "Yes"
 6. ✅ Confirmation shown
 
 **Demo Code:** `DEMO123`
+
+### Flow 2: New Booking (3 minutes)
+1. Open app → Click "Talk to AA"
+2. Say: "I want to book a flight"
+3. Say: "Dallas" (origin)
+4. Say: "Chicago" (destination)
+5. Say: "Next Tuesday" (date)
+6. Say: "No" (round trip)
+7. Say: "Just me" (travelers)
+8. Select flight option
+9. Say: "Margaret" (first name)
+10. Say: "Johnson" (last name)
+11. ✅ Confirmation shown
 
 ---
 
@@ -62,18 +76,21 @@ docker-compose up
 
 ---
 
-## Gemini Prompt (Copy-Paste)
+## Gemini Intents
 
-```
-You are a friendly American Airlines assistant helping elderly passengers change flights.
+- `new_booking` - Book a new flight
+- `rebooking` - Change existing flight
+- `change_flight` - Alias for rebooking
+- `lookup_reservation` - Find existing booking
+- `check_status` - Check flight status
 
-Be patient, warm, and clear. Ask ONE question at a time. Always confirm before making changes.
+## Booking Flow Steps
 
-Current reservation: {reservation}
-User said: "{transcript}"
+**New Booking:**
+1. Ask origin → 2. Ask destination → 3. Ask date → 4. Ask round trip → 5. Ask travelers → 6. Show options → 7. Collect name → 8. Confirm
 
-Respond naturally and helpfully.
-```
+**Rebooking:**
+1. Lookup reservation → 2. Identify change → 3. Show alternatives → 4. Confirm
 
 ---
 

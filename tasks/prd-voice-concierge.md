@@ -18,7 +18,9 @@
 
 ---
 
-## 🎬 Demo Script (2 minutes)
+## 🎬 Demo Scripts
+
+### Script 1: Rebooking Existing Flight (2 minutes)
 
 **"Grandma Changes Her Flight"**
 
@@ -27,15 +29,41 @@
 3. **User:** "I need to change my flight"
 4. **Voice:** "What's your confirmation code? You can spell it."
 5. **User:** "D-E-M-O-1-2-3"
-6. **Voice:** "Got it! You're flying Dallas to Chicago on January 25th. What would you like to change?"
-7. **User:** "I need to go on the 26th instead"
-8. **Voice:** "I found a flight tomorrow at 2pm. Would you like this one?"
+6. **Voice:** "Got it! I see your flight to Dallas on Friday. What would you like to change?"
+7. **User:** "I need to go on Saturday instead"
+8. **Voice:** "I found a flight on Saturday at 2pm. Same price. Should I switch you?"
 9. **[Big visual shows option with giant "Yes" button]**
 10. **User clicks or says:** "Yes"
-11. **Voice:** "Perfect! Your new flight is January 26th at 2pm. You're all set!"
+11. **Voice:** "Perfect! Your new flight is Saturday at 2pm. You're all set!"
 12. **[Big green checkmark, confirmation displayed]**
 
 **Demo Code:** `DEMO123`
+
+### Script 2: New Booking (3 minutes)
+
+**"Grandma Books a New Flight"**
+
+1. Open landing page → Click "Talk to AA"
+2. **Voice:** "Hi! I'm your American Airlines assistant. What do you need today?"
+3. **User:** "I want to book a flight"
+4. **Voice:** "I'd be happy to help you book a flight. Where are you flying from?"
+5. **User:** "Dallas"
+6. **Voice:** "Great! Where are you going?"
+7. **User:** "Chicago"
+8. **Voice:** "When do you want to leave?"
+9. **User:** "Next Tuesday"
+10. **Voice:** "Is this round trip?"
+11. **User:** "No, just one way"
+12. **Voice:** "How many travelers?"
+13. **User:** "Just me"
+14. **Voice:** "I found 3 flights. The earliest leaves at 8am for $249. Want to hear more options?"
+15. **User:** "The 8am one sounds good"
+16. **Voice:** "Perfect! What's your first name?"
+17. **User:** "Margaret"
+18. **Voice:** "And your last name?"
+19. **User:** "Johnson"
+20. **Voice:** "Great! I'm creating your booking. I'll send the confirmation to your family helper link. You're all set!"
+21. **[Big green checkmark, confirmation displayed]**
 
 ---
 
@@ -63,7 +91,8 @@ Gemini handles 4 critical functions:
 
 **A. Intent Detection**
 - Figures out what passenger wants:
-  - Change flight
+  - **New booking** (book a flight)
+  - **Rebooking** (change existing flight)
   - Change seat
   - Add bags
   - Request wheelchair
@@ -94,11 +123,29 @@ Gemini handles 4 critical functions:
 - Mock reservation data
 - Displays in large, simple format
 
-### 6. Flight Change Flow
+### 6. Flight Change Flow (Rebooking)
 - Understands: "I need to fly tomorrow instead"
 - Shows 1-2 options with big buttons
 - Confirms before finalizing
 - Visual confirmation screen
+
+### 7. New Booking Flow
+- Guided conversation to book new flights:
+  1. "Where are you flying from?"
+  2. "Where are you going?"
+  3. "When do you want to leave?" (flexible: "next Tuesday", "January 15th")
+  4. "Is this round trip?" → if yes: "When do you want to return?"
+  5. "How many travelers?" → "Any children under 12?"
+  6. Shows 1-3 flight options: "I found 3 flights. The earliest leaves at 8am for $249. Want to hear more options?"
+  7. Confirm & collect name (first, last)
+  8. Skip email - send confirmation to family helper link instead
+
+### 8. Rebooking Flow
+- For existing reservations:
+  1. "I see your flight to Dallas on Friday. What would you like to change?"
+  2. Listen for: date, time, or destination
+  3. "I found a flight on Saturday at 2pm. Same price. Should I switch you?"
+  4. Confirm change
 
 ---
 
@@ -140,7 +187,8 @@ Gemini handles 4 critical functions:
 ### Phase 2: AI + Booking
 - [ ] Gemini API integration
 - [ ] Reservation lookup (mock data)
-- [ ] Flight change conversation flow
+- [ ] Rebooking conversation flow (change existing flight)
+- [ ] New booking conversation flow (book new flight)
 - [ ] Confirmation screen
 
 ### Phase 3: Polish
@@ -156,7 +204,7 @@ Gemini handles 4 critical functions:
 ### 4 Main Functions
 
 **1. Intent Detection**
-- Detects: change_flight, change_seat, add_bags, request_wheelchair, check_status, lookup_reservation
+- Detects: **new_booking**, **rebooking** (change_flight), change_seat, add_bags, request_wheelchair, check_status, lookup_reservation
 - Returns structured intent classification
 
 **2. Guided Dialog Flow (Elderly-First)**
@@ -301,7 +349,7 @@ POST /api/conversation/start
   → { session_id, greeting, audio_url }
 
 POST /api/conversation/message
-  → { reply, audio_url, intent, entities }
+  → { reply, audio_url, intent, entities, action }
 
 GET /api/reservation/lookup?code=DEMO123
   → { reservation }
@@ -309,9 +357,83 @@ GET /api/reservation/lookup?code=DEMO123
 POST /api/reservation/change
   → { success, new_reservation }
 
+POST /api/reservation/create
+  → { success, reservation, confirmation_code }
+
 POST /api/voice/synthesize
   → { audio_url }
 ```
+
+## 🔄 Conversation Flows
+
+### New Booking Flow
+
+**Step-by-step conversation:**
+
+1. **Origin:** "Where are you flying from?"
+   - User: "Dallas" or "DFW"
+   - Extract: `origin: "DFW"`
+
+2. **Destination:** "Where are you going?"
+   - User: "Chicago" or "ORD"
+   - Extract: `destination: "ORD"`
+
+3. **Departure Date:** "When do you want to leave?"
+   - User: "next Tuesday" or "January 15th" or "tomorrow"
+   - Extract: `date: "2026-01-28"` (normalized)
+
+4. **Trip Type:** "Is this round trip?"
+   - User: "Yes" or "No"
+   - Extract: `round_trip: true/false`
+   - If yes → Ask: "When do you want to return?"
+   - Extract: `return_date: "2026-02-05"`
+
+5. **Travelers:** "How many travelers?"
+   - User: "Just me" or "Two of us"
+   - Extract: `travelers: 1` or `travelers: 2`
+   - If >1: "Any children under 12?"
+   - Extract: `children: 0`
+
+6. **Show Options:** 
+   - Search flights with criteria
+   - "I found 3 flights. The earliest leaves at 8am for $249. Want to hear more options?"
+   - Action: `show_options`
+   - Display 1-3 options with big buttons
+
+7. **Collect Name:**
+   - "What's your first name?" → Extract: `first_name: "Margaret"`
+   - "And your last name?" → Extract: `last_name: "Johnson"`
+
+8. **Confirm:**
+   - "Perfect! I'm creating your booking. I'll send the confirmation to your family helper link."
+   - Action: `confirm_booking`
+   - Create reservation, generate helper link
+
+### Rebooking Flow
+
+**Step-by-step conversation:**
+
+1. **Lookup:** User provides confirmation code
+   - Extract: `confirmation_code: "DEMO123"`
+   - Action: `lookup`
+   - Load existing reservation
+
+2. **Identify Change:**
+   - "I see your flight to Dallas on Friday. What would you like to change?"
+   - Listen for: date, time, destination
+   - Extract: `date: "2026-01-26"` or `time: "afternoon"` or `destination: "Miami"`
+
+3. **Find Alternatives:**
+   - Search for alternative flights
+   - "I found a flight on Saturday at 2pm. Same price. Should I switch you?"
+   - Action: `show_options`
+   - Display 1-2 options
+
+4. **Confirm:**
+   - User: "Yes" or clicks button
+   - Action: `confirm_change`
+   - Update reservation
+   - "Perfect! Your new flight is Saturday at 2pm. You're all set!"
 
 ---
 
