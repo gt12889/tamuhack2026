@@ -14,7 +14,7 @@ from .serializers import (
     SessionSerializer,
     MessageSerializer,
 )
-from .services import GeminiService, ElevenLabsService
+from .services import GeminiService, ElevenLabsService, retell_service
 from .mock_data import (
     get_demo_reservations,
     get_alternative_flights,
@@ -593,3 +593,154 @@ def search_flights(request):
         'flights': flights,
         'count': len(flights)
     })
+
+
+# ==================== Retell AI Voice Agent Endpoints ====================
+
+@api_view(['GET'])
+def retell_status(request):
+    """Check Retell AI configuration status."""
+    return Response({
+        'configured': retell_service.is_configured(),
+        'service': 'Retell AI Voice Agent',
+    })
+
+
+@api_view(['POST'])
+def retell_create_agent(request):
+    """Create a new Retell voice agent."""
+    agent_name = request.data.get('agent_name', 'AA Voice Concierge')
+    voice_id = request.data.get('voice_id', 'eleven_labs_rachel')
+    llm_websocket_url = request.data.get('llm_websocket_url')
+
+    result = retell_service.create_agent(
+        agent_name=agent_name,
+        voice_id=voice_id,
+        llm_websocket_url=llm_websocket_url,
+    )
+
+    if result:
+        return Response(result, status=status.HTTP_201_CREATED)
+    return Response(
+        {'error': 'Failed to create agent. Check API key configuration.'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
+
+
+@api_view(['GET'])
+def retell_list_agents(request):
+    """List all configured Retell agents."""
+    agents = retell_service.list_agents()
+
+    if agents is not None:
+        return Response({'agents': agents})
+    return Response(
+        {'error': 'Failed to list agents. Check API key configuration.'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
+
+
+@api_view(['GET'])
+def retell_get_agent(request, agent_id):
+    """Get details for a specific Retell agent."""
+    agent = retell_service.get_agent(agent_id)
+
+    if agent:
+        return Response(agent)
+    return Response(
+        {'error': 'Agent not found'},
+        status=status.HTTP_404_NOT_FOUND
+    )
+
+
+@api_view(['POST'])
+def retell_create_web_call(request):
+    """
+    Create a web call for browser-based real-time voice interaction.
+    Returns access_token for WebSocket connection.
+    """
+    agent_id = request.data.get('agent_id')
+    session_id = request.data.get('session_id')
+
+    if not agent_id:
+        return Response(
+            {'error': 'agent_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Include session metadata for context
+    metadata = {}
+    if session_id:
+        try:
+            session = Session.objects.get(id=session_id)
+            metadata['session_id'] = str(session.id)
+            metadata['state'] = session.state
+            if session.reservation:
+                metadata['confirmation_code'] = session.reservation.confirmation_code
+        except Session.DoesNotExist:
+            pass
+
+    result = retell_service.create_web_call(
+        agent_id=agent_id,
+        metadata=metadata if metadata else None,
+    )
+
+    if result:
+        return Response(result, status=status.HTTP_201_CREATED)
+    return Response(
+        {'error': 'Failed to create web call'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
+
+
+@api_view(['POST'])
+def retell_create_phone_call(request):
+    """Initiate an outbound phone call using Retell agent."""
+    agent_id = request.data.get('agent_id')
+    to_number = request.data.get('to_number')
+    from_number = request.data.get('from_number')
+
+    if not agent_id or not to_number:
+        return Response(
+            {'error': 'agent_id and to_number are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = retell_service.create_phone_call(
+        agent_id=agent_id,
+        to_number=to_number,
+        from_number=from_number,
+    )
+
+    if result:
+        return Response(result, status=status.HTTP_201_CREATED)
+    return Response(
+        {'error': 'Failed to create phone call'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
+
+
+@api_view(['GET'])
+def retell_get_call(request, call_id):
+    """Get details and transcript for a Retell call."""
+    call = retell_service.get_call(call_id)
+
+    if call:
+        return Response(call)
+    return Response(
+        {'error': 'Call not found'},
+        status=status.HTTP_404_NOT_FOUND
+    )
+
+
+@api_view(['POST'])
+def retell_end_call(request, call_id):
+    """End an active Retell call."""
+    success = retell_service.end_call(call_id)
+
+    if success:
+        return Response({'success': True})
+    return Response(
+        {'error': 'Failed to end call'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )

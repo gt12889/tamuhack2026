@@ -124,6 +124,7 @@ REST_FRAMEWORK = {
 # API Keys (from environment)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', '')
+RETELL_API_KEY = os.getenv('RETELL_API_KEY', '')
 
 # ElevenLabs configuration
 ELEVENLABS_VOICE_ID = os.getenv('ELEVENLABS_VOICE_ID', 'EXAVITQu4vr4xnSDxMaL')  # Rachel voice
