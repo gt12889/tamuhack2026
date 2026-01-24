@@ -131,7 +131,7 @@ class Message(models.Model):
         ]
     )
     content = models.TextField()
-    audio_url = models.URLField(blank=True, null=True)
+    audio_url = models.TextField(blank=True, null=True)  # Can be URL or base64 data URL
     intent = models.CharField(max_length=50, blank=True, null=True)
     entities = models.JSONField(default=dict)
     timestamp = models.DateTimeField(auto_now_add=True)
