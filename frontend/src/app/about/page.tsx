@@ -131,7 +131,7 @@ export default function AboutPage() {
       {/* Header */}
       <header className="bg-aa-blue text-white py-4 px-6 sticky top-0 z-50 shadow-lg">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+          <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity cursor-pointer">
             <div className="bg-white rounded-full p-2">
               <Plane className="w-8 h-8 text-aa-blue" />
             </div>
@@ -140,14 +140,15 @@ export default function AboutPage() {
               <p className="text-sm opacity-90">TAMUHack 2026</p>
             </div>
           </Link>
-          <Link
-            href="/"
-            className="flex items-center gap-2 bg-white text-aa-blue px-5 py-2.5 rounded-xl font-bold hover:bg-gray-100 transition-colors shadow-lg"
-          >
-            <Mic className="w-5 h-5" />
-            Try Demo
-            <ChevronRight className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white text-aa-blue px-4 py-2 rounded-lg font-bold hover:bg-gray-100 transition-colors"
+            >
+              <Mic className="w-5 h-5" />
+              <span className="hidden md:inline">Try Demo</span>
+            </Link>
+          </div>
         </div>
       </header>
 
