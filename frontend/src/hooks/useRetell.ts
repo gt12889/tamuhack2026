@@ -4,6 +4,30 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { createRetellWebCall, endRetellCall, getRetellStatus } from '@/lib/api';
 import type { RetellWebCall } from '@/types';
 
+// Dynamic import for Retell Web SDK
+let RetellWebClientModule: any = null;
+let sdkLoadPromise: Promise<any> | null = null;
+
+async function loadRetellSDK() {
+  if (RetellWebClientModule) {
+    return RetellWebClientModule;
+  }
+  
+  if (sdkLoadPromise) {
+    return sdkLoadPromise;
+  }
+  
+  sdkLoadPromise = import('retell-client-js-sdk').then((module) => {
+    RetellWebClientModule = module;
+    return module;
+  }).catch((error) => {
+    sdkLoadPromise = null;
+    throw error;
+  });
+  
+  return sdkLoadPromise;
+}
+
 interface UseRetellOptions {
   agentId?: string;
   sessionId?: string;
@@ -21,12 +45,8 @@ interface UseRetellReturn {
   startCall: () => Promise<void>;
   endCall: () => Promise<void>;
   error: string | null;
-}
-
-declare global {
-  interface Window {
-    RetellWebClient?: new () => RetellWebClientInstance;
-  }
+  hasAgentId: boolean;
+  isSdkLoaded: boolean;
 }
 
 interface RetellWebClientInstance {
@@ -52,16 +72,22 @@ export function useRetell({
   const [isConnected, setIsConnected] = useState(false);
   const [callId, setCallId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [defaultAgentId, setDefaultAgentId] = useState<string | null>(null);
+  const [isSdkLoaded, setIsSdkLoaded] = useState(false);
+  const [sdkLoadError, setSdkLoadError] = useState<string | null>(null);
 
   const webClientRef = useRef<RetellWebClientInstance | null>(null);
   const callDataRef = useRef<RetellWebCall | null>(null);
 
-  // Check if Retell is configured on mount
+  // Check if Retell is configured on mount and get default agent ID
   useEffect(() => {
     async function checkStatus() {
       try {
         const status = await getRetellStatus();
         setIsConfigured(status.configured);
+        if (status.default_agent_id) {
+          setDefaultAgentId(status.default_agent_id);
+        }
       } catch (err) {
         setIsConfigured(false);
       }
@@ -69,43 +95,62 @@ export function useRetell({
     checkStatus();
   }, []);
 
-  // Load Retell Web SDK
+  // Preload Retell Web SDK
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    // Check if already loaded
-    if (window.RetellWebClient) return;
-
-    // Load the SDK dynamically
-    const script = document.createElement('script');
-    script.src = 'https://sdk.retellai.com/retell-web-sdk.js';
-    script.async = true;
-    script.onload = () => {
-      console.log('Retell Web SDK loaded');
-    };
-    script.onerror = () => {
-      console.error('Failed to load Retell Web SDK');
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      // Cleanup on unmount
-      if (webClientRef.current && isConnected) {
-        webClientRef.current.stopCall();
-      }
-    };
-  }, [isConnected]);
+    
+    // Try to load the SDK in the background
+    loadRetellSDK()
+      .then(() => {
+        setIsSdkLoaded(true);
+        setSdkLoadError(null);
+        console.log('Retell Web SDK loaded successfully');
+      })
+      .catch((err) => {
+        const errorMsg = `Failed to load Retell Web SDK: ${err.message || 'Unknown error'}`;
+        console.error('Failed to load Retell Web SDK:', err);
+        setSdkLoadError(errorMsg);
+        setError(errorMsg);
+        if (onError) onError(errorMsg);
+      });
+  }, [onError]);
 
   const startCall = useCallback(async () => {
-    if (!agentId) {
-      const errorMsg = 'Agent ID is required to start a call';
+    // Use provided agentId or fall back to default from status
+    const effectiveAgentId = agentId || defaultAgentId;
+    
+    if (!effectiveAgentId) {
+      const errorMsg = 'Agent ID is required to start a call. Please configure NEXT_PUBLIC_RETELL_AGENT_ID or ensure at least one agent exists in Retell.';
       setError(errorMsg);
       if (onError) onError(errorMsg);
       return;
     }
 
-    if (!window.RetellWebClient) {
-      const errorMsg = 'Retell SDK not loaded';
+    // Ensure SDK is loaded
+    if (!isSdkLoaded) {
+      // Check if there was a load error
+      if (sdkLoadError) {
+        setError(sdkLoadError);
+        if (onError) onError(sdkLoadError);
+        return;
+      }
+      
+      // Try to load the SDK now
+      try {
+        await loadRetellSDK();
+        setIsSdkLoaded(true);
+        setSdkLoadError(null);
+      } catch (err) {
+        const errorMsg = `Failed to load Retell Web SDK: ${err instanceof Error ? err.message : 'Unknown error'}`;
+        setError(errorMsg);
+        if (onError) onError(errorMsg);
+        return;
+      }
+    }
+
+    // Get the RetellWebClient class from the loaded module
+    if (!RetellWebClientModule || !RetellWebClientModule.RetellWebClient) {
+      const errorMsg = 'Retell SDK not properly loaded. Please refresh the page and try again.';
       setError(errorMsg);
       if (onError) onError(errorMsg);
       return;
@@ -116,8 +161,9 @@ export function useRetell({
 
     try {
       // Create web call on backend
+      const effectiveAgentId = agentId || defaultAgentId;
       const webCall = await createRetellWebCall({
-        agent_id: agentId,
+        agent_id: effectiveAgentId!,
         session_id: sessionId,
       });
 
@@ -125,7 +171,8 @@ export function useRetell({
       setCallId(webCall.call_id);
 
       // Initialize Retell Web Client
-      const webClient = new window.RetellWebClient();
+      const { RetellWebClient } = RetellWebClientModule;
+      const webClient = new RetellWebClient();
       webClientRef.current = webClient;
 
       // Set up event handlers
@@ -185,7 +232,7 @@ export function useRetell({
       setIsConnecting(false);
       if (onError) onError(errorMsg);
     }
-  }, [agentId, sessionId, onCallStart, onCallEnd, onTranscript, onError]);
+  }, [agentId, defaultAgentId, sessionId, isSdkLoaded, sdkLoadError, onCallStart, onCallEnd, onTranscript, onError]);
 
   const endCall = useCallback(async () => {
     // Stop local client
@@ -210,6 +257,9 @@ export function useRetell({
     if (onCallEnd) onCallEnd();
   }, [callId, onCallEnd]);
 
+  // Check if we have an agent ID available (from prop or default)
+  const hasAgentId = !!(agentId || defaultAgentId);
+
   return {
     isConfigured,
     isConnecting,
@@ -218,5 +268,7 @@ export function useRetell({
     startCall,
     endCall,
     error,
+    hasAgentId,
+    isSdkLoaded,
   };
 }

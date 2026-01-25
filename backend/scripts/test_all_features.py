@@ -27,7 +27,7 @@ results = []
 
 def log(msg, level='info'):
     """Print log message."""
-    prefix = {'info': '  ', 'pass': '✅', 'fail': '❌', 'skip': '⏭️'}
+    prefix = {'info': '  ', 'pass': '[PASS]', 'fail': '[FAIL]', 'skip': '[SKIP]'}
     print(f"{prefix.get(level, '  ')} {msg}")
 
 
@@ -60,7 +60,7 @@ def test(name):
 @test("Backend Health Check")
 def test_health():
     """Test backend health endpoint."""
-    r = requests.get(f"{BASE_URL}/api/health")
+    r = requests.get(f"{BASE_URL}/api/health/")
     data = r.json()
     log(f"Status: {data.get('status')}")
     log(f"Database: {data.get('database')}")
@@ -141,7 +141,7 @@ def test_spanish_conversation():
     # Provide code in Spanish
     r = requests.post(f"{BASE_URL}/api/conversation/message", json={
         'session_id': session_id,
-        'transcript': 'Mi código de confirmación es DEMO123'
+        'transcript': 'Mi codigo de confirmacion es DEMO123'
     })
     data = r.json()
     log(f"State: {data.get('session_state')}")
@@ -149,7 +149,7 @@ def test_spanish_conversation():
     # Confirm in Spanish
     r = requests.post(f"{BASE_URL}/api/conversation/message", json={
         'session_id': session_id,
-        'transcript': 'Sí, por favor reserve ese vuelo'
+        'transcript': 'Si, por favor reserve ese vuelo'
     })
     data = r.json()
     log(f"Final state: {data.get('session_state')}")
@@ -242,7 +242,7 @@ def test_tts():
 def test_flight_search():
     """Test flight search endpoints."""
     # Get airports
-    r = requests.get(f"{BASE_URL}/api/airports")
+    r = requests.get(f"{BASE_URL}/api/airports/")
     airports = r.json()
     log(f"Airports count: {len(airports)}")
 
@@ -266,7 +266,7 @@ def test_helper_link():
     session_id = r.json().get('session_id')
 
     # Create helper link
-    r = requests.post(f"{BASE_URL}/api/helper/create", json={
+    r = requests.post(f"{BASE_URL}/api/helper/create-link", json={
         'session_id': session_id
     })
     data = r.json()
@@ -286,7 +286,7 @@ def test_helper_link():
 @test("Reservation Lookup")
 def test_reservation_lookup():
     """Test reservation lookup by code."""
-    r = requests.get(f"{BASE_URL}/api/lookup", params={
+    r = requests.get(f"{BASE_URL}/api/reservation/lookup", params={
         'confirmation_code': 'DEMO123'
     })
     data = r.json()
@@ -352,7 +352,7 @@ def run_all_tests():
     failed = sum(1 for _, p, _ in results if not p)
 
     for name, passed_test, error in results:
-        status = "✅ PASS" if passed_test else f"❌ FAIL: {error}"
+        status = "[PASS]" if passed_test else f"[FAIL]: {error}"
         print(f"  {name}: {status}")
 
     print(f"\nTotal: {passed} passed, {failed} failed out of {len(results)}")
@@ -361,5 +361,7 @@ def run_all_tests():
 
 
 if __name__ == '__main__':
+    import warnings
+    warnings.filterwarnings('ignore')
     success = run_all_tests()
     sys.exit(0 if success else 1)

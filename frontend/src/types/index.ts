@@ -113,4 +113,5 @@ export interface RetellPhoneCall {
 export interface RetellStatus {
   configured: boolean;
   service: string;
+  default_agent_id?: string;
 }
