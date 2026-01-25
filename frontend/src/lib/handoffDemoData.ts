@@ -241,7 +241,7 @@ const DEMO_SCENARIOS: Array<{
   },
   {
     id: 'demo-handoff-upgrade-003',
-    reason: 'complex_request',
+    reason: 'complex_issue',
     priority: 'normal',
     sentiment: 'neutral',
     summary: 'Executive Platinum member requesting upgrade to first class for anniversary trip.',
@@ -296,7 +296,7 @@ export function getDemoHandoffsList(): HandoffDossier[] {
           passenger_phone: '(555) 000-0000',
           issue_type: scenario.reason,
         },
-        reservation: null,
+        reservation: undefined,
         transcript: [
           {
             id: 'msg-1',
