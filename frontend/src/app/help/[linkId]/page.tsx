@@ -343,29 +343,6 @@ export default function HelperPage() {
                 </p>
               </div>
             )}
-            <div className="mt-2 bg-purple-200 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-purple-600 h-full transition-all duration-1000"
-                style={{ width: `${demoProgress * 100}%` }}
-              />
-            </div>
-            {/* Waypoint Progress */}
-            <div className="mt-3 flex items-center gap-1">
-              {DFW_JOURNEY_WAYPOINTS.map((wp, idx) => {
-                const waypointProgress = (idx / (DFW_JOURNEY_WAYPOINTS.length - 1));
-                const isCompleted = demoProgress > waypointProgress;
-                const isCurrent = currentWaypoint?.id === wp.id;
-                return (
-                  <div
-                    key={wp.id}
-                    className={`flex-1 h-1.5 rounded-full transition-colors ${
-                      isCompleted ? 'bg-purple-600' : isCurrent ? 'bg-purple-400' : 'bg-purple-200'
-                    }`}
-                    title={wp.name}
-                  />
-                );
-              })}
-            </div>
           </div>
         )}
 
@@ -382,6 +359,35 @@ export default function HelperPage() {
                 onAcknowledgeDisruption={handleAcknowledgeDisruption}
                 loading={iropLoading}
               />
+            )}
+
+            {/* Navigation Progress Bar - Right above map */}
+            {demoMode && (
+              <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm">
+                <div className="mb-2 bg-purple-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-purple-600 h-full transition-all duration-1000"
+                    style={{ width: `${demoProgress * 100}%` }}
+                  />
+                </div>
+                {/* Waypoint Progress */}
+                <div className="flex items-center gap-1">
+                  {DFW_JOURNEY_WAYPOINTS.map((wp, idx) => {
+                    const waypointProgress = (idx / (DFW_JOURNEY_WAYPOINTS.length - 1));
+                    const isCompleted = demoProgress > waypointProgress;
+                    const isCurrent = currentWaypoint?.id === wp.id;
+                    return (
+                      <div
+                        key={wp.id}
+                        className={`flex-1 h-1.5 rounded-full transition-colors ${
+                          isCompleted ? 'bg-purple-600' : isCurrent ? 'bg-purple-400' : 'bg-purple-200'
+                        }`}
+                        title={wp.name}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Location Tracking Map */}
