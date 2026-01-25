@@ -1616,3 +1616,136 @@ def retell_function_definitions(request):
         'webhook_url': request.build_absolute_uri('/api/retell/webhook'),
         'function_url': request.build_absolute_uri('/api/retell/function'),
     })
+
+
+# ==================== Outbound Reminder Endpoints ====================
+
+from .services.reminder_service import reminder_service
+
+
+@api_view(['GET'])
+def reminder_status(request):
+    """
+    Check the status of the reminder service.
+
+    Returns configuration status and upcoming flights that would receive reminders.
+    """
+    upcoming_departures = reminder_service.get_upcoming_flights(
+        minutes_ahead=120,
+        reminder_type='departure_1hr'
+    )
+
+    upcoming_gate_closings = reminder_service.get_upcoming_flights(
+        minutes_ahead=35,
+        reminder_type='gate_closing'
+    )
+
+    return Response({
+        'configured': retell_service.is_configured(),
+        'service': 'Outbound Reminder Service',
+        'reminder_windows': reminder_service.REMINDER_WINDOWS,
+        'upcoming_departures': len(upcoming_departures),
+        'upcoming_gate_closings': len(upcoming_gate_closings),
+        'flights_preview': upcoming_departures[:5],  # Preview first 5
+    })
+
+
+@api_view(['POST'])
+def send_gate_reminders(request):
+    """
+    Trigger gate closing reminder calls.
+
+    This will call all passengers with flights departing in ~30 minutes.
+    Typically run by a scheduled task (cron/celery).
+
+    POST /api/reminders/gate-closing
+    """
+    results = reminder_service.send_gate_closing_reminders()
+
+    return Response({
+        'success': True,
+        'calls_initiated': len([r for r in results if r['status'] == 'called']),
+        'calls_failed': len([r for r in results if r['status'] == 'failed']),
+        'results': results,
+    })
+
+
+@api_view(['POST'])
+def send_departure_reminders(request):
+    """
+    Trigger 1-hour departure reminder calls.
+
+    This will call all passengers with flights departing in ~1 hour.
+    Typically run by a scheduled task (cron/celery).
+
+    POST /api/reminders/departure
+    """
+    results = reminder_service.send_departure_reminders()
+
+    return Response({
+        'success': True,
+        'calls_initiated': len([r for r in results if r['status'] == 'called']),
+        'calls_failed': len([r for r in results if r['status'] == 'failed']),
+        'results': results,
+    })
+
+
+@api_view(['POST'])
+def send_manual_reminder(request):
+    """
+    Manually send a reminder call for a specific reservation.
+
+    POST /api/reminders/manual
+    {
+        "confirmation_code": "DEMO123",
+        "reminder_type": "gate_closing"  // or "departure_1hr", "final_boarding"
+    }
+    """
+    confirmation_code = request.data.get('confirmation_code')
+    reminder_type = request.data.get('reminder_type', 'gate_closing')
+
+    if not confirmation_code:
+        return Response(
+            {'error': 'confirmation_code is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = reminder_service.send_manual_reminder(
+        reservation_code=confirmation_code,
+        reminder_type=reminder_type,
+    )
+
+    if result:
+        return Response({
+            'success': True,
+            'call_id': result.get('call_id'),
+            'message': f'Reminder call initiated for {confirmation_code}',
+        })
+    else:
+        return Response(
+            {'error': 'Failed to initiate reminder call. Check phone number and Retell configuration.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+def get_upcoming_flights_for_reminders(request):
+    """
+    Get list of flights that would receive reminders.
+
+    GET /api/reminders/upcoming?type=gate_closing&minutes=60
+    """
+    reminder_type = request.query_params.get('type', 'departure_1hr')
+    minutes = int(request.query_params.get('minutes', 120))
+
+    flights = reminder_service.get_upcoming_flights(
+        minutes_ahead=minutes,
+        reminder_type=reminder_type,
+    )
+
+    return Response({
+        'reminder_type': reminder_type,
+        'window_minutes': reminder_service.REMINDER_WINDOWS.get(reminder_type, 60),
+        'count': len(flights),
+        'flights': flights,
+    })
