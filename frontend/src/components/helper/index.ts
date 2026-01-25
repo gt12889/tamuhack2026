@@ -1,3 +1,9 @@
 export { PassengerInfoCard } from './PassengerInfoCard';
 export { FlightStatusCard } from './FlightStatusCard';
 export { HelperDashboard } from './HelperDashboard';
+export { LocationMap } from './LocationMap';
+export { default as ActionPanel } from './ActionPanel';
+export { default as ActionHistory } from './ActionHistory';
+export { default as FlightPicker } from './FlightPicker';
+export { default as SeatPicker } from './SeatPicker';
+export { default as ActionConfirmModal } from './ActionConfirmModal';

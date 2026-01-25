@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { getHelperSession, sendHelperSuggestion } from '@/lib/api';
-import { HelperDashboard } from '@/components/helper';
-import type { Message, Reservation } from '@/types';
+import { getHelperSession, sendHelperSuggestion, getHelperLocation } from '@/lib/api';
+import { HelperDashboard, LocationMap } from '@/components/helper';
+import type { Message, Reservation, HelperLocationResponse } from '@/types';
 
 // Demo reservation data for testing the dashboard
 const DEMO_RESERVATION: Reservation = {
@@ -50,6 +50,8 @@ export default function HelperPage() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
+  const [locationData, setLocationData] = useState<HelperLocationResponse | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -68,13 +70,33 @@ export default function HelperPage() {
     }
   }, [linkId]);
 
+  const fetchLocation = useCallback(async () => {
+    try {
+      setLocationLoading(true);
+      const data = await getHelperLocation(linkId);
+      setLocationData(data);
+    } catch (err) {
+      // Location data is optional, don't show error
+      console.log('Location data not available');
+    } finally {
+      setLocationLoading(false);
+    }
+  }, [linkId]);
+
   useEffect(() => {
     fetchSession();
+    fetchLocation();
 
     // Poll for updates every 3 seconds
-    const interval = setInterval(fetchSession, 3000);
-    return () => clearInterval(interval);
-  }, [fetchSession]);
+    const sessionInterval = setInterval(fetchSession, 3000);
+    // Poll location every 5 seconds
+    const locationInterval = setInterval(fetchLocation, 5000);
+
+    return () => {
+      clearInterval(sessionInterval);
+      clearInterval(locationInterval);
+    };
+  }, [fetchSession, fetchLocation]);
 
   const handleSendSuggestion = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,7 +178,21 @@ export default function HelperPage() {
 
         {/* Dashboard with Passenger Info and Flight Status */}
         {(reservation || demoMode) ? (
-          <HelperDashboard reservation={reservation || DEMO_RESERVATION} />
+          <>
+            <HelperDashboard reservation={reservation || DEMO_RESERVATION} />
+
+            {/* Location Tracking Map */}
+            <LocationMap
+              passengerLocation={locationData?.passenger_location ?? null}
+              gateLocation={locationData?.gate_location ?? null}
+              metrics={locationData?.metrics ?? null}
+              directions={locationData?.directions ?? ''}
+              message={locationData?.message ?? 'Waiting for location updates...'}
+              alert={locationData?.alert ?? null}
+              onRefresh={fetchLocation}
+              loading={locationLoading}
+            />
+          </>
         ) : (
           <section className="bg-yellow-50 rounded-2xl p-6 border border-yellow-200">
             <div className="flex items-center justify-between mb-3">
