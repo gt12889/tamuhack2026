@@ -289,6 +289,59 @@ class ElevenLabsService:
         """Check if outbound calling is configured."""
         return bool(self.api_key and (self.agent_id or self.reminder_agent_id))
 
+    def is_web_configured(self) -> bool:
+        """Check if web calls (Conversational AI) are configured."""
+        return bool(self.api_key and self.agent_id)
+
+    def get_signed_url(self, agent_id: str = None) -> Optional[Dict[str, Any]]:
+        """
+        Get a signed URL for starting a web-based conversation.
+
+        The signed URL is used by the ElevenLabs client SDK to establish
+        a secure WebSocket connection for real-time voice conversation.
+
+        Args:
+            agent_id: Optional agent ID override. Uses default if not provided.
+
+        Returns:
+            Dict with signed_url or None on failure
+        """
+        effective_agent_id = agent_id or self.agent_id
+
+        if not self.api_key:
+            logger.warning("ElevenLabs API key not configured")
+            return None
+
+        if not effective_agent_id:
+            logger.warning("ElevenLabs agent ID not configured")
+            return None
+
+        try:
+            import httpx
+
+            headers = {
+                "xi-api-key": self.api_key,
+            }
+
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(
+                    f"{self.CONV_AI_URL}/conversation/get-signed-url",
+                    params={"agent_id": effective_agent_id},
+                    headers=headers,
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.info(f"ElevenLabs signed URL obtained for agent {effective_agent_id}")
+                    return result
+                else:
+                    logger.error(f"ElevenLabs get signed URL error: {response.status_code} - {response.text}")
+                    return None
+
+        except Exception as e:
+            logger.error(f"ElevenLabs get signed URL error: {e}")
+            return None
+
 
 # Pre-defined responses for common phrases (to reduce API calls)
 CACHED_PHRASES = {

@@ -8,7 +8,7 @@ import { Footer } from '@/components/layout/Footer';
 import { CallToAction } from '@/components/landing/CallToAction';
 import { TranscriptPanel } from './TranscriptPanel';
 import { SampleWorkflowDemo } from './SampleWorkflowDemo';
-import { useRetell } from '@/hooks/useRetell';
+import { useElevenLabsConversation } from '@/hooks/useElevenLabsConversation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { startConversation, createHelperLink } from '@/lib/api';
@@ -28,7 +28,7 @@ interface LiveDemoProps {
 }
 
 export function LiveDemo({
-  phoneNumber = '+1-800-555-1234',
+  phoneNumber = '+1 (877) 211-0332',
   agentId,
   onExitDemo,
 }: LiveDemoProps) {
@@ -129,6 +129,11 @@ export function LiveDemo({
     }
   }, [helperLink, getHelperUrl]);
 
+  // Handle ElevenLabs message callback
+  const handleMessage = useCallback((message: { role: 'agent' | 'user'; content: string }) => {
+    handleTranscript(message.role, message.content, true);
+  }, [handleTranscript]);
+
   const {
     isConfigured,
     isConnecting,
@@ -138,13 +143,13 @@ export function LiveDemo({
     error,
     hasAgentId,
     isSdkLoaded,
-  } = useRetell({
+  } = useElevenLabsConversation({
     agentId,
-    onCallStart: handleCallStart,
-    onCallEnd: handleCallEnd,
-    onTranscript: handleTranscript,
+    onConnect: handleCallStart,
+    onDisconnect: handleCallEnd,
+    onMessage: handleMessage,
     onError: (err) => {
-      console.error('Retell error:', err);
+      console.error('ElevenLabs error:', err);
     },
   });
 
@@ -192,10 +197,10 @@ export function LiveDemo({
                       disabled={isConnecting || !hasAgentId || !isSdkLoaded}
                       className="bg-white text-aa-blue hover:bg-gray-100"
                       title={
-                        !hasAgentId 
-                          ? 'Agent ID is required. Configure NEXT_PUBLIC_RETELL_AGENT_ID or ensure an agent exists in Retell.'
+                        !hasAgentId
+                          ? 'Agent ID is required. Configure NEXT_PUBLIC_ELEVENLABS_AGENT_ID or ensure ELEVENLABS_AGENT_ID is set on the backend.'
                           : !isSdkLoaded
-                          ? 'Retell SDK is loading. Please wait...'
+                          ? 'ElevenLabs SDK is loading. Please wait...'
                           : undefined
                       }
                     >
@@ -352,9 +357,9 @@ export function LiveDemo({
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 bg-yellow-100 border border-yellow-300 text-yellow-800 px-4 py-3 rounded-lg"
             >
-              <p className="font-semibold">Retell AI not configured</p>
+              <p className="font-semibold">ElevenLabs Conversational AI not configured</p>
               <p className="text-sm mt-1">
-                To enable web calls, configure RETELL_API_KEY and RETELL_AGENT_ID in your environment.
+                To enable web calls, configure ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID in your environment.
                 You can still demo by calling the phone number.
               </p>
             </motion.div>

@@ -2,6 +2,7 @@ export { PassengerInfoCard } from './PassengerInfoCard';
 export { FlightStatusCard } from './FlightStatusCard';
 export { HelperDashboard } from './HelperDashboard';
 export { LocationMap } from './LocationMap';
+export { MapboxLocationMap } from './MapboxLocationMap';
 export { default as ActionPanel } from './ActionPanel';
 export { default as ActionHistory } from './ActionHistory';
 export { default as FlightPicker } from './FlightPicker';

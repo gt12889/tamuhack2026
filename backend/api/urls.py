@@ -90,4 +90,10 @@ urlpatterns = [
     path('location/<uuid:session_id>/alerts', views.get_location_alerts, name='get_location_alerts'),
     path('location/alerts/<uuid:alert_id>/acknowledge', views.acknowledge_alert, name='acknowledge_alert'),
     path('helper/<str:link_id>/location', views.get_helper_location, name='get_helper_location'),
+
+    # ElevenLabs Conversational AI endpoints
+    path('elevenlabs/convai/status', views.elevenlabs_convai_status, name='elevenlabs_convai_status'),
+    path('elevenlabs/convai/web-call', views.elevenlabs_create_web_call, name='elevenlabs_create_web_call'),
+    path('elevenlabs/convai/webhook', views.elevenlabs_server_tool, name='elevenlabs_server_tool'),
+    path('elevenlabs/convai/tools', views.elevenlabs_server_tool_definitions, name='elevenlabs_server_tool_definitions'),
 ]

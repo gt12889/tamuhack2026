@@ -3,79 +3,32 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { getHelperSession, sendHelperSuggestion, getHelperLocation } from '@/lib/api';
-import { HelperDashboard, LocationMap } from '@/components/helper';
+import { HelperDashboard, MapboxLocationMap } from '@/components/helper';
+import {
+  DFW_DEMO_RESERVATION,
+  DFW_GATE_LOCATION,
+  DFW_JOURNEY_WAYPOINTS,
+  calculateDistance,
+  getWaypointByProgress,
+  interpolatePosition,
+} from '@/lib/dfwDemoData';
 import type { Message, Reservation, HelperLocationResponse, AlertStatus } from '@/types';
 
-// Demo reservation data for testing the dashboard
-// Flight: PIT -> DFW, Monday January 19, 2026
-const DEMO_RESERVATION: Reservation = {
-  id: 'demo-res-001',
-  confirmation_code: 'CZYBYU',
-  passenger: {
-    id: 'demo-pax-001',
-    first_name: 'Margaret',
-    last_name: 'Johnson',
-    email: 'margaret.johnson@email.com',
-    phone: '(555) 123-4567',
-    aadvantage_number: '1234567890',
-    preferences: {
-      language: 'en',
-      seat_preference: 'window',
-    },
-  },
-  flights: [
-    {
-      id: 'demo-flight-001',
-      flight_number: 'AA1845',
-      origin: 'PIT',
-      destination: 'DFW',
-      departure_time: '2026-01-19T07:06:00-05:00', // 7:06 AM EST
-      arrival_time: '2026-01-19T09:50:00-06:00', // 9:50 AM CST
-      gate: 'B22',
-      status: 'scheduled',
-      seat: '14A',
-    },
-  ],
-  status: 'confirmed',
-  created_at: '2026-01-15T10:00:00Z',
-};
-
-// Demo gate location (PIT Airport, Gate B22)
-const DEMO_GATE_LOCATION = {
-  lat: 40.4958,
-  lng: -80.2413,
-  gate: 'B22',
-  terminal: 'Airside',
-};
-
-// Demo starting location (PIT Airport entrance - about 600m from gate)
-const DEMO_START_LOCATION = {
-  lat: 40.4920,
-  lng: -80.2370,
-};
-
-// Calculate distance between two points in meters (Haversine formula)
-function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000; // Earth's radius in meters
-  const toRad = (deg: number) => deg * (Math.PI / 180);
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-// Generate demo location data with simulated movement
-function generateDemoLocation(progress: number, departureTime: Date): HelperLocationResponse {
-  // Progress goes from 0 (start) to 1 (arrived at gate)
+// Generate DFW demo location data with waypoint-based movement
+function generateDFWDemoLocation(progress: number, departureTime: Date): HelperLocationResponse {
   const clampedProgress = Math.min(Math.max(progress, 0), 1);
 
-  // Interpolate position between start and gate
-  const currentLat = DEMO_START_LOCATION.lat + (DEMO_GATE_LOCATION.lat - DEMO_START_LOCATION.lat) * clampedProgress;
-  const currentLng = DEMO_START_LOCATION.lng + (DEMO_GATE_LOCATION.lng - DEMO_START_LOCATION.lng) * clampedProgress;
+  // Get current waypoint and position
+  const { current, next, segmentProgress } = getWaypointByProgress(clampedProgress);
+  const position = interpolatePosition(current, next, segmentProgress);
 
   // Calculate distance to gate
-  const distanceMeters = calculateDistance(currentLat, currentLng, DEMO_GATE_LOCATION.lat, DEMO_GATE_LOCATION.lng);
+  const distanceMeters = calculateDistance(
+    position.lat,
+    position.lng,
+    DFW_GATE_LOCATION.lat,
+    DFW_GATE_LOCATION.lng
+  );
 
   // Estimate walking time (elderly pace ~50m/min)
   const walkingTimeMinutes = Math.ceil(distanceMeters / 50);
@@ -83,9 +36,9 @@ function generateDemoLocation(progress: number, departureTime: Date): HelperLoca
   // Time to departure
   const timeToDepartureMinutes = Math.max(0, Math.floor((departureTime.getTime() - Date.now()) / 60000));
 
-  // Determine alert status based on walking time vs time to departure
+  // Determine alert status
   let alertStatus: AlertStatus = 'safe';
-  if (clampedProgress >= 0.95) {
+  if (clampedProgress >= 0.98) {
     alertStatus = 'arrived';
   } else if (walkingTimeMinutes > timeToDepartureMinutes - 15) {
     alertStatus = 'urgent';
@@ -93,40 +46,28 @@ function generateDemoLocation(progress: number, departureTime: Date): HelperLoca
     alertStatus = 'warning';
   }
 
-  // Generate directions based on progress
-  let directions = '';
-  if (clampedProgress < 0.3) {
-    directions = 'Head towards Terminal B. Follow signs for Gates B1-B30.';
-  } else if (clampedProgress < 0.6) {
-    directions = 'Continue through Terminal B. Gate B22 is ahead on your left.';
-  } else if (clampedProgress < 0.9) {
-    directions = 'Almost there! Gate B22 is just ahead.';
-  } else {
-    directions = 'You have arrived at Gate B22.';
-  }
-
   return {
     passenger_location: {
-      lat: currentLat,
-      lng: currentLng,
+      lat: position.lat,
+      lng: position.lng,
       accuracy: 10,
       timestamp: new Date().toISOString(),
     },
-    gate_location: DEMO_GATE_LOCATION,
+    gate_location: DFW_GATE_LOCATION,
     metrics: {
       distance_meters: Math.round(distanceMeters),
       walking_time_minutes: walkingTimeMinutes,
       time_to_departure_minutes: timeToDepartureMinutes,
       alert_status: alertStatus,
     },
-    directions,
+    directions: current.instruction,
     message: alertStatus === 'arrived'
-      ? 'Margaret has arrived at the gate!'
-      : `Margaret is ${Math.round(distanceMeters)} meters from the gate.`,
+      ? 'MeeMaw has arrived at the gate!'
+      : `MeeMaw is at ${current.name} - ${Math.round(distanceMeters)}m from Gate B22`,
     alert: alertStatus === 'urgent' ? {
-      id: 'demo-alert-001',
+      id: 'dfw-demo-alert-001',
       type: 'running_late',
-      message: 'Margaret may be running late for her flight!',
+      message: 'MeeMaw may be running late for her flight!',
       created_at: new Date().toISOString(),
     } : null,
   };
@@ -230,9 +171,14 @@ export default function HelperPage() {
     return () => clearInterval(demoInterval);
   }, [demoMode]);
 
+  // Get current waypoint for display
+  const currentWaypoint = demoMode
+    ? getWaypointByProgress(demoProgress).current
+    : null;
+
   // Generate demo location data when in demo mode
   const effectiveLocationData = demoMode
-    ? generateDemoLocation(demoProgress, new Date(DEMO_RESERVATION.flights[0].departure_time))
+    ? generateDFWDemoLocation(demoProgress, new Date(DFW_DEMO_RESERVATION.flights[0].departure_time))
     : locationData;
 
   const handleSendSuggestion = async (e: React.FormEvent) => {
@@ -303,7 +249,7 @@ export default function HelperPage() {
           <div className="bg-purple-100 border border-purple-300 rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-purple-800 font-medium">
-                Demo Mode Active
+                DFW Airport Demo - Live Navigation
               </span>
               <button
                 onClick={() => setDemoMode(false)}
@@ -313,14 +259,41 @@ export default function HelperPage() {
               </button>
             </div>
             <p className="text-purple-700 text-sm">
-              Simulating Margaret walking to Gate B22. Watch the map update as she moves towards the gate.
+              Watching MeeMaw navigate from Terminal A to Gate B22 at DFW Airport.
               {demoProgress >= 1 && ' She has arrived! Demo will restart shortly.'}
             </p>
+            {currentWaypoint && (
+              <div className="mt-2 p-2 bg-purple-200 rounded-lg">
+                <p className="text-purple-800 font-medium text-sm">
+                  Current Location: {currentWaypoint.name}
+                </p>
+                <p className="text-purple-700 text-xs">
+                  {currentWaypoint.instruction}
+                </p>
+              </div>
+            )}
             <div className="mt-2 bg-purple-200 rounded-full h-2 overflow-hidden">
               <div
                 className="bg-purple-600 h-full transition-all duration-1000"
                 style={{ width: `${demoProgress * 100}%` }}
               />
+            </div>
+            {/* Waypoint Progress */}
+            <div className="mt-3 flex items-center gap-1">
+              {DFW_JOURNEY_WAYPOINTS.map((wp, idx) => {
+                const waypointProgress = (idx / (DFW_JOURNEY_WAYPOINTS.length - 1));
+                const isCompleted = demoProgress > waypointProgress;
+                const isCurrent = currentWaypoint?.id === wp.id;
+                return (
+                  <div
+                    key={wp.id}
+                    className={`flex-1 h-1.5 rounded-full transition-colors ${
+                      isCompleted ? 'bg-purple-600' : isCurrent ? 'bg-purple-400' : 'bg-purple-200'
+                    }`}
+                    title={wp.name}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
@@ -328,10 +301,10 @@ export default function HelperPage() {
         {/* Dashboard with Passenger Info and Flight Status */}
         {(reservation || demoMode) ? (
           <>
-            <HelperDashboard reservation={reservation || DEMO_RESERVATION} />
+            <HelperDashboard reservation={reservation || DFW_DEMO_RESERVATION} />
 
             {/* Location Tracking Map */}
-            <LocationMap
+            <MapboxLocationMap
               passengerLocation={effectiveLocationData?.passenger_location ?? null}
               gateLocation={effectiveLocationData?.gate_location ?? null}
               metrics={effectiveLocationData?.metrics ?? null}
@@ -357,7 +330,7 @@ export default function HelperPage() {
                 onClick={() => setDemoMode(true)}
                 className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700"
               >
-                Load Demo Data
+                Load DFW Demo
               </button>
             </div>
             <p className="text-yellow-700">

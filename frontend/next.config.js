@@ -3,6 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   // Enable standalone output for production Docker builds
   output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
+  // Transpile ElevenLabs client SDK for proper bundling
+  transpilePackages: ['@elevenlabs/client', '@elevenlabs/types', 'livekit-client'],
   async rewrites() {
     return [
       {

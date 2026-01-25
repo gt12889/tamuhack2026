@@ -11,7 +11,7 @@ interface CallToActionProps {
 }
 
 export function CallToAction({
-  phoneNumber = '+1-800-555-1234',
+  phoneNumber = '+1 (877) 211-0332',
   className
 }: CallToActionProps) {
   const formattedPhone = phoneNumber.replace(/[^\d+]/g, '');
