@@ -144,7 +144,7 @@ const MOCK_RESERVATION = {
     departure_time: 'Friday, Jan 24 at 2:00 PM',
     arrival_time: 'Friday, Jan 24 at 5:30 PM',
     seat: '14A',
-    status: 'scheduled',
+    status: 'scheduled' as const,
   }],
 };
 
@@ -156,7 +156,7 @@ const MOCK_NEW_FLIGHT = {
   departure_time: 'Saturday, Jan 25 at 2:00 PM',
   arrival_time: 'Saturday, Jan 25 at 5:30 PM',
   seat: '14A',
-  status: 'scheduled',
+  status: 'scheduled' as const,
 };
 
 const TRIP_SUMMARY_EN = "Here's your trip summary! ✈️ You're now flying from Dallas to Chicago on Saturday, January 25th at 2:00 PM. Your seat is 14A, a window seat. Your confirmation code is D-E-M-O-1-2-3. Have a wonderful trip!";

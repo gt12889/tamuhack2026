@@ -2,11 +2,12 @@
 
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Monitor, Phone, Users, Copy, Check, ExternalLink } from 'lucide-react';
+import { Monitor, Phone, Users, Copy, Check, ExternalLink, PlayCircle } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CallToAction } from '@/components/landing/CallToAction';
 import { TranscriptPanel } from './TranscriptPanel';
+import { SampleWorkflowDemo } from './SampleWorkflowDemo';
 import { useRetell } from '@/hooks/useRetell';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,9 @@ export function LiveDemo({
   const [helperLinkExpiry, setHelperLinkExpiry] = useState<string | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // Sample workflow demo state
+  const [showSampleDemo, setShowSampleDemo] = useState(false);
 
   const handleTranscript = useCallback((role: 'agent' | 'user', text: string, isFinal: boolean) => {
     setCurrentSpeaker(role);
@@ -159,73 +163,100 @@ export function LiveDemo({
               <Monitor className="w-6 h-6" />
               <div>
                 <h2 className="font-bold">Demo Mode</h2>
-                <p className="text-sm opacity-90">Showing live call transcript for judges</p>
+                <p className="text-sm opacity-90">
+                  {showSampleDemo ? 'Sample workflow walkthrough' : 'Showing live call transcript for judges'}
+                </p>
               </div>
             </div>
-            {isConfigured && (
-              <div className="flex items-center gap-3">
-                {!isConnected ? (
-                  <Button
-                    onClick={startCall}
-                    disabled={isConnecting}
-                    className="bg-white text-aa-blue hover:bg-gray-100"
-                  >
-                    <Phone className="w-4 h-4 mr-2" />
-                    {isConnecting ? 'Connecting...' : 'Start Web Call'}
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={endCall}
-                    variant="destructive"
-                    className="bg-aa-red hover:bg-red-700"
-                  >
-                    End Call
-                  </Button>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Toggle Sample Demo */}
+              <Button
+                onClick={() => setShowSampleDemo(!showSampleDemo)}
+                variant="ghost"
+                className={`${showSampleDemo ? 'bg-white/20' : ''} text-white hover:bg-white/20`}
+              >
+                <PlayCircle className="w-4 h-4 mr-2" />
+                {showSampleDemo ? 'Live Mode' : 'Sample Demo'}
+              </Button>
+
+              {isConfigured && !showSampleDemo && (
+                <>
+                  {!isConnected ? (
+                    <Button
+                      onClick={startCall}
+                      disabled={isConnecting}
+                      className="bg-white text-aa-blue hover:bg-gray-100"
+                    >
+                      <Phone className="w-4 h-4 mr-2" />
+                      {isConnecting ? 'Connecting...' : 'Start Web Call'}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={endCall}
+                      variant="destructive"
+                      className="bg-aa-red hover:bg-red-700"
+                    >
+                      End Call
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
           </motion.div>
 
-          {/* Split View */}
-          <div className="grid lg:grid-cols-2 gap-6 h-[calc(100vh-280px)]">
-            {/* Left: Landing Preview */}
+          {/* Content Area */}
+          {showSampleDemo ? (
+            /* Sample Workflow Demo - Full Width */
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="h-[calc(100vh-280px)]"
             >
-              <div className="bg-gray-100 px-4 py-2 border-b flex items-center gap-2">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-green-400" />
+              <SampleWorkflowDemo className="h-full" />
+            </motion.div>
+          ) : (
+            /* Split View - Live Mode */
+            <div className="grid lg:grid-cols-2 gap-6 h-[calc(100vh-280px)]">
+              {/* Left: Landing Preview */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col"
+              >
+                <div className="bg-gray-100 px-4 py-2 border-b flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-400" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                    <div className="w-3 h-3 rounded-full bg-green-400" />
+                  </div>
+                  <span className="text-xs text-gray-500 ml-2">Customer View</span>
                 </div>
-                <span className="text-xs text-gray-500 ml-2">Customer View</span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-6">
-                <CallToAction phoneNumber={phoneNumber} />
-              </div>
-            </motion.div>
+                <div className="flex-1 overflow-y-auto p-6">
+                  <CallToAction phoneNumber={phoneNumber} />
+                </div>
+              </motion.div>
 
-            {/* Right: Transcript */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="h-full"
-            >
-              <TranscriptPanel
-                messages={messages}
-                isConnected={isConnected}
-                isConnecting={isConnecting}
-                currentSpeaker={currentSpeaker}
-                className="h-full shadow-lg"
-              />
-            </motion.div>
-          </div>
+              {/* Right: Transcript */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="h-full"
+              >
+                <TranscriptPanel
+                  messages={messages}
+                  isConnected={isConnected}
+                  isConnecting={isConnecting}
+                  currentSpeaker={currentSpeaker}
+                  className="h-full shadow-lg"
+                />
+              </motion.div>
+            </div>
+          )}
 
-          {/* Family Helper Panel */}
+          {/* Family Helper Panel - Only in Live Mode */}
+          {!showSampleDemo && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -289,9 +320,10 @@ export function LiveDemo({
               </p>
             )}
           </motion.div>
+          )}
 
-          {/* Error Display */}
-          {error && (
+          {/* Error Display - Only in Live Mode */}
+          {!showSampleDemo && error && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -301,8 +333,8 @@ export function LiveDemo({
             </motion.div>
           )}
 
-          {/* Instructions for Demo */}
-          {!isConfigured && (
+          {/* Instructions for Demo - Only in Live Mode */}
+          {!showSampleDemo && !isConfigured && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
