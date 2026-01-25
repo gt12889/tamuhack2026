@@ -13,6 +13,9 @@ export { LandingPage, CallToAction, HowItWorks, FeatureList, FamilyHelp } from '
 // Demo components
 export { LiveDemo, TranscriptPanel } from './demo';
 
+// Helper components
+export { PassengerInfoCard, FlightStatusCard, HelperDashboard } from './helper';
+
 // UI components
 export { Button } from './ui/button';
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from './ui/card';

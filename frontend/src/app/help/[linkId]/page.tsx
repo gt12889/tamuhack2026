@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { getHelperSession, sendHelperSuggestion } from '@/lib/api';
-import { FlightCard } from '@/components/FlightCard';
+import { HelperDashboard } from '@/components/helper';
 import type { Message, Reservation } from '@/types';
 
 export default function HelperPage() {
@@ -87,7 +87,7 @@ export default function HelperPage() {
     <main className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-purple-600 text-white py-4 px-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -100,28 +100,9 @@ export default function HelperPage() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* Reservation Info */}
-        {reservation && (
-          <section className="bg-white rounded-2xl p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Current Reservation</h2>
-            <div className="mb-4">
-              <span className="text-sm text-gray-500">Confirmation Code</span>
-              <p className="text-xl font-bold text-aa-blue">{reservation.confirmation_code}</p>
-            </div>
-            <div className="mb-4">
-              <span className="text-sm text-gray-500">Passenger</span>
-              <p className="font-medium">
-                {reservation.passenger.first_name} {reservation.passenger.last_name}
-              </p>
-            </div>
-            <div className="space-y-4">
-              {reservation.flights.map((flight) => (
-                <FlightCard key={flight.id} flight={flight} />
-              ))}
-            </div>
-          </section>
-        )}
+      <div className="max-w-5xl mx-auto p-6 space-y-6">
+        {/* Dashboard with Passenger Info and Flight Status */}
+        {reservation && <HelperDashboard reservation={reservation} />}
 
         {/* Conversation */}
         <section className="bg-white rounded-2xl p-6 shadow-sm">
