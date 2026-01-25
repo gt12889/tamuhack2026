@@ -1,120 +1,102 @@
-import React, { useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import {useState} from "react"
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Animated } from "react-native";
 import MetaBox from "./MetaBox";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, Circle } from "react-native-svg";
 
-export default function FlightStatusCard({flight}:any) {
-    const [countdown, setCountdown] = useState<string>("1");
-    const[isUrgent, setIsUrgent] = useState(false);
+interface FlightProps {
+  id: string;
+  flight_number: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  arrival_time: string;
+  gate?: string;
+  seat?: string;
+  status: string;
+}
 
+export default function FlightStatusCard({ flight }: { flight: FlightProps }) {
+  const [countdown, setCountdown] = useState<string>("--");
+  const [isUrgent, setIsUrgent] = useState(false);
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
+  type FlightStatus = "scheduled" | "delayed" | "cancelled" | "boarding" | "departed";
 
-    type FlightStatus =
-  | "scheduled"
-  | "delayed"
-  | "cancelled"
-  | "boarding"
-  | "departed";
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
 
-const getStatusConfig = (status: FlightStatus) => {
-  switch (status) {
-    case "scheduled":
-      return {
-        containerStyle: styles.greenBg,
-        textStyle: styles.greenText,
-        borderStyle: styles.greenBorder,
-        icon: (
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M5 13l4 4L19 7"
-              stroke="#166534"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
-        ),
-      };
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  };
 
-    case "delayed":
-      return {
-        containerStyle: styles.yellowBg,
-        textStyle: styles.yellowText,
-        borderStyle: styles.yellowBorder,
-        icon: (
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              stroke="#854d0e"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
-        ),
-      };
+  const getStatusConfig = (status: FlightStatus) => {
+    switch (status) {
+      case "scheduled":
+        return {
+          bg: "#ECFDF5",
+          text: "#059669",
+          label: "On Time",
+          icon: (
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+              <Path d="M5 13l4 4L19 7" stroke="#059669" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          ),
+        };
+      case "delayed":
+        return {
+          bg: "#FEF3C7",
+          text: "#D97706",
+          label: "Delayed",
+          icon: (
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+              <Circle cx="12" cy="12" r="9" stroke="#D97706" strokeWidth={2} />
+              <Path d="M12 7v5l3 3" stroke="#D97706" strokeWidth={2} strokeLinecap="round" />
+            </Svg>
+          ),
+        };
+      case "cancelled":
+        return {
+          bg: "#FEE2E2",
+          text: "#DC2626",
+          label: "Cancelled",
+          icon: (
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+              <Path d="M6 18L18 6M6 6l12 12" stroke="#DC2626" strokeWidth={2.5} strokeLinecap="round" />
+            </Svg>
+          ),
+        };
+      case "boarding":
+        return {
+          bg: "#DBEAFE",
+          text: "#2563EB",
+          label: "Boarding",
+          icon: (
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+              <Path d="M13 5l7 7-7 7M5 5l7 7-7 7" stroke="#2563EB" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          ),
+        };
+      case "departed":
+        return {
+          bg: "#F3F4F6",
+          text: "#6B7280",
+          label: "Departed",
+          icon: (
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="#6B7280">
+              <Path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+            </Svg>
+          ),
+        };
+      default:
+        return { bg: "#F3F4F6", text: "#6B7280", label: status, icon: null };
+    }
+  };
 
-    case "cancelled":
-      return {
-        containerStyle: styles.redBg,
-        textStyle: styles.redText,
-        borderStyle: styles.redBorder,
-        icon: (
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M6 18L18 6M6 6l12 12"
-              stroke="#7f1d1d"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
-        ),
-      };
-
-    case "boarding":
-      return {
-        containerStyle: styles.blueBg,
-        textStyle: styles.blueText,
-        borderStyle: styles.blueBorder,
-        icon: (
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M13 5l7 7-7 7M5 5l7 7-7 7"
-              stroke="#1e40af"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
-        ),
-      };
-
-    case "departed":
-      return {
-        containerStyle: styles.grayBg,
-        textStyle: styles.grayText,
-        borderStyle: styles.grayBorder,
-        icon: (
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="#374151">
-            <Path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-          </Svg>
-        ),
-      };
-
-    default:
-      return {
-        containerStyle: styles.grayBg,
-        textStyle: styles.grayText,
-        borderStyle: styles.grayBorder,
-        icon: null,
-      };
-  }
-};
-
-  useEffect(()=>{
-    const updateCountdown = () =>{
+  useEffect(() => {
+    const updateCountdown = () => {
       const now = new Date();
       const departure = new Date(flight.departure_time);
       const diff = departure.getTime() - now.getTime();
@@ -134,238 +116,251 @@ const getStatusConfig = (status: FlightStatus) => {
         setIsUrgent(false);
       } else if (hours > 0) {
         setCountdown(`${hours}h ${minutes}m`);
-        setIsUrgent(hours < 1);
+        setIsUrgent(hours < 2);
       } else {
         setCountdown(`${minutes}m`);
         setIsUrgent(true);
       }
     };
 
-    
-
     updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
-
+    const interval = setInterval(updateCountdown, 60000);
     return () => clearInterval(interval);
+  }, [flight.departure_time]);
 
+  // Pulse animation for urgent status
+  useEffect(() => {
+    if (isUrgent) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.02, duration: 500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    }
+  }, [isUrgent, pulseAnim]);
 
+  const statusConfig = getStatusConfig(flight.status as FlightStatus);
 
-
-
-  }, [])
-
-  const statusConfig = getStatusConfig(flight.status);
   return (
-    <View style={styles.card}>
+    <Animated.View style={[styles.card, isUrgent && styles.urgentCard, { transform: [{ scale: pulseAnim }] }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.flightNumber}>{flight.flight_number}</Text>
-        <View style={styles.status}>
+        <View style={styles.flightInfo}>
+          <Text style={styles.flightNumber}>{flight.flight_number}</Text>
+          <Text style={styles.airline}>American Airlines</Text>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
           {statusConfig.icon}
-          <Text style={styles.statusText}>{flight.status.charAt(0).toUpperCase() + flight.status.slice(1)}</Text>
+          <Text style={[styles.statusText, { color: statusConfig.text }]}>{statusConfig.label}</Text>
         </View>
       </View>
 
+      {/* Route */}
       <View style={styles.route}>
-        <View>
-          <Text style={styles.airport}>{flight.origin}</Text>
-          <Text>8:39 PM</Text>
-          <Text style={styles.date}>Sat, Jan 24</Text>
+        <View style={styles.routePoint}>
+          <Text style={styles.airportCode}>{flight.origin}</Text>
+          <Text style={styles.time}>{formatTime(flight.departure_time)}</Text>
+          <Text style={styles.date}>{formatDate(flight.departure_time)}</Text>
         </View>
 
-        <View style={styles.timeline}>
-          <View style={styles.line} />
-          <View style={styles.dot} />
+        <View style={styles.routeLine}>
+          <View style={styles.lineContainer}>
+            <View style={styles.dotStart} />
+            <View style={styles.line} />
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="#6C63FF" style={styles.planeIcon}>
+              <Path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+            </Svg>
+            <View style={styles.line} />
+            <View style={styles.dotEnd} />
+          </View>
+          <Text style={styles.duration}>Direct</Text>
         </View>
 
-        <View>
-          <Text style={styles.airport}>ORD</Text>
-          <Text>11:39 PM</Text>
-          <Text style={styles.date}>Sat, Jan 24</Text>
+        <View style={styles.routePoint}>
+          <Text style={styles.airportCode}>{flight.destination}</Text>
+          <Text style={styles.time}>{formatTime(flight.arrival_time)}</Text>
+          <Text style={styles.date}>{formatDate(flight.arrival_time)}</Text>
         </View>
       </View>
 
+      {/* Gate & Seat */}
       <View style={styles.metaRow}>
-        <MetaBox label="Gate" value={flight.gate || 'TBD'} />
-        <MetaBox label="Seat" value={flight.seat || 'Not assigned'} />
+        <MetaBox label="Gate" value={flight.gate || 'TBD'} highlight={!!flight.gate} />
+        <MetaBox label="Seat" value={flight.seat || 'Not assigned'} highlight={!!flight.seat} />
       </View>
 
+      {/* Countdown */}
       {flight.status !== "cancelled" && flight.status !== "departed" && (
-  <View style={[styles.containerPadding]}>
-  <View
-    style={[
-      styles.container,
-      isUrgent ? styles.urgentContainer : styles.normalContainer,
-    ]}
-  >
-
-    <Text
-      style={[
-        styles.label,
-        isUrgent ? styles.urgentLabel : styles.normalLabel,
-      ]}
-    >
-      {flight.status === "boarding" ? "Now Boarding" : "Departs in"}
-    </Text>
-
-    <Text
-      style={[
-        styles.countdown,
-        isUrgent ? styles.urgentCountdown : styles.normalCountdown,
-      ]}
-    >
-      {countdown}
-    </Text>
-
-    {isUrgent && flight.status !== "boarding" && (
-      <Text style={styles.urgentHint}>Time to head to the gate!</Text>
-    )}
-  </View>
-  </View>
-)}
-    </View>
+        <View style={[styles.countdownBox, isUrgent ? styles.urgentBox : styles.normalBox]}>
+          <Text style={[styles.countdownLabel, isUrgent ? styles.urgentText : styles.normalText]}>
+            {flight.status === "boarding" ? "🚨 Now Boarding" : "⏱️ Departs in"}
+          </Text>
+          <Text style={[styles.countdownValue, isUrgent ? styles.urgentValue : styles.normalValue]}>
+            {countdown}
+          </Text>
+          {isUrgent && flight.status !== "boarding" && (
+            <Text style={styles.urgentHint}>Head to gate now!</Text>
+          )}
+        </View>
+      )}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  containerPadding:{paddingTop:16},
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
-    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  urgentCard: {
+    borderWidth: 2,
+    borderColor: "#FCA5A5",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  flightInfo: {
+    flex: 1,
   },
   flightNumber: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111827",
   },
-  status: {
-    backgroundColor: "#E8F8EF",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  airline: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
   },
   statusText: {
-    fontSize: 12,
-    color: "#2E9E5B",
+    fontSize: 13,
+    fontWeight: "600",
   },
   route: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginVertical: 16,
+    marginBottom: 20,
   },
-  airport: {
-    fontSize: 18,
+  routePoint: {
+    alignItems: "center",
+    width: 70,
+  },
+  airportCode: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  time: {
+    fontSize: 14,
     fontWeight: "600",
+    color: "#374151",
+    marginTop: 4,
   },
   date: {
     fontSize: 12,
-    color: "#777",
+    color: "#9CA3AF",
+    marginTop: 2,
   },
-  timeline: {
+  routeLine: {
     flex: 1,
     alignItems: "center",
+    paddingHorizontal: 8,
   },
-  line: {
-    height: 2,
-    width: "80%",
-    backgroundColor: "#FF4D4F",
+  lineContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
   },
-  dot: {
+  dotStart: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#FF4D4F",
-    marginTop: -5,
+    backgroundColor: "#6C63FF",
+  },
+  dotEnd: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#6C63FF",
+  },
+  line: {
+    flex: 1,
+    height: 2,
+    backgroundColor: "#E5E7EB",
+  },
+  planeIcon: {
+    marginHorizontal: 4,
+    transform: [{ rotate: "90deg" }],
+  },
+  duration: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 4,
   },
   metaRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 12,
   },
-  departBox: {
-    backgroundColor: "#F2ECFF",
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 12,
-    alignItems: "center",
-  },
-  departTime: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#6B4EFF",
-  },
-  label: {
-    fontSize: 12,
-    color: "#777",
-  },
-  greenBg: { backgroundColor: "#dcfce7" },
-  greenText: { color: "#166534" },
-  greenBorder: { borderColor: "#bbf7d0" },
-
-  yellowBg: { backgroundColor: "#fef9c3" },
-  yellowText: { color: "#854d0e" },
-  yellowBorder: { borderColor: "#fde68a" },
-
-  redBg: { backgroundColor: "#fee2e2" },
-  redText: { color: "#7f1d1d" },
-  redBorder: { borderColor: "#fecaca" },
-
-  blueBg: { backgroundColor: "#dbeafe" },
-  blueText: { color: "#1e40af" },
-  blueBorder: { borderColor: "#bfdbfe" },
-
-  grayBg: { backgroundColor: "#f3f4f6" },
-  grayText: { color: "#374151" },
-  grayBorder: { borderColor: "#e5e7eb" },
-  container: {
-    borderRadius: 12,
+  countdownBox: {
+    marginTop: 16,
+    borderRadius: 14,
     padding: 16,
     alignItems: "center",
   },
-
-  normalContainer: {
-    backgroundColor: "#f3e8ff", // purple-50
+  normalBox: {
+    backgroundColor: "#F3E8FF",
+  },
+  urgentBox: {
+    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#e9d5ff", // purple-200
+    borderColor: "#FECACA",
   },
-
-  urgentContainer: {
-    backgroundColor: "#fef2f2", // red-50
-    borderWidth: 2,
-    borderColor: "#fecaca", // red-200
+  countdownLabel: {
+    fontSize: 13,
+    fontWeight: "500",
   },
-
-
-  normalLabel: {
-    color: "#7e22ce", // purple-600
+  normalText: {
+    color: "#7C3AED",
   },
-
-  urgentLabel: {
-    color: "#dc2626", // red-600
+  urgentText: {
+    color: "#DC2626",
   },
-
-  countdown: {
-    fontSize: 24,
-    fontWeight: "700",
+  countdownValue: {
+    fontSize: 28,
+    fontWeight: "800",
     marginTop: 4,
   },
-
-  normalCountdown: {
-    color: "#6b21a8", // purple-800
+  normalValue: {
+    color: "#5B21B6",
   },
-
-  urgentCountdown: {
-    color: "#b91c1c", // red-700
+  urgentValue: {
+    color: "#B91C1C",
   },
-
   urgentHint: {
-    marginTop: 4,
     fontSize: 12,
-    color: "#dc2626", // red-600
+    color: "#DC2626",
+    marginTop: 4,
+    fontWeight: "500",
   },
-})
+});
