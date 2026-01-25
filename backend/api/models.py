@@ -110,6 +110,15 @@ class Session(models.Model):
         null=True, blank=True, related_name='sessions'
     )
     helper_link = models.CharField(max_length=20, blank=True, null=True, unique=True)
+    helper_link_expires_at = models.DateTimeField(blank=True, null=True)
+    helper_link_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ('session', 'Session-based (30 min)'),
+            ('persistent', 'Persistent (until flight departure)'),
+        ],
+        default='session'
+    )
     context = models.JSONField(default=dict)  # Store conversation context
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
