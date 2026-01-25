@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getElevenLabsStatus, getElevenLabsSignedUrl, getElevenLabsTranscript } from '@/lib/api';
+import { getElevenLabsStatus, getElevenLabsSignedUrl, getElevenLabsTranscript, getElevenLabsLiveTranscript, postElevenLabsTranscript } from '@/lib/api';
 
 // Dynamic import for ElevenLabs client SDK
 let ElevenLabsModule: any = null;
@@ -179,6 +179,7 @@ export function useElevenLabsConversation({
         onConnect: (_props: { conversationId: string }) => {
           console.log('[ElevenLabs] Connected! ConversationId:', _props.conversationId);
           conversationIdRef.current = _props.conversationId;
+          console.log('[ElevenLabs] Stored conversationId in ref:', conversationIdRef.current);
           setIsConnecting(false);
           setIsConnected(true);
           if (onConnect) onConnect();
@@ -190,34 +191,54 @@ export function useElevenLabsConversation({
           // Fetch transcript from backend after call ends (wait a moment for processing)
           if (conversationIdRef.current) {
             const conversationId = conversationIdRef.current;
-            // Wait 2 seconds for ElevenLabs to process and store the transcript
-            setTimeout(async () => {
-              try {
-                const transcript = await getElevenLabsTranscript(conversationId);
-                if (transcript && transcript.messages) {
-                  console.log('[ElevenLabs] Fetched transcript from backend:', transcript);
-                  
-                  // Process transcript messages and call callbacks
-                  for (const msg of transcript.messages) {
-                    const role = msg.role === 'user' ? 'user' : 'agent';
-                    const content = msg.content || msg.text || '';
+            
+            // Retry function with exponential backoff
+            const fetchTranscriptWithRetry = async (attempt: number = 0, maxAttempts: number = 5) => {
+              const delays = [3000, 5000, 7000, 10000, 15000]; // 3s, 5s, 7s, 10s, 15s
+              const delay = delays[Math.min(attempt, delays.length - 1)];
+              
+              setTimeout(async () => {
+                try {
+                  const transcript = await getElevenLabsTranscript(conversationId);
+                  if (transcript && transcript.messages && transcript.messages.length > 0) {
+                    console.log('[ElevenLabs] Fetched transcript from backend:', transcript);
                     
-                    if (content.trim()) {
-                      if (role === 'user' && onUserSpeech) {
-                        onUserSpeech(content);
-                      } else if (role === 'agent' && onAgentSpeech) {
-                        onAgentSpeech(content);
-                      }
-                      if (onMessage) {
-                        onMessage({ role, content });
+                    // Process transcript messages and call callbacks
+                    for (const msg of transcript.messages) {
+                      const role = msg.role === 'user' ? 'user' : 'agent';
+                      const content = msg.content || msg.text || '';
+                      
+                      if (content.trim()) {
+                        if (role === 'user' && onUserSpeech) {
+                          onUserSpeech(content);
+                        } else if (role === 'agent' && onAgentSpeech) {
+                          onAgentSpeech(content);
+                        }
+                        if (onMessage) {
+                          onMessage({ role, content });
+                        }
                       }
                     }
+                  } else if (attempt < maxAttempts - 1) {
+                    // Transcript not ready yet, retry
+                    console.log(`[ElevenLabs] Transcript not ready yet, retrying in ${delays[Math.min(attempt + 1, delays.length - 1)] / 1000}s (attempt ${attempt + 1}/${maxAttempts})`);
+                    fetchTranscriptWithRetry(attempt + 1, maxAttempts);
+                  } else {
+                    console.warn('[ElevenLabs] Transcript not available after all retries');
+                  }
+                } catch (err) {
+                  if (attempt < maxAttempts - 1) {
+                    console.log(`[ElevenLabs] Failed to fetch transcript, retrying in ${delays[Math.min(attempt + 1, delays.length - 1)] / 1000}s (attempt ${attempt + 1}/${maxAttempts}):`, err);
+                    fetchTranscriptWithRetry(attempt + 1, maxAttempts);
+                  } else {
+                    console.warn('[ElevenLabs] Failed to fetch transcript after all retries:', err);
                   }
                 }
-              } catch (err) {
-                console.warn('[ElevenLabs] Failed to fetch transcript:', err);
-              }
-            }, 2000);
+              }, delay);
+            };
+            
+            // Start fetching with initial 3 second delay
+            fetchTranscriptWithRetry(0);
           }
           
           conversationRef.current = null;
@@ -263,6 +284,26 @@ export function useElevenLabsConversation({
 
             if (content && content.trim()) {
               console.log('[ElevenLabs] Calling onMessage with:', { role, content, isFinal, payloadType: payload.type, payloadRole: payload.role });
+              
+              // Automatically post transcript update to backend for live display
+              if (conversationIdRef.current) {
+                console.log('[ElevenLabs] Posting transcript update:', { conversation_id: conversationIdRef.current, role, content: content.substring(0, 50) });
+                postElevenLabsTranscript({
+                  conversation_id: conversationIdRef.current,
+                  messages: [{
+                    role,
+                    content,
+                  }],
+                  session_id: sessionId,
+                }).then((result) => {
+                  console.log('[ElevenLabs] Transcript posted successfully:', result);
+                }).catch((err) => {
+                  // Log error but don't block - transcript posting is non-critical
+                  console.warn('[ElevenLabs] Failed to post transcript update:', err.response?.data || err.message);
+                });
+              } else {
+                console.warn('[ElevenLabs] Cannot post transcript - conversationId not available');
+              }
               
               // Call specific callbacks if provided
               if (role === 'user' && onUserSpeech) {
@@ -357,6 +398,55 @@ export function useElevenLabsConversation({
       console.log('[ElevenLabs] Conversation object methods:', Object.getOwnPropertyNames(conversation));
       console.log('[ElevenLabs] Conversation object prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(conversation)));
       
+      // Start polling for live transcript updates
+      if (conversationIdRef.current) {
+        const pollTranscript = async () => {
+          if (!conversationIdRef.current || !conversationRef.current) {
+            return; // Call ended, stop polling
+          }
+          
+          try {
+            const transcript = await getElevenLabsLiveTranscript(conversationIdRef.current);
+            if (transcript && transcript.messages && transcript.messages.length > 0) {
+              // Process new messages
+              const processedIds = new Set<string>();
+              
+              for (const msg of transcript.messages) {
+                const msgId = msg.id || `${msg.role}_${msg.content.substring(0, 50)}`;
+                if (!processedIds.has(msgId)) {
+                  processedIds.add(msgId);
+                  
+                  const role = msg.role === 'user' ? 'user' : 'agent';
+                  const content = msg.content || '';
+                  
+                  if (content.trim()) {
+                    if (role === 'user' && onUserSpeech) {
+                      onUserSpeech(content);
+                    } else if (role === 'agent' && onAgentSpeech) {
+                      onAgentSpeech(content);
+                    }
+                    if (onMessage) {
+                      onMessage({ role, content });
+                    }
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            // Silently fail - transcript might not be available yet
+            console.log('[ElevenLabs] Live transcript poll error (non-critical):', err);
+          }
+          
+          // Schedule next poll if still connected
+          if (conversationIdRef.current && conversationRef.current) {
+            setTimeout(pollTranscript, 2000); // Poll every 2 seconds
+          }
+        };
+        
+        // Start polling after 3 seconds (give agent time to post first transcript)
+        setTimeout(pollTranscript, 3000);
+      }
+      
       // Try to enable user transcript forwarding if the SDK supports it
       try {
         if (typeof conversation.enableUserTranscript === 'function') {
@@ -401,34 +491,53 @@ export function useElevenLabsConversation({
 
     // Fetch transcript from backend after call ends (wait a moment for processing)
     if (conversationId) {
-      // Wait 2 seconds for ElevenLabs to process and store the transcript
-      setTimeout(async () => {
-        try {
-          const transcript = await getElevenLabsTranscript(conversationId);
-          if (transcript && transcript.messages) {
-            console.log('[ElevenLabs] Fetched transcript from backend after call end:', transcript);
-            
-            // Process transcript messages and call callbacks
-            for (const msg of transcript.messages) {
-              const role = msg.role === 'user' ? 'user' : 'agent';
-              const content = msg.content || msg.text || '';
+      // Retry function with exponential backoff
+      const fetchTranscriptWithRetry = async (attempt: number = 0, maxAttempts: number = 5) => {
+        const delays = [3000, 5000, 7000, 10000, 15000]; // 3s, 5s, 7s, 10s, 15s
+        const delay = delays[Math.min(attempt, delays.length - 1)];
+        
+        setTimeout(async () => {
+          try {
+            const transcript = await getElevenLabsTranscript(conversationId);
+            if (transcript && transcript.messages && transcript.messages.length > 0) {
+              console.log('[ElevenLabs] Fetched transcript from backend after call end:', transcript);
               
-              if (content.trim()) {
-                if (role === 'user' && onUserSpeech) {
-                  onUserSpeech(content);
-                } else if (role === 'agent' && onAgentSpeech) {
-                  onAgentSpeech(content);
-                }
-                if (onMessage) {
-                  onMessage({ role, content });
+              // Process transcript messages and call callbacks
+              for (const msg of transcript.messages) {
+                const role = msg.role === 'user' ? 'user' : 'agent';
+                const content = msg.content || msg.text || '';
+                
+                if (content.trim()) {
+                  if (role === 'user' && onUserSpeech) {
+                    onUserSpeech(content);
+                  } else if (role === 'agent' && onAgentSpeech) {
+                    onAgentSpeech(content);
+                  }
+                  if (onMessage) {
+                    onMessage({ role, content });
+                  }
                 }
               }
+            } else if (attempt < maxAttempts - 1) {
+              // Transcript not ready yet, retry
+              console.log(`[ElevenLabs] Transcript not ready yet, retrying in ${delays[Math.min(attempt + 1, delays.length - 1)] / 1000}s (attempt ${attempt + 1}/${maxAttempts})`);
+              fetchTranscriptWithRetry(attempt + 1, maxAttempts);
+            } else {
+              console.warn('[ElevenLabs] Transcript not available after all retries');
+            }
+          } catch (err) {
+            if (attempt < maxAttempts - 1) {
+              console.log(`[ElevenLabs] Failed to fetch transcript, retrying in ${delays[Math.min(attempt + 1, delays.length - 1)] / 1000}s (attempt ${attempt + 1}/${maxAttempts}):`, err);
+              fetchTranscriptWithRetry(attempt + 1, maxAttempts);
+            } else {
+              console.warn('[ElevenLabs] Failed to fetch transcript after all retries:', err);
             }
           }
-        } catch (err) {
-          console.warn('[ElevenLabs] Failed to fetch transcript after call end:', err);
-        }
-      }, 2000);
+        }, delay);
+      };
+      
+      // Start fetching with initial 3 second delay
+      fetchTranscriptWithRetry(0);
       
       conversationIdRef.current = null;
     }

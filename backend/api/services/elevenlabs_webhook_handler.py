@@ -66,6 +66,7 @@ class ElevenLabsWebhookHandler:
             'get_gate_directions': self._fn_get_gate_directions,
             'request_wheelchair': self._fn_request_wheelchair,
             'add_bags': self._fn_add_bags,
+            'post_transcript': self._fn_post_transcript,
         }
 
         handler = function_handlers.get(tool_name)
@@ -828,6 +829,82 @@ class ElevenLabsWebhookHandler:
             'spoken_response': f"I've added {bag_count} checked bag{'s' if bag_count > 1 else ''} to your reservation. The fee is ${fee_per_bag} per bag, so your total is ${total_fee}. You can pay at the check-in counter or kiosk. Anything else I can help with?",
         }
 
+    def _fn_post_transcript(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Post transcript update for live conversation display.
+        
+        This tool is called automatically by the ElevenLabs agent to update
+        the conversation transcript in real-time. The frontend polls for these updates.
+        
+        Args:
+            conversation_id: The ElevenLabs conversation ID
+            messages: List of message objects with role and content
+            session_id: Optional session ID to associate with
+        
+        Returns:
+            Success confirmation
+        """
+        conversation_id = args.get('conversation_id', '')
+        messages = args.get('messages', [])
+        session_id = args.get('session_id')
+        
+        if not conversation_id:
+            return {
+                'success': False,
+                'error': 'conversation_id is required',
+            }
+        
+        # Store transcript in session context or cache
+        # Use conversation_id as key to store transcript
+        from django.core.cache import cache
+        
+        # Store transcript with conversation_id as key
+        # Cache for 1 hour (3600 seconds)
+        cache_key = f'elevenlabs_transcript_{conversation_id}'
+        existing_transcript = cache.get(cache_key, [])
+        
+        # Merge new messages (avoid duplicates)
+        existing_message_ids = {msg.get('id') for msg in existing_transcript if msg.get('id')}
+        new_messages = []
+        for msg in messages:
+            # Normalize message format
+            normalized_msg = {
+                'role': msg.get('role', 'agent'),
+                'content': msg.get('content', msg.get('text', '')),
+            }
+            msg_id = msg.get('id') or f"{normalized_msg['role']}_{normalized_msg['content'][:50]}"
+            if msg_id not in existing_message_ids:
+                normalized_msg['id'] = msg_id
+                normalized_msg['timestamp'] = msg.get('timestamp', datetime.now().isoformat())
+                new_messages.append(normalized_msg)
+        
+        # Update cache with merged transcript
+        updated_transcript = existing_transcript + new_messages
+        cache.set(cache_key, updated_transcript, timeout=3600)
+        
+        # Also store in session if session_id provided
+        if session_id:
+            try:
+                session = Session.objects.get(id=session_id)
+                if not session.context:
+                    session.context = {}
+                if 'transcript' not in session.context:
+                    session.context['transcript'] = []
+                session.context['transcript'].extend(new_messages)
+                session.context['conversation_id'] = conversation_id
+                session.save()
+            except Session.DoesNotExist:
+                logger.warning(f"Session {session_id} not found for transcript update")
+        
+        logger.info(f"Posted transcript update for conversation {conversation_id}: {len(new_messages)} new messages")
+        
+        return {
+            'success': True,
+            'conversation_id': conversation_id,
+            'messages_added': len(new_messages),
+            'total_messages': len(updated_transcript),
+        }
+
 
 # Singleton instance
 elevenlabs_webhook_handler = ElevenLabsWebhookHandler()
@@ -1051,6 +1128,43 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
                 }
             },
             "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "post_transcript",
+        "description": "Post conversation transcript updates for live display. This tool is called automatically during conversations to update the transcript in real-time. You should call this periodically with the latest conversation messages including both user and agent messages.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "description": "The ElevenLabs conversation ID"
+                },
+                "messages": {
+                    "type": "array",
+                    "description": "Array of message objects with 'role' (user/agent) and 'content' (message text)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "role": {
+                                "type": "string",
+                                "enum": ["user", "agent"],
+                                "description": "Who said the message"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "The message text"
+                            }
+                        },
+                        "required": ["role", "content"]
+                    }
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Optional session ID to associate with"
+                }
+            },
+            "required": ["conversation_id", "messages"]
         }
     }
 ]

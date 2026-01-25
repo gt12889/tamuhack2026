@@ -741,5 +741,109 @@
     "dynamic_variables": {
       "dynamic_variable_placeholders": {}
     }
+  },
+  {
+    "type": "webhook",
+    "name": "post_transcript",
+    "description": "Post conversation transcript updates for live display. This tool is called automatically during conversations to update the transcript in real-time.",
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "assignments": [],
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request parameters",
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "value_type": "constant",
+            "description": "",
+            "dynamic_variable": "",
+            "constant_value": "post_transcript",
+            "enum": null,
+            "is_system_provided": false,
+            "required": true
+          },
+          {
+            "id": "conversation_id",
+            "type": "string",
+            "value_type": "llm_prompt",
+            "description": "The ElevenLabs conversation ID",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "enum": null,
+            "is_system_provided": false,
+            "required": true
+          },
+          {
+            "id": "messages",
+            "type": "array",
+            "value_type": "llm_prompt",
+            "description": "Array of message objects with role and content",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "enum": null,
+            "is_system_provided": false,
+            "required": true,
+            "items": {
+              "type": "object",
+              "description": "A message object with role and content",
+              "properties": [
+                {
+                  "id": "role",
+                  "type": "string",
+                  "value_type": "llm_prompt",
+                  "description": "Who said the message (user or agent)",
+                  "dynamic_variable": "",
+                  "constant_value": "",
+                  "enum": ["user", "agent"],
+                  "is_system_provided": false,
+                  "required": true
+                },
+                {
+                  "id": "content",
+                  "type": "string",
+                  "value_type": "llm_prompt",
+                  "description": "The message text content",
+                  "dynamic_variable": "",
+                  "constant_value": "",
+                  "enum": null,
+                  "is_system_provided": false,
+                  "required": true
+                }
+              ]
+            }
+          },
+          {
+            "id": "session_id",
+            "type": "string",
+            "value_type": "llm_prompt",
+            "description": "Optional session ID",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "enum": null,
+            "is_system_provided": false,
+            "required": false
+          }
+        ],
+        "required": false,
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
   }
 ]

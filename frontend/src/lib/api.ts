@@ -266,6 +266,48 @@ export async function getElevenLabsTranscript(conversationId: string): Promise<{
   return response.data;
 }
 
+export async function getElevenLabsLiveTranscript(conversationId: string): Promise<{
+  conversation_id: string;
+  messages: Array<{
+    role: 'user' | 'agent';
+    content: string;
+    id?: string;
+    timestamp?: string;
+  }>;
+  message_count: number;
+}> {
+  const response = await api.get(`/api/elevenlabs/convai/transcript/${conversationId}`);
+  return response.data;
+}
+
+export async function postElevenLabsTranscript(params: {
+  conversation_id: string;
+  messages: Array<{
+    role: 'user' | 'agent';
+    content: string;
+  }>;
+  session_id?: string;
+}): Promise<{
+  success: boolean;
+  conversation_id: string;
+  messages_added: number;
+  total_messages: number;
+}> {
+  try {
+    const response = await api.post('/api/elevenlabs/convai/webhook', {
+      tool_name: 'post_transcript',
+      conversation_id: params.conversation_id,
+      messages: params.messages,
+      session_id: params.session_id,
+    });
+    console.log('[ElevenLabs] Successfully posted transcript:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('[ElevenLabs] Error posting transcript:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 // Location Tracking API
 export async function updateLocation(
   sessionId: string,

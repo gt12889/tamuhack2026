@@ -2105,15 +2105,42 @@ def elevenlabs_convai_status(request):
 
 
 @api_view(['GET'])
+def elevenlabs_get_live_transcript(request, conversation_id):
+    """
+    Get live transcript updates for a conversation.
+    
+    This endpoint retrieves transcript messages stored by the post_transcript tool.
+    The frontend polls this endpoint during active calls to get real-time updates.
+    """
+    from django.core.cache import cache
+    
+    cache_key = f'elevenlabs_transcript_{conversation_id}'
+    transcript = cache.get(cache_key, [])
+    
+    return Response({
+        'conversation_id': conversation_id,
+        'messages': transcript,
+        'message_count': len(transcript),
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
 def elevenlabs_get_conversation(request, conversation_id):
     """
     Get conversation details and transcript from ElevenLabs.
     
     This endpoint fetches the full conversation transcript after a call ends.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Fetching conversation transcript for conversation_id: {conversation_id}")
     result = elevenlabs_service.get_conversation(conversation_id)
     
     if result:
+        logger.info(f"ElevenLabs API response keys: {list(result.keys())}")
+        logger.info(f"ElevenLabs API response (first 500 chars): {str(result)[:500]}")
+        
         # Extract messages/transcript from the response
         # The format may vary, so we'll handle different structures
         messages = []
@@ -2121,14 +2148,19 @@ def elevenlabs_get_conversation(request, conversation_id):
         # Check various possible fields for transcript data
         if 'transcript' in result:
             transcript_data = result['transcript']
+            logger.info(f"Found 'transcript' field, type: {type(transcript_data)}")
             if isinstance(transcript_data, list):
                 messages = transcript_data
             elif isinstance(transcript_data, dict) and 'messages' in transcript_data:
                 messages = transcript_data['messages']
         elif 'messages' in result:
+            logger.info(f"Found 'messages' field, count: {len(result['messages']) if isinstance(result['messages'], list) else 'N/A'}")
             messages = result['messages']
         elif 'history' in result:
+            logger.info(f"Found 'history' field")
             messages = result['history']
+        else:
+            logger.warning(f"No transcript/messages/history field found. Available keys: {list(result.keys())}")
         
         # Normalize message format
         normalized_messages = []
@@ -2140,13 +2172,17 @@ def elevenlabs_get_conversation(request, conversation_id):
                     'timestamp': msg.get('timestamp', msg.get('time')),
                 })
         
+        logger.info(f"Normalized {len(normalized_messages)} messages from transcript")
+        
         return Response({
             'conversation_id': conversation_id,
             'messages': normalized_messages,
             'duration_ms': result.get('duration_ms'),
             'status': result.get('status', 'completed'),
+            'raw_response_keys': list(result.keys()),  # Debug info
         }, status=status.HTTP_200_OK)
     
+    logger.warning(f"Failed to retrieve conversation {conversation_id} from ElevenLabs")
     return Response(
         {'error': 'Conversation not found or failed to retrieve'},
         status=status.HTTP_404_NOT_FOUND
@@ -2243,7 +2279,8 @@ def elevenlabs_server_tool(request):
         known_tools = [
             'lookup_reservation', 'change_flight', 'create_booking', 'get_flight_options',
             'get_reservation_status', 'get_directions', 'create_family_helper_link',
-            'check_flight_delays', 'get_gate_directions', 'request_wheelchair', 'add_bags'
+            'check_flight_delays', 'get_gate_directions', 'request_wheelchair', 'add_bags',
+            'post_transcript'
         ]
         
         for tool in known_tools:

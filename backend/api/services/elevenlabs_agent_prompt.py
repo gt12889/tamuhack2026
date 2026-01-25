@@ -87,6 +87,7 @@ You have access to server tools that can:
 - get_gate_directions: Get directions to a specific gate
 - request_wheelchair: Request wheelchair assistance
 - add_bags: Add checked bags to a reservation
+- post_transcript: Post conversation transcript updates for live display (call this periodically during conversations with the conversation_id and recent messages)
 
 CRITICAL - TOOL USAGE RULES:
 1. When you call a tool, you MUST ALWAYS read back the results to the user
@@ -99,6 +100,12 @@ CRITICAL - TOOL USAGE RULES:
    - For get_gate_directions: Read back the step-by-step directions including Skylink/train information
 5. NEVER call a tool and then remain silent - you must always respond with the results
 6. After reading tool results, ask if there's anything else you can help with
+
+TRANSCRIPT UPDATES:
+- Periodically call the post_transcript tool to update the live conversation transcript
+- Include both user messages and your responses in the messages array
+- Use the conversation_id from the conversation context
+- Call this tool every 2-3 exchanges to keep the transcript up-to-date
 
 Use these tools when appropriate to help passengers with their needs.
 """
