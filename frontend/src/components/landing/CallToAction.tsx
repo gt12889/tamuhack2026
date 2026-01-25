@@ -1,6 +1,6 @@
 'use client';
 
-import { Phone, Clock, Zap, Bot } from 'lucide-react';
+import { Phone, Clock, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -76,10 +76,6 @@ export function CallToAction({
           transition={{ duration: 0.4, delay: 0.6 }}
           className="flex flex-wrap items-center justify-center gap-3 mt-6"
         >
-          <Badge className="bg-white/20 text-white border-white/30 text-sm px-3 py-1">
-            <Bot className="w-4 h-4 mr-1" />
-            AI-Powered
-          </Badge>
           <Badge className="bg-white/20 text-white border-white/30 text-sm px-3 py-1">
             <Clock className="w-4 h-4 mr-1" />
             Available 24/7

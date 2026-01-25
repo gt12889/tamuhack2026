@@ -49,13 +49,13 @@ export function LandingPage({
             className="mt-8"
           >
             <Link
-              href="/help/demo"
+              href="/help/demo-meemaw"
               className="inline-flex items-center gap-2 text-gray-600 hover:text-purple-600 transition-colors text-sm"
             >
               <div className="bg-purple-100 p-2 rounded-full">
                 <Users className="w-4 h-4 text-purple-600" />
               </div>
-              <span>Have a helper link?</span>
+              <span>Need a helper link?</span>
             </Link>
           </motion.div>
 

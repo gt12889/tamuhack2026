@@ -375,80 +375,6 @@ export function LiveDemo({
           </motion.div>
           )}
 
-          {/* Agent Handoff Panel - Only in Live Mode */}
-          {!showSampleDemo && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl p-4"
-          >
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-white/20 rounded-full p-2">
-                  <Headphones className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    Agent Handoff Demo
-                    <span className="bg-yellow-400 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-semibold">
-                      NEW
-                    </span>
-                  </h3>
-                  <p className="text-sm opacity-90">Simulate escalation to human agent with full context</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {!handoffId ? (
-                  <Button
-                    onClick={handleCreateHandoff}
-                    disabled={isCreatingHandoff}
-                    className="bg-white text-orange-700 hover:bg-gray-100"
-                  >
-                    <AlertTriangle className="w-4 h-4 mr-2" />
-                    {isCreatingHandoff ? 'Creating...' : 'Simulate Handoff'}
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="bg-white/10 rounded-lg px-3 py-2 text-sm font-mono max-w-xs truncate">
-                      {getAgentUrl()}
-                    </div>
-                    <Button
-                      onClick={handleCopyAgentLink}
-                      size="icon"
-                      className="bg-white/20 hover:bg-white/30"
-                      title="Copy agent link"
-                    >
-                      {handoffLinkCopied ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                    <Button
-                      onClick={() => window.open(getAgentUrl(), '_blank')}
-                      size="icon"
-                      className="bg-white/20 hover:bg-white/30"
-                      title="Open agent console"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {handoffId && (
-              <div className="mt-3 bg-white/10 rounded-lg p-3">
-                <p className="text-sm">
-                  <strong>Demo Scenario:</strong> Customer Margaret needs emergency flight change with fee waiver.
-                  Agent console shows full context, sentiment analysis, and suggested response.
-                </p>
-              </div>
-            )}
-          </motion.div>
-          )}
 
           {/* Error Display - Only in Live Mode */}
           {!showSampleDemo && error && (
@@ -477,6 +403,62 @@ export function LiveDemo({
           )}
         </div>
       </main>
+
+      {/* Agent Handoff Demo - Fixed Bottom Bar */}
+      {!showSampleDemo && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-orange-600 to-red-600 text-white p-4 shadow-lg">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 rounded-full p-2">
+                  <Headphones className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold">Agent Handoff Demo</h3>
+                  <p className="text-sm opacity-90">
+                    Simulate MeeMaw requesting help with a fee waiver
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {!handoffId ? (
+                  <Button
+                    onClick={handleCreateHandoff}
+                    disabled={isCreatingHandoff}
+                    className="bg-white text-orange-700 hover:bg-gray-100"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    {isCreatingHandoff ? 'Creating...' : 'Simulate Handoff'}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleCopyAgentLink}
+                      className="bg-white/20 hover:bg-white/30"
+                      title="Copy agent link"
+                    >
+                      {handoffLinkCopied ? (
+                        <Check className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Copy className="w-4 h-4 mr-2" />
+                      )}
+                      {handoffLinkCopied ? 'Copied!' : 'Copy Link'}
+                    </Button>
+                    <Button
+                      onClick={() => window.open(getAgentUrl(), '_blank')}
+                      className="bg-white text-orange-700 hover:bg-gray-100"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Open Agent Console
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

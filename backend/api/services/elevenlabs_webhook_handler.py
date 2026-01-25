@@ -163,18 +163,43 @@ class ElevenLabsWebhookHandler:
             segment = reservation.flight_segments.first()
 
             if segment:
+                flight = segment.flight
+                passenger = reservation.passenger
+                origin_city = CITY_NAMES.get(flight.origin, flight.origin)
+                dest_city = CITY_NAMES.get(flight.destination, flight.destination)
+                gate = flight.gate or 'TBD'
+                seat = segment.seat or 'Not assigned'
+
+                # Create spoken summary for the agent
+                spoken_summary = (
+                    f"I found your reservation, {passenger.first_name}. "
+                    f"You're booked on flight {flight.flight_number} "
+                    f"from {origin_city} to {dest_city}, "
+                    f"departing {flight.departure_time.strftime('%B %d')} at {flight.departure_time.strftime('%I:%M %p')}. "
+                )
+                if gate and gate != 'TBD':
+                    spoken_summary += f"Your gate is {gate}. "
+                if seat and seat != 'Not assigned':
+                    spoken_summary += f"You're in seat {seat}. "
+                spoken_summary += "How can I help you with this flight?"
+
                 return {
                     'success': True,
                     'found': True,
                     'confirmation_code': code,
-                    'passenger_name': f"{reservation.passenger.first_name} {reservation.passenger.last_name}",
-                    'origin': segment.flight.origin,
-                    'origin_city': CITY_NAMES.get(segment.flight.origin, segment.flight.origin),
-                    'destination': segment.flight.destination,
-                    'destination_city': CITY_NAMES.get(segment.flight.destination, segment.flight.destination),
-                    'departure_date': segment.flight.departure_time.strftime('%B %d'),
-                    'departure_time': segment.flight.departure_time.strftime('%I:%M %p'),
-                    'flight_number': segment.flight.flight_number,
+                    'passenger_name': f"{passenger.first_name} {passenger.last_name}",
+                    'passenger_first_name': passenger.first_name,
+                    'origin': flight.origin,
+                    'origin_city': origin_city,
+                    'destination': flight.destination,
+                    'destination_city': dest_city,
+                    'departure_date': flight.departure_time.strftime('%B %d'),
+                    'departure_time': flight.departure_time.strftime('%I:%M %p'),
+                    'flight_number': flight.flight_number,
+                    'gate': gate,
+                    'seat': seat,
+                    'status': flight.status,
+                    'spoken_summary': spoken_summary,
                 }
         except Reservation.DoesNotExist:
             pass

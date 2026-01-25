@@ -122,8 +122,21 @@ export default function HelperPage() {
   const demoStartTimeRef = useRef<number | null>(null);
   const DEMO_JOURNEY_DURATION_MS = 120000; // 2 minutes to complete the journey in demo
 
+  // Auto-enable demo mode for demo links
+  useEffect(() => {
+    if (linkId && linkId.startsWith('demo')) {
+      setDemoMode(true);
+      setLoading(false);
+    }
+  }, [linkId]);
+
   const fetchSession = useCallback(async () => {
     if (!linkId) {
+      setLoading(false);
+      return;
+    }
+    // Skip API call for demo links
+    if (linkId.startsWith('demo')) {
       setLoading(false);
       return;
     }
