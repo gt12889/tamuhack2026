@@ -1,5 +1,16 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { SafeAreaView, ScrollView, Text, StyleSheet, View, ActivityIndicator, TouchableOpacity } from "react-native";
+import React, { useCallback, useEffect, useState, useRef } from "react";
+import {
+  SafeAreaView,
+  ScrollView,
+  Text,
+  StyleSheet,
+  View,
+  ActivityIndicator,
+  TouchableOpacity,
+  Animated,
+  Linking,
+  Alert,
+} from "react-native";
 import PassengerCard from "@/components/ui/PassengerCard";
 import FlightStatusCard from "@/components/ui/FlightStatusCard";
 import type { Message, Reservation } from "@/types";
@@ -39,26 +50,54 @@ const DEMO_RESERVATION: Reservation = {
   created_at: '2026-01-15T10:00:00Z',
 };
 
+// Quick action buttons for demo
+const QUICK_ACTIONS = [
+  { id: 'wheelchair', label: '♿ Wheelchair', color: '#3B82F6' },
+  { id: 'directions', label: '🧭 Directions', color: '#10B981' },
+  { id: 'water', label: '💧 Water', color: '#06B6D4' },
+  { id: 'restroom', label: '🚻 Restroom', color: '#8B5CF6' },
+];
+
 export default function TravelDashboard() {
   const params = useLocalSearchParams();
-  // Support both 'code' (from index.tsx) and 'linkId' (from web helper links)
   const code = (params.code as string) || (params.linkId as string) || '';
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCallActive, setIsCallActive] = useState(false);
+
+  // Pulsing animation for call button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [pulseAnim]);
 
   const fetchData = useCallback(async () => {
     if (!code) {
-      // No code provided - use demo mode
       setReservation(DEMO_RESERVATION);
       setLoading(false);
       return;
     }
 
     try {
-      // First try as a helper link ID
       try {
         const data = await getHelperSession(code);
         setMessages(data.messages as Message[]);
@@ -69,10 +108,9 @@ export default function TravelDashboard() {
           return;
         }
       } catch {
-        // Not a helper link, try as confirmation code
+        // Not a helper link
       }
 
-      // Try as a confirmation code
       try {
         const res = await lookupReservation({ confirmation_code: code });
         if (res) {
@@ -82,19 +120,15 @@ export default function TravelDashboard() {
           return;
         }
       } catch {
-        // Confirmation code lookup failed
+        // Lookup failed
       }
 
-      // Neither worked - use demo mode with the entered code
-      console.log('Using demo mode for code:', code);
       setReservation({
         ...DEMO_RESERVATION,
         confirmation_code: code.toUpperCase(),
       });
       setError(null);
     } catch (err) {
-      console.error('Error fetching data:', err);
-      // Fall back to demo on any error
       setReservation(DEMO_RESERVATION);
       setError(null);
     } finally {
@@ -110,7 +144,36 @@ export default function TravelDashboard() {
     router.back();
   };
 
-  // Loading state - show spinner
+  const handleCallMeeMaw = () => {
+    setIsCallActive(true);
+    Alert.alert(
+      "📞 Calling MeeMaw...",
+      "Connecting you to your AI travel assistant.\n\nIn the full app, this would start a voice call with ElevenLabs.",
+      [
+        {
+          text: "End Call",
+          onPress: () => setIsCallActive(false),
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
+  const handleQuickAction = (actionId: string) => {
+    const actionMessages: Record<string, string> = {
+      wheelchair: "🦽 Requesting wheelchair assistance...\n\nA team member will meet you at your current location.",
+      directions: "🧭 Getting directions to Gate B22...\n\nHead straight, then turn left at Starbucks. About 5 min walk.",
+      water: "💧 Nearest water fountain:\n\nTerminal B, near Gate B18\n~2 minute walk from your location.",
+      restroom: "🚻 Nearest restroom:\n\nTerminal B, past the Starbucks on your left.\n~1 minute walk.",
+    };
+
+    Alert.alert(
+      "Quick Action",
+      actionMessages[actionId] || "Action requested!",
+      [{ text: "OK" }]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -122,7 +185,6 @@ export default function TravelDashboard() {
     );
   }
 
-  // Error state
   if (error && !reservation) {
     return (
       <SafeAreaView style={styles.container}>
@@ -138,12 +200,22 @@ export default function TravelDashboard() {
     );
   }
 
-  // Success state - show reservation data
   const displayReservation = reservation || DEMO_RESERVATION;
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Live Status Indicator */}
+        <View style={styles.statusBar}>
+          <View style={styles.liveIndicator}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>Connected</Text>
+          </View>
+          <Text style={styles.statusTime}>
+            {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
+
         <Text style={styles.header}>Travel Dashboard</Text>
 
         {code ? (
@@ -159,10 +231,39 @@ export default function TravelDashboard() {
           <FlightStatusCard key={flight.id} flight={flight} />
         ))}
 
+        {/* Quick Actions Grid */}
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActionsGrid}>
+          {QUICK_ACTIONS.map((action) => (
+            <TouchableOpacity
+              key={action.id}
+              style={[styles.quickActionButton, { backgroundColor: action.color }]}
+              onPress={() => handleQuickAction(action.id)}
+            >
+              <Text style={styles.quickActionText}>{action.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <TouchableOpacity style={styles.refreshButton} onPress={fetchData}>
-          <Text style={styles.refreshButtonText}>Refresh</Text>
+          <Text style={styles.refreshButtonText}>↻ Refresh</Text>
         </TouchableOpacity>
+
+        {/* Spacer for FAB */}
+        <View style={{ height: 80 }} />
       </ScrollView>
+
+      {/* Floating Call Button */}
+      <Animated.View style={[styles.fabContainer, { transform: [{ scale: pulseAnim }] }]}>
+        <TouchableOpacity
+          style={[styles.fab, isCallActive && styles.fabActive]}
+          onPress={handleCallMeeMaw}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.fabIcon}>{isCallActive ? '📞' : '🗣️'}</Text>
+          <Text style={styles.fabText}>{isCallActive ? 'On Call' : 'Call MeeMaw'}</Text>
+        </TouchableOpacity>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -175,6 +276,36 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 32,
+  },
+  statusBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    marginRight: 6,
+  },
+  liveText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  statusTime: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   header: {
     fontSize: 24,
@@ -237,6 +368,31 @@ const styles = StyleSheet.create({
     color: "#4F46E5",
     letterSpacing: 2,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  quickActionButton: {
+    width: '48%',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  quickActionText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   refreshButton: {
     backgroundColor: "#E5E7EB",
     paddingVertical: 12,
@@ -248,5 +404,36 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontSize: 14,
     fontWeight: "600",
+  },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 24,
+    right: 16,
+    left: 16,
+  },
+  fab: {
+    backgroundColor: '#6C63FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 16,
+    shadowColor: '#6C63FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabActive: {
+    backgroundColor: '#EF4444',
+  },
+  fabIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  fabText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });
