@@ -20,6 +20,7 @@ import {
   interpolatePosition,
   getDirectionsToPOI,
   getNearbyPOIs,
+  getConversationForProgress,
 } from '@/lib/dfwDemoData';
 import {
   createHelperDemoHandoff,
@@ -106,6 +107,8 @@ export default function HelperPage() {
   const demoStartTimeRef = useRef<number | null>(null);
   const pausedProgressRef = useRef<number>(0); // Store progress when paused
   const demoMessageIdRef = useRef(0);
+  const triggeredConversationsRef = useRef<Set<string>>(new Set()); // Track which journey conversations triggered
+  const conversationTimeoutsRef = useRef<NodeJS.Timeout[]>([]); // Track conversation timeouts for cleanup
   const DEMO_JOURNEY_DURATION_MS = 120000;
 
   // Auto-enable demo mode for demo links
@@ -283,6 +286,55 @@ export default function HelperPage() {
     setSimulationPlaying(false);
     setDemoMessages([]);
     demoMessageIdRef.current = 0;
+    triggeredConversationsRef.current = new Set(); // Reset triggered conversations
+    // Clear any pending conversation timeouts
+    conversationTimeoutsRef.current.forEach(clearTimeout);
+    conversationTimeoutsRef.current = [];
+  }, []);
+
+  // Journey-based conversation triggers - simulates passenger talking during their walk
+  useEffect(() => {
+    if (!demoMode || !simulationPlaying) return;
+
+    const gate = selectedScenario.reservation.flights[0]?.gate || 'B22';
+    const name = selectedScenario.passenger.nickname || selectedScenario.passenger.firstName;
+
+    // Check if a new conversation should trigger based on current progress
+    const conversation = getConversationForProgress(
+      demoProgress,
+      triggeredConversationsRef.current,
+      name,
+      gate
+    );
+
+    if (conversation) {
+      // Mark this conversation as triggered
+      triggeredConversationsRef.current.add(conversation.waypointId);
+
+      // Play through the messages with timing
+      let cumulativeDelay = 0;
+      conversation.messages.forEach((msg) => {
+        cumulativeDelay += msg.delayMs;
+        const timeout = setTimeout(() => {
+          demoMessageIdRef.current += 1;
+          const newMsg: Message = {
+            id: `journey-msg-${demoMessageIdRef.current}`,
+            role: msg.role === 'agent' ? 'assistant' : 'user',
+            content: msg.content,
+            timestamp: new Date().toISOString(),
+          };
+          setDemoMessages((prev) => [...prev, newMsg]);
+        }, cumulativeDelay);
+        conversationTimeoutsRef.current.push(timeout);
+      });
+    }
+  }, [demoMode, simulationPlaying, demoProgress, selectedScenario]);
+
+  // Cleanup conversation timeouts on unmount
+  useEffect(() => {
+    return () => {
+      conversationTimeoutsRef.current.forEach(clearTimeout);
+    };
   }, []);
 
   const currentWaypoint = demoMode ? getWaypointByProgress(demoProgress).current : null;

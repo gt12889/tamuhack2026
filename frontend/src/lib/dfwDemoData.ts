@@ -540,3 +540,144 @@ export function interpolatePosition(
     lng: from.lng + (to.lng - from.lng) * progress,
   };
 }
+
+// Journey conversation messages - simulates passenger talking during their journey
+export interface JourneyConversation {
+  waypointId: string;
+  progressTrigger: number; // 0-1, when in journey to trigger
+  messages: Array<{
+    role: 'user' | 'agent';
+    content: string;
+    delayMs: number; // delay after previous message
+  }>;
+}
+
+// Get journey conversations with passenger name substitution
+export function getJourneyConversations(passengerName: string, gate: string): JourneyConversation[] {
+  return [
+    {
+      waypointId: 'entrance',
+      progressTrigger: 0.02,
+      messages: [
+        { role: 'user', content: "Okay, I'm inside the terminal now. It's so big in here!", delayMs: 0 },
+        { role: 'agent', content: `You're doing great, ${passengerName}! Head toward the check-in counters - you'll see the American Airlines signs. Security is just past them.`, delayMs: 2000 },
+      ],
+    },
+    {
+      waypointId: 'checkin',
+      progressTrigger: 0.08,
+      messages: [
+        { role: 'user', content: "I see all these kiosks. Do I need to check in here?", delayMs: 0 },
+        { role: 'agent', content: `Since you already have your boarding pass on your phone, you can skip the kiosks. Head to the right toward the security checkpoint.`, delayMs: 2500 },
+        { role: 'user', content: "Oh good, that saves time!", delayMs: 3000 },
+      ],
+    },
+    {
+      waypointId: 'security_approach',
+      progressTrigger: 0.15,
+      messages: [
+        { role: 'user', content: "There's a long line at security. Should I be worried?", delayMs: 0 },
+        { role: 'agent', content: `Don't worry, ${passengerName}. You have plenty of time. Have your ID and boarding pass ready - it'll go faster.`, delayMs: 2000 },
+      ],
+    },
+    {
+      waypointId: 'security',
+      progressTrigger: 0.25,
+      messages: [
+        { role: 'user', content: "They want me to take off my shoes and put everything in bins. This is confusing!", delayMs: 0 },
+        { role: 'agent', content: `You've got this! Just put your bag, jacket, and shoes in the grey bins. Keep your phone and boarding pass.`, delayMs: 2500 },
+        { role: 'user', content: "Okay, I'm through! That wasn't so bad.", delayMs: 8000 },
+        { role: 'agent', content: `Wonderful! Now grab your things and put your shoes back on. Take your time.`, delayMs: 2000 },
+      ],
+    },
+    {
+      waypointId: 'post_security',
+      progressTrigger: 0.38,
+      messages: [
+        { role: 'user', content: "I'm past security. Which way do I go now?", delayMs: 0 },
+        { role: 'agent', content: `Great job! Now follow the signs to the Skylink train. It's a short ride to Terminal B where your gate is.`, delayMs: 2000 },
+      ],
+    },
+    {
+      waypointId: 'a_concourse_south',
+      progressTrigger: 0.45,
+      messages: [
+        { role: 'user', content: "Oh, I see a Starbucks! Maybe I should get a coffee?", delayMs: 0 },
+        { role: 'agent', content: `You have time for a quick stop if you'd like! But there's also a Starbucks right at your gate in Terminal B.`, delayMs: 2500 },
+        { role: 'user', content: "I'll wait and get it at the gate then. Keep me company!", delayMs: 3000 },
+        { role: 'agent', content: `Of course! I'll be right here with you the whole way. The Skylink station is just ahead.`, delayMs: 2000 },
+      ],
+    },
+    {
+      waypointId: 'skylink_a',
+      progressTrigger: 0.58,
+      messages: [
+        { role: 'user', content: "I'm on the platform. There are two directions - which train do I take?", delayMs: 0 },
+        { role: 'agent', content: `Take the train going CLOCKWISE - that's to your right. It'll take you directly to Terminal B.`, delayMs: 2000 },
+        { role: 'user', content: "Oh here it comes! The doors are opening.", delayMs: 4000 },
+        { role: 'agent', content: `Step on carefully. Hold the handrail if you need to. The ride is just a couple minutes.`, delayMs: 2000 },
+      ],
+    },
+    {
+      waypointId: 'skylink_transit_1',
+      progressTrigger: 0.65,
+      messages: [
+        { role: 'user', content: "This train is neat! I can see the planes out the window.", delayMs: 0 },
+        { role: 'agent', content: `DFW has one of the best people mover systems! Enjoy the view - Terminal B is the next stop.`, delayMs: 2000 },
+      ],
+    },
+    {
+      waypointId: 'skylink_b',
+      progressTrigger: 0.72,
+      messages: [
+        { role: 'user', content: "We're stopping at Terminal B. Time to get off!", delayMs: 0 },
+        { role: 'agent', content: `Perfect! Exit the train and take the escalator down. At the bottom, turn LEFT toward Gates B20-B30.`, delayMs: 2500 },
+      ],
+    },
+    {
+      waypointId: 'b_concourse_start',
+      progressTrigger: 0.84,
+      messages: [
+        { role: 'user', content: "I can smell the food! My tummy is rumbling a little.", delayMs: 0 },
+        { role: 'agent', content: `There's a Starbucks and Chili's right at your gate! You can grab something once you arrive. Just a little further now.`, delayMs: 2500 },
+      ],
+    },
+    {
+      waypointId: 'b_concourse_mid',
+      progressTrigger: 0.90,
+      messages: [
+        { role: 'user', content: "I see Gate B20. Am I close?", delayMs: 0 },
+        { role: 'agent', content: `So close! Gate ${gate} is just two gates down on your left. You'll see the restaurants right next to it.`, delayMs: 2000 },
+        { role: 'user', content: "Oh I see it! There's the Starbucks you mentioned!", delayMs: 3000 },
+      ],
+    },
+    {
+      waypointId: 'gate_b22',
+      progressTrigger: 0.98,
+      messages: [
+        { role: 'user', content: `I made it! I'm at Gate ${gate}!`, delayMs: 0 },
+        { role: 'agent', content: `Congratulations, ${passengerName}! You did wonderfully! Find a comfortable seat near the gate desk.`, delayMs: 2500 },
+        { role: 'user', content: "Thank you so much for helping me! I couldn't have done it without you.", delayMs: 3500 },
+        { role: 'agent', content: `It was my pleasure! Now relax, maybe grab that coffee. I'll let you know when boarding begins!`, delayMs: 2500 },
+      ],
+    },
+  ];
+}
+
+// Get conversation for a specific progress point (returns null if no conversation should trigger)
+export function getConversationForProgress(
+  progress: number,
+  triggeredConversations: Set<string>,
+  passengerName: string,
+  gate: string
+): JourneyConversation | null {
+  const conversations = getJourneyConversations(passengerName, gate);
+
+  for (const conv of conversations) {
+    if (progress >= conv.progressTrigger && !triggeredConversations.has(conv.waypointId)) {
+      return conv;
+    }
+  }
+
+  return null;
+}

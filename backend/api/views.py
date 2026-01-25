@@ -2152,24 +2152,48 @@ def elevenlabs_server_tool(request):
     ElevenLabs calls this endpoint when the agent invokes a server tool.
     Configure this URL in the ElevenLabs dashboard for each server tool.
 
-    Request body:
-        tool_name: Name of the tool being called
-        parameters: Tool parameters as a dict
+    Request body formats supported:
+    1. Standard: {"tool_name": "lookup_reservation", "parameters": {"confirmation_code": "PAPA44"}}
+    2. Tool call: {"tool_call": {"name": "lookup_reservation", "parameters": {...}}}
+    3. Direct format: {"lookup_reservation": "lookup_reservation", "confirmation_code": "PAPA44"}
 
     URL: https://yourdomain.com/api/elevenlabs/convai/webhook
     """
-    tool_name = request.data.get('tool_name') or request.data.get('name')
-    parameters = request.data.get('parameters') or request.data.get('args') or {}
+    data = request.data
+    tool_name = None
+    parameters = {}
 
-    # Handle ElevenLabs' actual webhook format
-    if 'tool_call' in request.data:
-        tool_call = request.data['tool_call']
+    # Format 1: Standard format with tool_name and parameters
+    if 'tool_name' in data or 'name' in data:
+        tool_name = data.get('tool_name') or data.get('name')
+        parameters = data.get('parameters') or data.get('args') or {}
+    
+    # Format 2: Tool call format
+    elif 'tool_call' in data:
+        tool_call = data['tool_call']
         tool_name = tool_call.get('name')
         parameters = tool_call.get('parameters', {})
+    
+    # Format 3: Direct format where tool name is a key in the request
+    # Example: {"lookup_reservation": "lookup_reservation", "confirmation_code": "PAPA44"}
+    else:
+        # Check if any key matches a known tool name
+        known_tools = [
+            'lookup_reservation', 'change_flight', 'create_booking', 'get_flight_options',
+            'get_reservation_status', 'get_directions', 'create_family_helper_link',
+            'check_flight_delays', 'get_gate_directions', 'request_wheelchair', 'add_bags'
+        ]
+        
+        for tool in known_tools:
+            if tool in data:
+                tool_name = tool
+                # Extract all other keys as parameters (excluding the tool_name key itself)
+                parameters = {k: v for k, v in data.items() if k != tool_name}
+                break
 
     if not tool_name:
         return Response(
-            {'error': 'Missing tool_name'},
+            {'error': 'Missing tool_name. Request format not recognized.', 'received_data': dict(data)},
             status=status.HTTP_400_BAD_REQUEST
         )
 

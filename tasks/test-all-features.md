@@ -5,12 +5,13 @@
 **Access**: Click on the AA logo icon in the header, or navigate to `/about`
 
 ### Features Showcased on Landing Page:
-1. **Voice-First Interface** - Web Speech API + ElevenLabs TTS
+1. **Voice-First Interface** - Web Speech API + ElevenLabs Conversational AI
 2. **Google Gemini AI** - Gemini 2.0 Flash for intent detection
 3. **Bilingual Support** - English + Spanish auto-detection
-4. **Family Helper Mode** - Remote assistance via shareable links
-5. **Email Confirmations** - Resend API with bilingual templates
-6. **Elderly-Friendly Design** - Large fonts, high contrast, 60px touch targets
+4. **Family Helper Mode** - Remote assistance via shareable links with FULL action capabilities
+5. **IROP Handling** - Automatic disruption detection with rebooking
+6. **Location Tracking** - Real-time GPS with gate distance
+7. **Elderly-Friendly Design** - Large fonts, high contrast, 60px touch targets
 
 ### Interactive Elements:
 - Auto-rotating demo flow tabs (Flight Rebooking, Family Helper, Spanish Support)
@@ -43,19 +44,15 @@ Comprehensive test of all AA Voice Concierge features with sample workflows.
 ### API Endpoints to Verify
 ```bash
 # Health check
-curl http://localhost:8001/api/health
+curl http://localhost:8001/api/health/
 
-# Email service status
-curl http://localhost:8001/api/email/status
-
-# Retell status
-curl http://localhost:8001/api/retell/status
+# ElevenLabs Conversational AI status
+curl http://localhost:8001/api/elevenlabs/convai/status
 ```
 
 ### Expected Results
 - Health: `{"status": "healthy", "database": "connected"}`
-- Email: `{"configured": true, "service": "Resend Email Service"}`
-- Retell: `{"configured": true/false, "service": "Retell AI Voice Agent"}`
+- ElevenLabs: `{"configured": true, "service": "ElevenLabs Conversational AI"}`
 
 ---
 
@@ -77,10 +74,10 @@ curl -X POST http://localhost:8001/api/conversation/message \
   -H "Content-Type: application/json" \
   -d '{"session_id": "'$SESSION_ID'", "transcript": "I need to change my flight"}'
 
-# Step 3: Provide confirmation code
+# Step 3: Provide confirmation code (voice-friendly)
 curl -X POST http://localhost:8001/api/conversation/message \
   -H "Content-Type: application/json" \
-  -d '{"session_id": "'$SESSION_ID'", "transcript": "My confirmation code is DEMO123"}'
+  -d '{"session_id": "'$SESSION_ID'", "transcript": "My confirmation code is MEEMAW"}'
 
 # Step 4: Confirm the change
 curl -X POST http://localhost:8001/api/conversation/message \
@@ -91,7 +88,6 @@ curl -X POST http://localhost:8001/api/conversation/message \
 ### Expected Results
 - `detected_language: "en"`
 - `intent` progression: greeting → change_flight → confirm_action
-- `email_sent: true` on confirmation
 - Trip summary generated in English
 
 ---
@@ -111,7 +107,7 @@ curl -X POST http://localhost:8001/api/conversation/message \
 # Step 2: Provide code in Spanish
 curl -X POST http://localhost:8001/api/conversation/message \
   -H "Content-Type: application/json" \
-  -d '{"session_id": "'$SESSION_ID'", "transcript": "Mi código es DEMO123"}'
+  -d '{"session_id": "'$SESSION_ID'", "transcript": "Mi código es GRANNY"}'
 
 # Step 3: Confirm in Spanish
 curl -X POST http://localhost:8001/api/conversation/message \
@@ -122,57 +118,16 @@ curl -X POST http://localhost:8001/api/conversation/message \
 ### Expected Results
 - `detected_language: "es"`
 - Responses in Spanish
-- Email sent in Spanish
 - Trip summary in Spanish
 
 ---
 
-## Test 4: Email Delivery
-
-### Direct Email Test
-```bash
-# First, get a reservation ID
-curl http://localhost:8001/api/reservations/ | jq '.[0].id'
-
-# Send booking confirmation email
-curl -X POST http://localhost:8001/api/email/booking-confirmation \
-  -H "Content-Type: application/json" \
-  -d '{"reservation_id": "<reservation_id>", "language": "en"}'
-
-# Send flight change email
-curl -X POST http://localhost:8001/api/email/flight-change \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reservation_id": "<reservation_id>",
-    "original_flight": {
-      "flight_number": "AA1234",
-      "origin": "DFW",
-      "destination": "ORD",
-      "departure_time": "2026-01-24T14:00:00"
-    },
-    "new_flight": {
-      "flight_number": "AA1234",
-      "origin": "DFW",
-      "destination": "ORD",
-      "departure_time": "2026-01-25T14:00:00"
-    },
-    "language": "en"
-  }'
-```
-
-### Expected Results
-- `success: true`
-- `email_id` returned
-- Check inbox for actual email delivery
-
----
-
-## Test 5: Family Helper Link
+## Test 4: Family Helper Link
 
 ### Create Helper Link
 ```bash
 # Create helper link for session
-curl -X POST http://localhost:8001/api/helper/create \
+curl -X POST http://localhost:8001/api/helper/create-link \
   -H "Content-Type: application/json" \
   -d '{"session_id": "'$SESSION_ID'"}'
 ```
@@ -183,53 +138,79 @@ curl -X POST http://localhost:8001/api/helper/create \
 curl http://localhost:8001/api/helper/<link_id>
 ```
 
+### Test Helper Actions
+```bash
+# Get available actions
+curl http://localhost:8001/api/helper/<link_id>/actions
+
+# Request wheelchair
+curl -X POST http://localhost:8001/api/helper/<link_id>/actions/request-wheelchair \
+  -H "Content-Type: application/json"
+
+# Add bags
+curl -X POST http://localhost:8001/api/helper/<link_id>/actions/add-bags \
+  -H "Content-Type: application/json" \
+  -d '{"bag_count": 2}'
+```
+
 ### Expected Results
 - `helper_link` returned
 - Helper dashboard accessible at `/help/<link_id>`
 - Shows passenger info, flight status, conversation
+- Actions execute successfully
 
 ---
 
-## Test 6: Gemini Trip Summary
+## Test 5: IROP Status
 
-### Test Summary Generation
-```python
-# Python test script
-import os
-os.environ['DJANGO_SETTINGS_MODULE'] = 'voice_concierge.settings'
+### Check Disruption Status
+```bash
+curl http://localhost:8001/api/helper/<link_id>/irop-status
+```
 
-import django
-django.setup()
-
-from api.services import GeminiService
-
-gemini = GeminiService()
-
-# Test booking summary
-reservation_data = {
-    'confirmation_code': 'DEMO123',
-    'passenger': {'first_name': 'Margaret', 'last_name': 'Johnson'},
-    'flights': [{
-        'flight_number': 'AA1234',
-        'origin': 'DFW',
-        'destination': 'ORD',
-        'departure_time': '2026-01-25T14:00:00',
-        'seat': '14A'
-    }]
-}
-
-# English summary
-result_en = gemini.generate_trip_summary(reservation_data, 'en')
-print("English:", result_en['summary'])
-
-# Spanish summary
-result_es = gemini.generate_trip_summary(reservation_data, 'es')
-print("Spanish:", result_es['summary'])
+### Accept Rebooking (if IROP active)
+```bash
+curl -X POST http://localhost:8001/api/helper/<link_id>/actions/accept-rebooking \
+  -H "Content-Type: application/json" \
+  -d '{"rebooking_option_id": "1"}'
 ```
 
 ### Expected Results
-- English summary includes route, date, seat, confirmation code
-- Spanish summary same info in Spanish with formal "usted" form
+- Returns IROP status (delay/cancellation/missed_connection or none)
+- Rebooking options if disruption active
+- Accept/acknowledge actions work
+
+---
+
+## Test 6: Location Tracking
+
+### Update Location
+```bash
+curl -X POST http://localhost:8001/api/location/update \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "'$SESSION_ID'",
+    "latitude": 32.8998,
+    "longitude": -97.0403,
+    "accuracy": 10
+  }'
+```
+
+### Get Location History
+```bash
+curl http://localhost:8001/api/location/$SESSION_ID/history
+```
+
+### Get Helper Location View
+```bash
+curl http://localhost:8001/api/helper/<link_id>/location
+```
+
+### Expected Results
+- Location update stored
+- Gate distance calculated
+- Walking time estimated
+- Alert status returned (safe/warning/urgent/arrived)
 
 ---
 
@@ -260,10 +241,10 @@ curl -X POST http://localhost:8001/api/voice/synthesize \
 ### Search Flights
 ```bash
 # Get airports
-curl http://localhost:8001/api/airports
+curl http://localhost:8001/api/airports/
 
 # Search flights
-curl "http://localhost:8001/api/flights?date=2026-01-25&origin=DFW&destination=ORD"
+curl "http://localhost:8001/api/flights/?date=2026-01-25&origin=DFW&destination=ORD"
 
 # Search route
 curl "http://localhost:8001/api/flights/search?origin=DFW&destination=ORD&date=2026-01-25"
@@ -276,41 +257,43 @@ curl "http://localhost:8001/api/flights/search?origin=DFW&destination=ORD&date=2
 
 ---
 
-## Test 9: Frontend Sample Demo
+## Test 9: Frontend Live Demo
 
-### Manual Browser Test
-1. Navigate to http://localhost:3000
-2. Click "Try Demo" button
-3. Click "Sample Demo" toggle in header
-4. Click "Start Demo" button
-5. Watch automated workflow play through
-6. Toggle to Spanish with "Español" button
-7. Click "Restart" and run Spanish demo
-
-### Expected Results
-- Demo plays through 9-step flight change workflow
-- Messages animate in sequence
-- FlightCard shows current reservation
-- TripSummaryCard shows at completion
-- Spanish mode shows all content in Spanish
-- Browser TTS available for agent messages
-
----
-
-## Test 10: Frontend Live Demo
-
-### With Retell Configured
+### With ElevenLabs Configured
 1. Navigate to http://localhost:3000
 2. Click "Try Demo"
-3. Click "Start Web Call" (if Retell configured)
+3. Click "Start Web Call" (if ElevenLabs configured)
 4. Speak: "I need to change my flight"
-5. Provide confirmation code when asked
+5. Say: "MEEMAW" when asked for confirmation code
 6. Confirm the change
 
 ### Expected Results
 - Real-time transcript appears
 - Voice responses from agent
-- Email sent on confirmation
+- Flight details shown
+
+---
+
+## Test 10: ElevenLabs Webhook Tools
+
+### Test via ElevenLabs Dashboard
+1. Go to ElevenLabs dashboard > Agent > Test
+2. Say: "Look up my reservation"
+3. When asked for code, say: "MEEMAW"
+4. Verify tool calls in webhook logs
+
+### Expected Webhook Tools (11 total):
+- `lookup_reservation`
+- `change_flight`
+- `create_booking`
+- `get_flight_options`
+- `get_reservation_status`
+- `create_family_helper_link`
+- `check_flight_delays`
+- `get_gate_directions`
+- `request_wheelchair`
+- `add_bags`
+- `get_irop_rebooking_options`
 
 ---
 
@@ -344,20 +327,33 @@ curl http://localhost:8001/api/messages/
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Backend Health | ⬜ | |
+| ElevenLabs Status | ⬜ | |
 | English Conversation | ⬜ | |
 | Spanish Detection | ⬜ | |
 | Spanish Responses | ⬜ | |
-| Email - English | ⬜ | |
-| Email - Spanish | ⬜ | |
 | Family Helper Link | ⬜ | |
-| Trip Summary - EN | ⬜ | |
-| Trip Summary - ES | ⬜ | |
+| Helper Actions | ⬜ | Change, Cancel, Seat, Bags, Wheelchair |
+| IROP Status | ⬜ | |
+| Accept Rebooking | ⬜ | |
+| Location Update | ⬜ | |
+| Location Alerts | ⬜ | |
 | TTS - English | ⬜ | |
 | TTS - Spanish | ⬜ | |
 | Flight Search | ⬜ | |
-| Sample Demo | ⬜ | |
 | Live Demo | ⬜ | |
+| Webhook Tools | ⬜ | All 11 tools |
 | CRUD APIs | ⬜ | |
+
+---
+
+## Demo Confirmation Codes (Voice-Friendly)
+
+| Code | Passenger | Route | Scenario |
+|------|-----------|-------|----------|
+| MEEMAW | Margaret Johnson | DFW -> ORD | English, standard |
+| GRANNY | Maria Garcia | MIA -> SJU | Spanish, IROP delay |
+| PAPA44 | Robert Smith | LAX -> JFK -> MIA | Multi-segment |
+| NANA55 | Eleanor Williams | ORD -> PHX | Family booking |
 
 ---
 
@@ -369,9 +365,8 @@ cd backend
 python manage.py test
 
 # Check all services
-curl -s http://localhost:8001/api/health | jq
-curl -s http://localhost:8001/api/email/status | jq
-curl -s http://localhost:8001/api/retell/status | jq
+curl -s http://localhost:8001/api/health/ | jq
+curl -s http://localhost:8001/api/elevenlabs/convai/status | jq
 
 # Full conversation test
 ./scripts/test-conversation.sh

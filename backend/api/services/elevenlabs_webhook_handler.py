@@ -71,11 +71,23 @@ class ElevenLabsWebhookHandler:
         handler = function_handlers.get(tool_name)
         if handler:
             result = handler(parameters)
-            return {
+            
+            # Build response with spoken_summary/spoken_response at top level for easy access
+            response = {
                 'success': True,
                 'tool_name': tool_name,
                 'result': result,
             }
+            
+            # If result has spoken_summary or spoken_response, include it at top level
+            # This makes it easier for the agent to access
+            if isinstance(result, dict):
+                if 'spoken_summary' in result:
+                    response['spoken_summary'] = result['spoken_summary']
+                if 'spoken_response' in result:
+                    response['spoken_response'] = result['spoken_response']
+            
+            return response
 
         return {
             'success': False,

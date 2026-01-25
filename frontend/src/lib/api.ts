@@ -229,58 +229,6 @@ export async function getHelperSeats(linkId: string): Promise<SeatMapResponse> {
   return response.data;
 }
 
-// Retell AI API
-export async function getRetellStatus(): Promise<RetellStatus> {
-  const response = await api.get('/api/retell/status');
-  return response.data;
-}
-
-export async function listRetellAgents(): Promise<{ agents: RetellAgent[] }> {
-  const response = await api.get('/api/retell/agents');
-  return response.data;
-}
-
-export async function createRetellAgent(params: {
-  agent_name?: string;
-  voice_id?: string;
-  llm_websocket_url?: string;
-}): Promise<RetellAgent> {
-  const response = await api.post('/api/retell/agents/create', params);
-  return response.data;
-}
-
-export async function getRetellAgent(agentId: string): Promise<RetellAgent> {
-  const response = await api.get(`/api/retell/agents/${agentId}`);
-  return response.data;
-}
-
-export async function createRetellWebCall(params: {
-  agent_id: string;
-  session_id?: string;
-}): Promise<RetellWebCall> {
-  const response = await api.post('/api/retell/calls/web', params);
-  return response.data;
-}
-
-export async function createRetellPhoneCall(params: {
-  agent_id: string;
-  to_number: string;
-  from_number?: string;
-}): Promise<RetellPhoneCall> {
-  const response = await api.post('/api/retell/calls/phone', params);
-  return response.data;
-}
-
-export async function getRetellCall(callId: string): Promise<RetellPhoneCall | RetellWebCall> {
-  const response = await api.get(`/api/retell/calls/${callId}`);
-  return response.data;
-}
-
-export async function endRetellCall(callId: string): Promise<{ success: boolean }> {
-  const response = await api.post(`/api/retell/calls/${callId}/end`);
-  return response.data;
-}
-
 // ElevenLabs Conversational AI API
 export async function getElevenLabsStatus(): Promise<{
   configured: boolean;
