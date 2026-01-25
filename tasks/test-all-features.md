@@ -1,5 +1,33 @@
 # End-to-End Feature Test Plan
 
+## Landing Page (Hackathon Showcase)
+
+**Access**: Click on the AA logo icon in the header, or navigate to `/about`
+
+### Features Showcased on Landing Page:
+1. **Voice-First Interface** - Web Speech API + ElevenLabs TTS
+2. **Google Gemini AI** - Gemini 2.0 Flash for intent detection
+3. **Bilingual Support** - English + Spanish auto-detection
+4. **Family Helper Mode** - Remote assistance via shareable links
+5. **Email Confirmations** - Resend API with bilingual templates
+6. **Elderly-Friendly Design** - Large fonts, high contrast, 60px touch targets
+
+### Interactive Elements:
+- Auto-rotating demo flow tabs (Flight Rebooking, Family Helper, Spanish Support)
+- Animated feature cards with hover effects
+- Tech stack visualization with category badges
+- Problem/Solution comparison section
+- Stats display (6+ AI Features, 2 Languages, 12+ Tech Integrations, 24/7)
+
+### To Test:
+1. Navigate to http://localhost:3000
+2. Click the AA logo in the header
+3. Verify all sections load with animations
+4. Test interactive demo flow tab switching
+5. Click "Try Demo" button to return to main app
+
+---
+
 ## Overview
 Comprehensive test of all AA Voice Concierge features with sample workflows.
 
