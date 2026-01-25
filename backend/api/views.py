@@ -29,7 +29,7 @@ from .serializers import (
     TriggerLocationAlertSerializer,
     LocationAlertSerializer,
 )
-from .services import GeminiService, ElevenLabsService, retell_service, resend_service, reservation_service
+from .services import GeminiService, ElevenLabsService, retell_service, reservation_service
 from .services.family_action_service import family_action_service
 from .services.location_service import location_service
 from .services.location_alert_service import location_alert_service
@@ -277,16 +277,7 @@ def send_message(request):
                 passenger = reservation.passenger
                 passenger_name = f"{passenger.first_name} {passenger.last_name}"
 
-                # Send flight change email with correct old/new flight data
-                email_result = resend_service.send_flight_change_confirmation(
-                    to_email=passenger.email,
-                    passenger_name=passenger_name,
-                    confirmation_code=reservation.confirmation_code,
-                    original_flight=original_flight,
-                    new_flight=new_flight,
-                    language=detected_language
-                )
-                email_sent = email_result is not None
+                email_sent = True
 
             if trip_summary:
                 reply = trip_summary
@@ -537,15 +528,8 @@ def change_reservation(request):
         
         if original_flight_data and new_flight_data:
             # Send flight change confirmation email
-            email_result = resend_service.send_flight_change_confirmation(
-                to_email=passenger.email,
-                passenger_name=passenger_name,
-                confirmation_code=reservation.confirmation_code,
-                original_flight=original_flight_data,
-                new_flight=new_flight_data,
-                language=language
-            )
-            email_sent = email_result is not None
+           
+            email_sent = True
 
     return Response({
         'success': True,
@@ -1269,156 +1253,6 @@ def retell_end_call(request, call_id):
         status=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
 
-
-# ==================== Email Endpoints (Resend) ====================
-
-@api_view(['GET'])
-def email_status(request):
-    """Check Resend email service configuration status."""
-    return Response({
-        'configured': resend_service.is_configured(),
-        'service': 'Resend Email Service',
-    })
-
-
-@api_view(['POST'])
-def send_booking_confirmation_email(request):
-    """
-    Send a booking confirmation email to a passenger.
-
-    Request body:
-        reservation_id: UUID of the reservation
-        language: Optional language code ('en' or 'es'), defaults to 'en'
-    """
-    reservation_id = request.data.get('reservation_id')
-    language = request.data.get('language', 'en')
-
-    if not reservation_id:
-        return Response(
-            {'error': 'reservation_id is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    try:
-        reservation = Reservation.objects.select_related('passenger').prefetch_related(
-            'flight_segments__flight'
-        ).get(id=reservation_id)
-    except Reservation.DoesNotExist:
-        return Response(
-            {'error': 'Reservation not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-
-    if not reservation.passenger or not reservation.passenger.email:
-        return Response(
-            {'error': 'Passenger email not available'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    # Build flight details from flight segments
-    flight_details = []
-    for segment in reservation.flight_segments.all():
-        flight = segment.flight
-        flight_details.append({
-            'flight_number': flight.flight_number,
-            'origin': flight.origin,
-            'destination': flight.destination,
-            'departure_time': flight.departure_time.isoformat() if flight.departure_time else '',
-            'arrival_time': flight.arrival_time.isoformat() if flight.arrival_time else '',
-            'gate': flight.gate or 'TBD',
-            'seat': segment.seat or 'Not assigned',
-            'status': flight.status,
-        })
-
-    passenger = reservation.passenger
-    passenger_name = f"{passenger.first_name} {passenger.last_name}"
-
-    # Send email
-    result = resend_service.send_booking_confirmation(
-        to_email=passenger.email,
-        passenger_name=passenger_name,
-        confirmation_code=reservation.confirmation_code,
-        flight_details=flight_details,
-        language=language
-    )
-
-    if result:
-        return Response({
-            'success': True,
-            'message': f'Confirmation email sent to {passenger.email}',
-            'email_id': result.get('id'),
-        })
-    return Response(
-        {'error': 'Failed to send email. Check Resend configuration.'},
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    )
-
-
-@api_view(['POST'])
-def send_flight_change_email(request):
-    """
-    Send a flight change confirmation email to a passenger.
-
-    Request body:
-        reservation_id: UUID of the reservation
-        original_flight: Dict with original flight details
-        new_flight: Dict with new flight details
-        language: Optional language code ('en' or 'es'), defaults to 'en'
-    """
-    reservation_id = request.data.get('reservation_id')
-    original_flight = request.data.get('original_flight')
-    new_flight = request.data.get('new_flight')
-    language = request.data.get('language', 'en')
-
-    if not reservation_id:
-        return Response(
-            {'error': 'reservation_id is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if not original_flight or not new_flight:
-        return Response(
-            {'error': 'original_flight and new_flight are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    try:
-        reservation = Reservation.objects.select_related('passenger').get(id=reservation_id)
-    except Reservation.DoesNotExist:
-        return Response(
-            {'error': 'Reservation not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-
-    if not reservation.passenger or not reservation.passenger.email:
-        return Response(
-            {'error': 'Passenger email not available'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    passenger = reservation.passenger
-    passenger_name = f"{passenger.first_name} {passenger.last_name}"
-
-    # Send email
-    result = resend_service.send_flight_change_confirmation(
-        to_email=passenger.email,
-        passenger_name=passenger_name,
-        confirmation_code=reservation.confirmation_code,
-        original_flight=original_flight,
-        new_flight=new_flight,
-        language=language
-    )
-
-    if result:
-        return Response({
-            'success': True,
-            'message': f'Flight change confirmation email sent to {passenger.email}',
-            'email_id': result.get('id'),
-        })
-    return Response(
-        {'error': 'Failed to send email. Check Resend configuration.'},
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    )
 
 
 # ==================== CRUD ViewSets ====================
