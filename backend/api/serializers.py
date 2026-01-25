@@ -1,7 +1,7 @@
 """Serializers for AA Voice Concierge API."""
 
 from rest_framework import serializers
-from .models import Passenger, Flight, Reservation, FlightSegment, Session, Message
+from .models import Passenger, Flight, Reservation, FlightSegment, Session, Message, FamilyAction, PassengerLocation, LocationAlert
 
 
 class PassengerSerializer(serializers.ModelSerializer):
@@ -212,3 +212,114 @@ class HelperCreateLinkSerializer(serializers.Serializer):
 
 class HelperSuggestionSerializer(serializers.Serializer):
     message = serializers.CharField()
+
+
+class FamilyActionSerializer(serializers.ModelSerializer):
+    """Serializer for FamilyAction."""
+    session_id = serializers.UUIDField(write_only=True, required=False)
+
+    class Meta:
+        model = FamilyAction
+        fields = [
+            'id', 'session', 'session_id', 'action_type', 'action_data',
+            'status', 'family_notes', 'result_message', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+        extra_kwargs = {
+            'session': {'read_only': True},
+        }
+
+    def create(self, validated_data):
+        session_id = validated_data.pop('session_id', None)
+        if session_id:
+            validated_data['session_id'] = session_id
+        return super().create(validated_data)
+
+
+# Family action request serializers
+
+class ChangeFlightActionSerializer(serializers.Serializer):
+    new_flight_id = serializers.CharField()
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class CancelFlightActionSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class SelectSeatActionSerializer(serializers.Serializer):
+    seat = serializers.CharField()
+    flight_segment_id = serializers.UUIDField(required=False)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class AddBagsActionSerializer(serializers.Serializer):
+    bag_count = serializers.IntegerField(min_value=1, max_value=10)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class RequestWheelchairActionSerializer(serializers.Serializer):
+    assistance_type = serializers.ChoiceField(
+        choices=['wheelchair', 'wheelchair_ramp', 'escort'],
+        default='wheelchair'
+    )
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+# Location tracking serializers
+
+class PassengerLocationSerializer(serializers.ModelSerializer):
+    """Serializer for PassengerLocation."""
+    session_id = serializers.UUIDField(write_only=True, required=False)
+
+    class Meta:
+        model = PassengerLocation
+        fields = [
+            'id', 'session', 'session_id', 'latitude', 'longitude',
+            'accuracy', 'timestamp'
+        ]
+        read_only_fields = ['id', 'timestamp']
+        extra_kwargs = {
+            'session': {'read_only': True},
+        }
+
+    def create(self, validated_data):
+        session_id = validated_data.pop('session_id', None)
+        if session_id:
+            validated_data['session_id'] = session_id
+        return super().create(validated_data)
+
+
+class LocationAlertSerializer(serializers.ModelSerializer):
+    """Serializer for LocationAlert."""
+    session_id = serializers.UUIDField(write_only=True, required=False)
+
+    class Meta:
+        model = LocationAlert
+        fields = [
+            'id', 'session', 'session_id', 'alert_type', 'message',
+            'distance_to_gate', 'estimated_walking_time', 'time_to_departure',
+            'acknowledged', 'voice_call_sent', 'email_sent', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+        extra_kwargs = {
+            'session': {'read_only': True},
+        }
+
+
+class LocationUpdateRequestSerializer(serializers.Serializer):
+    """Request serializer for location update endpoint."""
+    session_id = serializers.UUIDField()
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6)
+    accuracy = serializers.FloatField(required=False, allow_null=True)
+
+
+class TriggerLocationAlertSerializer(serializers.Serializer):
+    """Request serializer for triggering location alerts."""
+    session_id = serializers.UUIDField()
+    alert_type = serializers.ChoiceField(
+        choices=['running_late', 'urgent'],
+        default='running_late'
+    )
