@@ -315,60 +315,6 @@ export default function HelperPage() {
       </header>
 
       <div className="max-w-5xl mx-auto p-6 space-y-6">
-        {/* Demo Mode Banner */}
-        {demoMode && !reservation && (
-          <div className="bg-purple-100 border border-purple-300 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-purple-800 font-medium">
-                DFW Airport Demo - Live Navigation
-              </span>
-              <button
-                onClick={() => setDemoMode(false)}
-                className="text-purple-600 hover:text-purple-800 text-sm font-medium"
-              >
-                Exit Demo
-              </button>
-            </div>
-            <p className="text-purple-700 text-sm">
-              Watching MeeMaw navigate from Terminal A to Gate B22 at DFW Airport.
-              {demoProgress >= 1 && ' She has arrived! Demo will restart shortly.'}
-            </p>
-            {currentWaypoint && (
-              <div className="mt-2 p-2 bg-purple-200 rounded-lg">
-                <p className="text-purple-800 font-medium text-sm">
-                  Current Location: {currentWaypoint.name}
-                </p>
-                <p className="text-purple-700 text-xs">
-                  {currentWaypoint.instruction}
-                </p>
-              </div>
-            )}
-            <div className="mt-2 bg-purple-200 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-purple-600 h-full transition-all duration-1000"
-                style={{ width: `${demoProgress * 100}%` }}
-              />
-            </div>
-            {/* Waypoint Progress */}
-            <div className="mt-3 flex items-center gap-1">
-              {DFW_JOURNEY_WAYPOINTS.map((wp, idx) => {
-                const waypointProgress = (idx / (DFW_JOURNEY_WAYPOINTS.length - 1));
-                const isCompleted = demoProgress > waypointProgress;
-                const isCurrent = currentWaypoint?.id === wp.id;
-                return (
-                  <div
-                    key={wp.id}
-                    className={`flex-1 h-1.5 rounded-full transition-colors ${
-                      isCompleted ? 'bg-purple-600' : isCurrent ? 'bg-purple-400' : 'bg-purple-200'
-                    }`}
-                    title={wp.name}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Dashboard with Passenger Info and Flight Status */}
         {(reservation || demoMode) ? (
           <>
@@ -382,6 +328,68 @@ export default function HelperPage() {
                 onAcknowledgeDisruption={handleAcknowledgeDisruption}
                 loading={iropLoading}
               />
+            )}
+
+            {/* Demo Navigation Section - Right above map */}
+            {demoMode && (
+              <div className="bg-purple-100 border border-purple-300 rounded-xl p-4 shadow-sm">
+                {/* Header with title and exit button */}
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-purple-800 font-medium">
+                    DFW Airport Demo - Live Navigation
+                  </span>
+                  <button
+                    onClick={() => setDemoMode(false)}
+                    className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+                  >
+                    Exit Demo
+                  </button>
+                </div>
+                
+                {/* Description */}
+                <p className="text-purple-700 text-sm mb-3">
+                  Watching MeeMaw navigate from Terminal A to Gate B22 at DFW Airport.
+                  {demoProgress >= 1 && ' She has arrived! Demo will restart shortly.'}
+                </p>
+                
+                {/* Current Location */}
+                {currentWaypoint && (
+                  <div className="mb-3 p-2 bg-purple-200 rounded-lg">
+                    <p className="text-purple-800 font-medium text-sm">
+                      Current Location: {currentWaypoint.name}
+                    </p>
+                    <p className="text-purple-700 text-xs">
+                      {currentWaypoint.instruction}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Main Progress Bar */}
+                <div className="mb-2 bg-purple-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-purple-600 h-full transition-all duration-1000"
+                    style={{ width: `${demoProgress * 100}%` }}
+                  />
+                </div>
+                
+                {/* Waypoint Progress */}
+                <div className="flex items-center gap-1">
+                  {DFW_JOURNEY_WAYPOINTS.map((wp, idx) => {
+                    const waypointProgress = (idx / (DFW_JOURNEY_WAYPOINTS.length - 1));
+                    const isCompleted = demoProgress > waypointProgress;
+                    const isCurrent = currentWaypoint?.id === wp.id;
+                    return (
+                      <div
+                        key={wp.id}
+                        className={`flex-1 h-1.5 rounded-full transition-colors ${
+                          isCompleted ? 'bg-purple-600' : isCurrent ? 'bg-purple-400' : 'bg-purple-200'
+                        }`}
+                        title={wp.name}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Location Tracking Map */}

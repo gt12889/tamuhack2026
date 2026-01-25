@@ -102,12 +102,29 @@ class ElevenLabsWebhookHandler:
                     dep_time = parse(first_flight['departure_time'])
                     origin_city = CITY_NAMES.get(first_flight['origin'], first_flight['origin'])
                     dest_city = CITY_NAMES.get(first_flight['destination'], first_flight['destination'])
+                    gate = first_flight.get('gate', 'TBD')
+                    seat = first_flight.get('seat', 'Not assigned')
+                    status = first_flight.get('status', 'scheduled')
+
+                    # Create a spoken summary the agent should read
+                    spoken_summary = (
+                        f"I found your reservation, {passenger['first_name']}. "
+                        f"You're booked on flight {first_flight['flight_number']} "
+                        f"from {origin_city} to {dest_city}, "
+                        f"departing {dep_time.strftime('%B %d')} at {dep_time.strftime('%I:%M %p')}. "
+                    )
+                    if gate and gate != 'TBD':
+                        spoken_summary += f"Your gate is {gate}. "
+                    if seat and seat != 'Not assigned':
+                        spoken_summary += f"You're in seat {seat}. "
+                    spoken_summary += "How can I help you with this flight?"
 
                     return {
                         'success': True,
                         'found': True,
                         'confirmation_code': code,
                         'passenger_name': f"{passenger['first_name']} {passenger['last_name']}",
+                        'passenger_first_name': passenger['first_name'],
                         'origin': first_flight['origin'],
                         'origin_city': origin_city,
                         'destination': first_flight['destination'],
@@ -115,7 +132,10 @@ class ElevenLabsWebhookHandler:
                         'departure_date': dep_time.strftime('%B %d'),
                         'departure_time': dep_time.strftime('%I:%M %p'),
                         'flight_number': first_flight['flight_number'],
-                        'seat': first_flight.get('seat', 'Not assigned'),
+                        'gate': gate,
+                        'seat': seat,
+                        'status': status,
+                        'spoken_summary': spoken_summary,
                     }
 
                 return {
