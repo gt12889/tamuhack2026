@@ -1,4 +1,4 @@
-# Deployment Guide - AA Voice Concierge
+# Deployment Guide - Elder Strolls
 
 ## Recommended Deployment Stack
 
@@ -368,7 +368,7 @@ Save as `deploy.sh`:
 #!/bin/bash
 set -e
 
-echo "🚀 Deploying AA Voice Concierge..."
+echo "🚀 Deploying Elder Strolls..."
 
 # Pull latest code
 git pull origin main

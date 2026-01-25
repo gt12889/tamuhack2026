@@ -1,4 +1,4 @@
-"""Database models for AA Voice Concierge."""
+"""Database models for Elder Strolls."""
 
 from django.db import models
 import uuid

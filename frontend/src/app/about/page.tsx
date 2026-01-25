@@ -136,7 +136,7 @@ export default function AboutPage() {
               <Plane className="w-8 h-8 text-aa-blue" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">AA Voice Concierge</h1>
+              <h1 className="text-xl font-bold">Elder Strolls</h1>
               <p className="text-sm opacity-90">TAMUHack 2026</p>
             </div>
           </Link>
@@ -172,7 +172,7 @@ export default function AboutPage() {
             className="inline-flex items-center gap-2 bg-gradient-to-r from-aa-red to-red-600 text-white px-5 py-2.5 rounded-full text-sm font-bold mb-8 shadow-lg"
           >
             <Plane className="w-4 h-4" />
-            American Airlines Track
+            TAMUHack 2026
             <Star className="w-4 h-4 fill-current" />
           </motion.div>
 
@@ -515,8 +515,8 @@ export default function AboutPage() {
                 <Plane className="w-6 h-6" />
               </div>
               <div>
-                <span className="font-bold text-lg">AA Voice Concierge</span>
-                <p className="text-sm text-gray-400">TAMUHack 2026 - American Airlines Track</p>
+                <span className="font-bold text-lg">Elder Strolls</span>
+                <p className="text-sm text-gray-400">TAMUHack 2026</p>
               </div>
             </div>
 

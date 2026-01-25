@@ -237,14 +237,14 @@ class ElevenLabsService:
         # Build first message based on reminder type and language
         if language == 'es':
             first_messages = {
-                'gate_closing': f"Hola {passenger_name}, le llamo de American Airlines. Su vuelo {flight_info.get('flight_number')} está abordando en la puerta {flight_info.get('gate', 'indicada en el tablero')}. Por favor diríjase a la puerta inmediatamente.",
-                'departure_1hr': f"Hola {passenger_name}, este es un recordatorio de American Airlines. Su vuelo {flight_info.get('flight_number')} sale en aproximadamente una hora desde la puerta {flight_info.get('gate', 'indicada en el tablero')}.",
+                'gate_closing': f"Hola {passenger_name}, le llamo de Elder Strolls. Su vuelo {flight_info.get('flight_number')} está abordando en la puerta {flight_info.get('gate', 'indicada en el tablero')}. Por favor diríjase a la puerta inmediatamente.",
+                'departure_1hr': f"Hola {passenger_name}, este es un recordatorio de Elder Strolls. Su vuelo {flight_info.get('flight_number')} sale en aproximadamente una hora desde la puerta {flight_info.get('gate', 'indicada en el tablero')}.",
                 'final_boarding': f"Llamada final para {passenger_name}. Su vuelo {flight_info.get('flight_number')} está cerrando las puertas. Por favor preséntese inmediatamente en la puerta {flight_info.get('gate', 'de embarque')}.",
             }
         else:
             first_messages = {
-                'gate_closing': f"Hello {passenger_name}, this is American Airlines calling. Your flight {flight_info.get('flight_number')} is now boarding at gate {flight_info.get('gate', 'shown on the departure board')}. Please proceed to the gate immediately.",
-                'departure_1hr': f"Hello {passenger_name}, this is a reminder from American Airlines. Your flight {flight_info.get('flight_number')} departs in approximately one hour from gate {flight_info.get('gate', 'shown on the departure board')}.",
+                'gate_closing': f"Hello {passenger_name}, this is Elder Strolls calling. Your flight {flight_info.get('flight_number')} is now boarding at gate {flight_info.get('gate', 'shown on the departure board')}. Please proceed to the gate immediately.",
+                'departure_1hr': f"Hello {passenger_name}, this is a reminder from Elder Strolls. Your flight {flight_info.get('flight_number')} departs in approximately one hour from gate {flight_info.get('gate', 'shown on the departure board')}.",
                 'final_boarding': f"Final call for {passenger_name}. Your flight {flight_info.get('flight_number')} is closing doors. Please report to gate {flight_info.get('gate', '')} immediately.",
             }
 
@@ -345,7 +345,7 @@ class ElevenLabsService:
 
 # Pre-defined responses for common phrases (to reduce API calls)
 CACHED_PHRASES = {
-    "greeting": "Hi! I'm your American Airlines assistant. I'm here to help with your trip. What do you need today?",
+    "greeting": "Hi! I'm your Elder Strolls assistant. I'm here to help with your trip. What do you need today?",
     "ask_confirmation_code": "I'd be happy to help you change your flight. What's your confirmation code? You can spell it out letter by letter.",
     "code_not_found": "I couldn't find a reservation with that code. Could you please check and try again?",
     "change_confirmed": "Perfect! You're all set. Your new flight has been booked. I'm sending the details to your email. Is there anything else I can help with?",

@@ -1,4 +1,4 @@
-"""Mock data for AA Voice Concierge demo.
+"""Mock data for Elder Strolls demo.
 
 Uses AA Flight-Engine API when available, falls back to hardcoded data.
 Flight-Engine: https://github.com/AmericanAirlines/Flight-Engine

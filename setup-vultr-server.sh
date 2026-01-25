@@ -6,7 +6,7 @@ set -e
 
 APP_DIR="/opt/voice-concierge"
 
-echo "🚀 Setting up Vultr server for AA Voice Concierge..."
+echo "🚀 Setting up Vultr server for Elder Strolls..."
 
 # Update system
 echo "📦 Updating system..."

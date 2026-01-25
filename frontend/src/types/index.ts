@@ -1,4 +1,4 @@
-// Core data types for AA Voice Concierge
+// Core data types for Elder Strolls
 
 export interface Passenger {
   id: string;

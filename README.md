@@ -1,12 +1,12 @@
-# AA Voice Concierge
+# Elder Strolls
 
-Voice-first flight assistance for elderly American Airlines passengers.
+Voice-first travel assistance for elderly passengers.
 
-**TAMUHack 2026** | American Airlines Track | Gemini | ElevenLabs | Vultr
+**TAMUHack 2026** | Gemini | ElevenLabs | Vultr
 
 ## Overview
 
-AA Voice Concierge enables elderly passengers to manage their flights through natural voice conversation, reducing calls to AA's reservation hotline while providing a comfortable self-service experience.
+Elder Strolls enables elderly passengers to manage their flights through natural voice conversation, providing a comfortable self-service experience.
 
 ### Key Features
 
@@ -64,7 +64,7 @@ docker-compose up
 
 Use confirmation code **DEMO123** to test the full flow:
 
-1. Click "Talk to AA"
+1. Click "Talk to Elder Strolls"
 2. Say "I need to change my flight"
 3. Spell out "D-E-M-O-1-2-3" when asked for confirmation code
 4. Say "I need to fly tomorrow instead"

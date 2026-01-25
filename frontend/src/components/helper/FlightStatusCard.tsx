@@ -145,7 +145,7 @@ export function FlightStatusCard({ flight }: FlightStatusCardProps) {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-aa-blue">{flight.flight_number}</h2>
-            <p className="text-sm text-gray-500">American Airlines</p>
+            <p className="text-sm text-gray-500">Elder Strolls</p>
           </div>
         </div>
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border}`}>

@@ -1,4 +1,4 @@
-# Nginx configuration for AA Voice Concierge
+# Nginx configuration for Elder Strolls
 # Copy to /etc/nginx/sites-available/voice-concierge
 # Then: ln -s /etc/nginx/sites-available/voice-concierge /etc/nginx/sites-enabled/
 

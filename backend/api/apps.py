@@ -4,4 +4,4 @@ from django.apps import AppConfig
 class ApiConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'api'
-    verbose_name = 'AA Voice Concierge API'
+    verbose_name = 'Elder Strolls API'

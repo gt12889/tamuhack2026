@@ -1,4 +1,4 @@
-"""Admin configuration for AA Voice Concierge."""
+"""Admin configuration for Elder Strolls."""
 
 from django.contrib import admin
 from .models import Passenger, Flight, Reservation, FlightSegment, Session, Message, FamilyAction, PassengerLocation, LocationAlert

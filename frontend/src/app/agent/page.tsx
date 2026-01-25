@@ -136,7 +136,7 @@ export default function AgentConsolePage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold">Agent Console</h1>
-                <p className="text-sm text-gray-400">AA Voice Concierge Handoffs</p>
+                <p className="text-sm text-gray-400">Elder Strolls Handoffs</p>
               </div>
             </div>
 

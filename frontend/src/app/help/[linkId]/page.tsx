@@ -27,6 +27,9 @@ import {
   updateDemoHandoffStatus,
   resetHelperDemoHandoff,
 } from '@/lib/handoffDemoData';
+import { DEMO_SCENARIOS, scenarioToReservation } from '@/lib/demoScenarios';
+import { ScenarioSelector } from '@/components/demo/ScenarioSelector';
+import { DemoTranscript } from '@/components/demo/DemoTranscript';
 import type { Message, Reservation, HelperLocationResponse, AlertStatus, IROPStatus, HandoffDossier } from '@/types';
 
 // Dynamically import MapboxLocationMap with SSR disabled (mapbox-gl is client-only)
@@ -36,7 +39,12 @@ const MapboxLocationMap = dynamic(
 );
 
 // Generate DFW demo location data with waypoint-based movement
-function generateDFWDemoLocation(progress: number, departureTime: Date): HelperLocationResponse {
+function generateDFWDemoLocation(
+  progress: number,
+  departureTime: Date,
+  passengerName: string = 'MeeMaw',
+  gate: string = 'B22'
+): HelperLocationResponse {
   const clampedProgress = Math.min(Math.max(progress, 0), 1);
 
   // Get current waypoint and position
@@ -86,12 +94,12 @@ function generateDFWDemoLocation(progress: number, departureTime: Date): HelperL
     },
     directions: current.instruction,
     message: alertStatus === 'arrived'
-      ? 'MeeMaw has arrived at the gate!'
-      : `MeeMaw is at ${current.name} - ${Math.round(distanceMeters)}m from Gate B22`,
+      ? `${passengerName} has arrived at the gate!`
+      : `${passengerName} is at ${current.name} - ${Math.round(distanceMeters)}m from Gate ${gate}`,
     alert: alertStatus === 'urgent' ? {
       id: 'dfw-demo-alert-001',
       type: 'running_late',
-      message: 'MeeMaw may be running late for her flight!',
+      message: `${passengerName} may be running late for their flight!`,
       created_at: new Date().toISOString(),
     } : null,
   };
@@ -116,6 +124,10 @@ export default function HelperPage() {
   // Demo handoff simulation state
   const [demoHandoff, setDemoHandoff] = useState<HandoffDossier | null>(null);
   const [handoffTriggered, setHandoffTriggered] = useState(false);
+
+  // Demo scenario state
+  const [selectedScenario, setSelectedScenario] = useState(DEMO_SCENARIOS[0]);
+  const [transcriptPlaying, setTranscriptPlaying] = useState(false);
 
   // Demo location simulation state
   const [demoProgress, setDemoProgress] = useState(0);
@@ -308,8 +320,16 @@ export default function HelperPage() {
     : null;
 
   // Generate demo location data when in demo mode
+  // Use the selected scenario's first flight departure time
+  const scenarioReservation = scenarioToReservation(selectedScenario);
+  const passengerDisplayName = selectedScenario.passenger.nickname || selectedScenario.passenger.firstName;
   const effectiveLocationData = demoMode
-    ? generateDFWDemoLocation(demoProgress, new Date(DFW_DEMO_RESERVATION.flights[0].departure_time))
+    ? generateDFWDemoLocation(
+        demoProgress,
+        new Date(scenarioReservation.flights[0].departure_time),
+        passengerDisplayName,
+        scenarioReservation.flights[0]?.gate || 'B22'
+      )
     : locationData;
 
   const handleSendSuggestion = async (e: React.FormEvent) => {
@@ -378,7 +398,45 @@ export default function HelperPage() {
         {/* Dashboard with Passenger Info and Flight Status */}
         {(reservation || demoMode) ? (
           <>
-            <HelperDashboard reservation={reservation || DFW_DEMO_RESERVATION} />
+            {/* Scenario Selector - Demo Mode Only */}
+            {demoMode && (
+              <ScenarioSelector
+                scenarios={DEMO_SCENARIOS}
+                activeScenarioId={selectedScenario.id}
+                onSelectScenario={(id) => {
+                  const scenario = DEMO_SCENARIOS.find((s) => s.id === id);
+                  if (scenario) {
+                    setSelectedScenario(scenario);
+                    setTranscriptPlaying(false);
+                    // Reset handoff if switching scenarios
+                    if (handoffTriggered) {
+                      resetHelperDemoHandoff();
+                      setDemoHandoff(null);
+                      setHandoffTriggered(false);
+                    }
+                  }
+                }}
+              />
+            )}
+
+            {/* Live Call Transcript - Demo Mode Only */}
+            {demoMode && (
+              <DemoTranscript
+                scenario={selectedScenario}
+                isPlaying={transcriptPlaying}
+                onPlay={() => setTranscriptPlaying(true)}
+                onPause={() => setTranscriptPlaying(false)}
+                onReset={() => setTranscriptPlaying(false)}
+                onEvent={(event) => {
+                  // Trigger handoff panel when handoff event occurs
+                  if (event === 'handoff' && !handoffTriggered) {
+                    triggerDemoHandoff();
+                  }
+                }}
+              />
+            )}
+
+            <HelperDashboard reservation={reservation || scenarioToReservation(selectedScenario)} />
 
             {/* IROP Disruption Alert */}
             {iropStatus && iropStatus.has_disruption && (
@@ -408,8 +466,8 @@ export default function HelperPage() {
 
                 {/* Description */}
                 <p className="text-purple-700 text-sm mb-3">
-                  Watching MeeMaw navigate from Terminal A to Gate B22 at DFW Airport.
-                  {demoProgress >= 1 && ' She has arrived! Demo will restart shortly.'}
+                  Watching {selectedScenario.passenger.nickname || selectedScenario.passenger.firstName} navigate from Terminal A to Gate {scenarioReservation.flights[0]?.gate || 'B22'} at DFW Airport.
+                  {demoProgress >= 1 && ' They have arrived! Demo will restart shortly.'}
                 </p>
 
                 {/* Current Location */}
@@ -513,11 +571,11 @@ export default function HelperPage() {
                         : 'text-orange-700'
                     }`}>
                       {!handoffTriggered
-                        ? 'Simulate MeeMaw requesting help with a fee waiver'
+                        ? `Simulate ${passengerDisplayName} requesting help with a fee waiver`
                         : demoHandoff?.status === 'pending'
-                        ? 'MeeMaw needs help with a change fee waiver'
+                        ? `${passengerDisplayName} needs help with a change fee waiver`
                         : demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress'
-                        ? 'An agent is helping MeeMaw with her request'
+                        ? `An agent is helping ${passengerDisplayName} with their request`
                         : 'The fee waiver was approved!'}
                     </p>
                   </div>
@@ -527,7 +585,7 @@ export default function HelperPage() {
                 {!handoffTriggered && (
                   <div className="space-y-3">
                     <p className="text-orange-700 text-sm">
-                      In this demo scenario, MeeMaw needs to change her flight due to a family emergency
+                      In this demo scenario, {passengerDisplayName} needs to change their flight due to a family emergency
                       and is requesting a fee waiver. Click below to simulate the AI handing off to a human agent.
                     </p>
                     <button
@@ -543,7 +601,7 @@ export default function HelperPage() {
                 {handoffTriggered && demoHandoff?.status === 'pending' && (
                   <div className="space-y-3">
                     <div className="bg-yellow-100 rounded-lg p-3">
-                      <p className="text-yellow-800 text-sm font-medium mb-1">AI Bridge Message to MeeMaw:</p>
+                      <p className="text-yellow-800 text-sm font-medium mb-1">AI Bridge Message to {passengerDisplayName}:</p>
                       <p className="text-yellow-700 text-sm italic">"{demoHandoff.bridge_message}"</p>
                     </div>
                     <div className="flex gap-2">
@@ -596,8 +654,8 @@ export default function HelperPage() {
                   <div className="space-y-3">
                     <div className="bg-green-100 rounded-lg p-3">
                       <p className="text-green-800 text-sm">
-                        The agent approved MeeMaw's fee waiver and rebooked her on the earlier flight.
-                        She's now heading to her new gate!
+                        The agent approved {passengerDisplayName}'s fee waiver and rebooked them on the earlier flight.
+                        They're now heading to their new gate!
                       </p>
                     </div>
                     <button
@@ -676,7 +734,7 @@ export default function HelperPage() {
                   }`}
                 >
                   <p className="text-sm font-medium mb-1 opacity-70">
-                    {msg.role === 'user' ? 'Your family member' : msg.role === 'family' ? 'You suggested' : 'AA Assistant'}
+                    {msg.role === 'user' ? 'Your family member' : msg.role === 'family' ? 'You suggested' : 'Elder Strolls Assistant'}
                   </p>
                   <p className="text-base">{msg.content}</p>
                 </div>

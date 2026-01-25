@@ -153,11 +153,14 @@ AIRPORT_GATES = {
         'B10': {'lat': 40.4955, 'lng': -80.2410, 'terminal': 'Airside'},
         'B15': {'lat': 40.4957, 'lng': -80.2405, 'terminal': 'Airside'},
         'B20': {'lat': 40.4960, 'lng': -80.2400, 'terminal': 'Airside'},
-        'B22': {'lat': 40.4958, 'lng': -80.2413, 'terminal': 'Airside'},
         'B25': {'lat': 40.4962, 'lng': -80.2395, 'terminal': 'Airside'},
         'C1': {'lat': 40.4945, 'lng': -80.2430, 'terminal': 'Airside'},
         'C5': {'lat': 40.4947, 'lng': -80.2425, 'terminal': 'Airside'},
         'C10': {'lat': 40.4950, 'lng': -80.2420, 'terminal': 'Airside'},
+    },
+    'LRD': {
+        # Laredo International Airport
+        'B22': {'lat': 27.5306, 'lng': -99.4803, 'terminal': 'Main'},
     },
 }
 
@@ -223,6 +226,12 @@ AIRPORT_GEOFENCES = {
         'radius_km': 3,
         'name': 'Pittsburgh International Airport',
     },
+    'LRD': {
+        'lat': 27.5306,
+        'lng': -99.4803,
+        'radius_km': 2,
+        'name': 'Laredo International Airport',
+    },
 }
 
 # Terminal locations within airports (for general navigation)
@@ -243,6 +252,9 @@ AIRPORT_TERMINALS = {
     'PIT': {
         'Airside': {'lat': 40.4955, 'lng': -80.2415, 'name': 'Airside Terminal'},
         'Landside': {'lat': 40.4920, 'lng': -80.2370, 'name': 'Landside Terminal'},
+    },
+    'LRD': {
+        'Main': {'lat': 27.5306, 'lng': -99.4803, 'name': 'Main Terminal'},
     },
 }
 

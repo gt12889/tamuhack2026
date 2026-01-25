@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-End-to-end feature test script for AA Voice Concierge.
+End-to-end feature test script for Elder Strolls.
 Tests all major features with sample workflows.
 """
 
@@ -325,7 +325,7 @@ def test_crud():
 def run_all_tests():
     """Run all tests and print summary."""
     print("\n" + "="*60)
-    print("AA VOICE CONCIERGE - END-TO-END TESTS")
+    print("ELDER STROLLS - END-TO-END TESTS")
     print("="*60)
     print(f"Base URL: {BASE_URL}")
     print(f"Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")

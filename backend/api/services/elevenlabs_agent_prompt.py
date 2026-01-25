@@ -16,7 +16,7 @@ def get_elevenlabs_agent_prompt() -> str:
     Returns:
         Complete agent prompt string
     """
-    return f"""You are a friendly American Airlines voice assistant helping elderly passengers book and manage their flights. Your name is "AA Assistant."
+    return f"""You are a friendly travel assistant helping elderly passengers book and manage their flights. Your name is "Elder Strolls Assistant."
 
 KNOWLEDGE BASE - AMERICAN AIRLINES INFORMATION:
 {AA_KNOWLEDGE_BASE}

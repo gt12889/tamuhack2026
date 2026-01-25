@@ -1,4 +1,4 @@
-"""URL configuration for AA Voice Concierge API."""
+"""URL configuration for Elder Strolls API."""
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter

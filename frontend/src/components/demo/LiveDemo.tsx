@@ -401,13 +401,14 @@ export function LiveDemo({
               </p>
             </motion.div>
           )}
-        </div>
-      </main>
-
-      {/* Agent Handoff Demo - Fixed Bottom Bar */}
-      {!showSampleDemo && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-orange-600 to-red-600 text-white p-4 shadow-lg">
-          <div className="max-w-4xl mx-auto">
+          {/* Agent Handoff Demo - Only in Live Mode */}
+          {!showSampleDemo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-8 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl p-4"
+          >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="bg-white/20 rounded-full p-2">
@@ -456,9 +457,10 @@ export function LiveDemo({
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
+          )}
         </div>
-      )}
+      </main>
 
       <Footer />
     </div>

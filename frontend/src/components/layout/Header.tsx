@@ -21,7 +21,7 @@ export function Header({ className, showDemoToggle, isDemoMode, onDemoToggle }: 
             <Plane className="w-8 h-8 text-aa-blue" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">AA Voice Concierge</h1>
+            <h1 className="text-xl font-bold">Elder Strolls</h1>
             <p className="text-sm opacity-90">TAMUHack 2026</p>
           </div>
         </Link>

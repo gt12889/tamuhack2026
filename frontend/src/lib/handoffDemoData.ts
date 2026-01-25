@@ -17,7 +17,7 @@ const DEMO_TRANSCRIPT: HandoffTranscriptMessage[] = [
   {
     id: 'msg-1',
     role: 'ai',
-    content: "Hello! Welcome to American Airlines. I'm your virtual assistant. How can I help you today?",
+    content: "Hello! Welcome to Elder Strolls. I'm your virtual assistant. How can I help you today?",
     timestamp: new Date(Date.now() - 300000).toISOString(),
   },
   {
@@ -134,7 +134,7 @@ export function generateDemoHandoff(
     handoff_reason_detail: 'Customer requesting fee waiver for emergency same-day flight change - requires supervisor authorization',
 
     suggested_first_response:
-      "Hi Margaret, this is [Agent Name] from American Airlines. I've reviewed your situation and I want to help get you to your daughter as quickly as possible. Given the emergency circumstances and your loyalty as a 15-year AAdvantage member, I'm authorized to waive the change fee. Let me get you on that 5:45 PM flight right now.",
+      "Hi Margaret, this is [Agent Name] from Elder Strolls. I've reviewed your situation and I want to help get you to your daughter as quickly as possible. Given the emergency circumstances and your loyalty as a 15-year AAdvantage member, I'm authorized to waive the change fee. Let me get you on that 5:45 PM flight right now.",
 
     suggested_actions: [
       'Waive the $200 change fee',
@@ -457,7 +457,7 @@ export function createHelperDemoHandoff(): HandoffDossier {
       'Elderly passenger requesting emergency fee waiver - requires supervisor authorization. Family member is actively monitoring via helper link.',
 
     suggested_first_response:
-      "Hi Margaret, this is [Agent Name] from American Airlines Customer Care. I've reviewed your situation and I want to help get you to your grandson as quickly as possible. Given the family emergency and your Gold status with us, I'm authorized to waive the change fee. Let me rebook you on that 1:15 PM flight right now.",
+      "Hi Margaret, this is [Agent Name] from Elder Strolls Customer Care. I've reviewed your situation and I want to help get you to your grandson as quickly as possible. Given the family emergency and your Gold status with us, I'm authorized to waive the change fee. Let me rebook you on that 1:15 PM flight right now.",
 
     suggested_actions: [
       'Waive the $200 change fee due to family emergency',

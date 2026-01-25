@@ -12,7 +12,7 @@ const DEMO_STEPS_EN = [
   {
     id: 1,
     speaker: 'agent',
-    text: "Hi! I'm your American Airlines assistant. I'm here to help with your trip. What do you need today?",
+    text: "Hi! I'm your Elder Strolls assistant. I'm here to help with your trip. What do you need today?",
     delay: 2000,
   },
   {
@@ -72,7 +72,7 @@ const DEMO_STEPS_ES = [
   {
     id: 1,
     speaker: 'agent',
-    text: "¡Hola! Soy su asistente de American Airlines. Estoy aquí para ayudarle con su viaje. ¿En qué puedo servirle hoy?",
+    text: "¡Hola! Soy su asistente de Elder Strolls. Estoy aquí para ayudarle con su viaje. ¿En qué puedo servirle hoy?",
     delay: 2500,
   },
   {

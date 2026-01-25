@@ -1,4 +1,4 @@
-"""API views for AA Voice Concierge."""
+"""API views for Elder Strolls."""
 
 import uuid
 import secrets
@@ -91,7 +91,7 @@ def start_conversation(request):
         context={},
     )
 
-    greeting = "Hi! I'm your American Airlines assistant. I'm here to help with your trip. What do you need today?"
+    greeting = "Hi! I'm your Elder Strolls assistant. I'm here to help with your trip. What do you need today?"
 
     # Generate audio for greeting
     audio_response = elevenlabs_service.synthesize(greeting)
@@ -1246,7 +1246,7 @@ def health_check(request):
         return Response({
             'status': 'healthy',
             'database': 'connected',
-            'service': 'AA Voice Concierge API'
+            'service': 'Elder Strolls API'
         }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({
@@ -1387,7 +1387,7 @@ def retell_status(request):
 @api_view(['POST'])
 def retell_create_agent(request):
     """Create a new Retell voice agent."""
-    agent_name = request.data.get('agent_name', 'AA Voice Concierge')
+    agent_name = request.data.get('agent_name', 'Elder Strolls')
     voice_id = request.data.get('voice_id', 'eleven_labs_rachel')
     llm_websocket_url = request.data.get('llm_websocket_url')
 

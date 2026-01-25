@@ -5,8 +5,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'AA Voice Concierge',
-  description: 'Voice-first flight assistance for American Airlines passengers',
+  title: 'Elder Strolls',
+  description: 'Voice-first travel assistance for elderly passengers',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
