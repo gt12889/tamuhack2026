@@ -7,6 +7,292 @@ import type {
   SentimentScore,
 } from '@/types';
 
+// Type for live transcript messages from ElevenLabs
+export interface LiveTranscriptMessage {
+  id: string;
+  role: 'agent' | 'user';
+  content: string;
+  timestamp: Date;
+  isFinal: boolean;
+}
+
+// Convert live transcript messages to handoff format
+function convertTranscriptMessages(liveMessages: LiveTranscriptMessage[]): HandoffTranscriptMessage[] {
+  return liveMessages
+    .filter((msg) => msg.isFinal) // Only include finalized messages
+    .map((msg, index) => ({
+      id: msg.id || `msg-${index}`,
+      role: msg.role === 'agent' ? 'ai' : 'user', // Map 'agent' to 'ai'
+      content: msg.content,
+      timestamp: msg.timestamp.toISOString(),
+    }));
+}
+
+// Extract context from conversation transcript
+interface ExtractedContext {
+  confirmationCode?: string;
+  flightNumber?: string;
+  passengerName?: string;
+  issueType?: string;
+  isUrgent: boolean;
+  urgencyKeywords: string[];
+}
+
+function extractContextFromTranscript(messages: LiveTranscriptMessage[]): ExtractedContext {
+  const allText = messages.map((m) => m.content).join(' ');
+  const userText = messages.filter((m) => m.role === 'user').map((m) => m.content).join(' ');
+
+  // Extract confirmation code (6 character alphanumeric)
+  const confirmationMatch = allText.match(/\b([A-Z0-9]{6})\b/i);
+  const confirmationCode = confirmationMatch ? confirmationMatch[1].toUpperCase() : undefined;
+
+  // Extract flight number (AA followed by digits)
+  const flightMatch = allText.match(/\b(AA\s*\d{1,4})\b/i);
+  const flightNumber = flightMatch ? flightMatch[1].replace(/\s/g, '').toUpperCase() : undefined;
+
+  // Extract passenger name from common phrases
+  let passengerName: string | undefined;
+  const namePatterns = [
+    /(?:this is|my name is|i'm|i am|name's)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+    /(?:hello,?\s*)?(?:this is\s+)?([A-Z][a-z]+)\s+(?:here|speaking|calling)/i,
+  ];
+  for (const pattern of namePatterns) {
+    const match = userText.match(pattern);
+    if (match) {
+      passengerName = match[1];
+      break;
+    }
+  }
+
+  // Detect urgency keywords
+  const urgencyKeywords: string[] = [];
+  const urgencyPatterns = [
+    { pattern: /\b(emergency|emergencies)\b/i, keyword: 'emergency' },
+    { pattern: /\b(hospital|hospitalized)\b/i, keyword: 'hospital' },
+    { pattern: /\b(urgent|urgently)\b/i, keyword: 'urgent' },
+    { pattern: /\b(asap|immediately|right now)\b/i, keyword: 'immediate' },
+    { pattern: /\b(accident|injured|injury)\b/i, keyword: 'accident' },
+    { pattern: /\b(medical|health|sick|ill)\b/i, keyword: 'medical' },
+    { pattern: /\b(death|dying|passed away|funeral)\b/i, keyword: 'bereavement' },
+    { pattern: /\b(family member|daughter|son|mother|father|grandson|granddaughter|wife|husband)\b/i, keyword: 'family' },
+  ];
+
+  for (const { pattern, keyword } of urgencyPatterns) {
+    if (pattern.test(allText) && !urgencyKeywords.includes(keyword)) {
+      urgencyKeywords.push(keyword);
+    }
+  }
+
+  const isUrgent = urgencyKeywords.length > 0;
+
+  // Determine issue type from keywords
+  let issueType: string | undefined;
+  if (/\b(change|rebook|reschedule|different flight|earlier flight|later flight)\b/i.test(allText)) {
+    issueType = isUrgent ? 'emergency_change' : 'flight_change';
+  } else if (/\b(cancel|cancellation|refund)\b/i.test(allText)) {
+    issueType = 'cancellation';
+  } else if (/\b(fee|waive|waiver)\b/i.test(allText)) {
+    issueType = 'fee_waiver';
+  } else if (/\b(upgrade|first class|business class)\b/i.test(allText)) {
+    issueType = 'upgrade_request';
+  } else if (/\b(complaint|complain|upset|frustrated|angry)\b/i.test(allText)) {
+    issueType = 'complaint';
+  } else if (/\b(help|assist|assistance|wheelchair|special)\b/i.test(allText)) {
+    issueType = 'special_assistance';
+  }
+
+  return {
+    confirmationCode,
+    flightNumber,
+    passengerName,
+    issueType,
+    isUrgent,
+    urgencyKeywords,
+  };
+}
+
+// Generate a contextual summary from live messages
+function generateContextualSummary(
+  messages: LiveTranscriptMessage[],
+  context: ExtractedContext
+): string {
+  const userMessages = messages.filter((m) => m.role === 'user' && m.isFinal);
+
+  if (userMessages.length === 0) {
+    return 'Customer initiated conversation - context being gathered.';
+  }
+
+  let summary = '';
+
+  if (context.passengerName) {
+    summary += `Customer ${context.passengerName}`;
+  } else {
+    summary += 'Customer';
+  }
+
+  if (context.flightNumber) {
+    summary += ` regarding flight ${context.flightNumber}`;
+  }
+
+  if (context.confirmationCode) {
+    summary += ` (confirmation: ${context.confirmationCode})`;
+  }
+
+  if (context.issueType) {
+    const issueDescriptions: Record<string, string> = {
+      emergency_change: ' needs an emergency flight change',
+      flight_change: ' is requesting a flight change',
+      cancellation: ' is requesting a cancellation or refund',
+      fee_waiver: ' is requesting a fee waiver',
+      upgrade_request: ' is requesting an upgrade',
+      complaint: ' has a complaint',
+      special_assistance: ' needs special assistance',
+    };
+    summary += issueDescriptions[context.issueType] || ' needs assistance';
+  } else {
+    summary += ' needs assistance';
+  }
+
+  if (context.isUrgent && context.urgencyKeywords.length > 0) {
+    summary += `. Urgency indicators: ${context.urgencyKeywords.join(', ')}`;
+  }
+
+  summary += '.';
+
+  // Add last user message as context
+  const lastUserMessage = userMessages[userMessages.length - 1];
+  if (lastUserMessage && lastUserMessage.content.length > 20) {
+    const truncated = lastUserMessage.content.length > 100
+      ? lastUserMessage.content.substring(0, 100) + '...'
+      : lastUserMessage.content;
+    summary += ` Last message: "${truncated}"`;
+  }
+
+  return summary;
+}
+
+// Generate suggested responses based on context
+function generateSuggestedResponses(context: ExtractedContext): {
+  firstResponse: string;
+  actions: string[];
+} {
+  const name = context.passengerName || 'the customer';
+
+  if (context.isUrgent) {
+    return {
+      firstResponse: `Hi ${context.passengerName || 'there'}, this is [Agent Name] from Elder Strolls. I've reviewed your situation and I want to help you as quickly as possible. ${context.urgencyKeywords.includes('family') || context.urgencyKeywords.includes('hospital') || context.urgencyKeywords.includes('medical') ? "I understand this is a difficult time, and I'm here to assist." : "Let me see what I can do for you right away."}`,
+      actions: [
+        context.issueType === 'emergency_change' || context.issueType === 'fee_waiver'
+          ? 'Consider waiving change fees due to emergency circumstances'
+          : 'Prioritize resolving the urgent issue',
+        'Review available options for immediate assistance',
+        'Document the emergency situation in customer notes',
+        'Offer expedited service where possible',
+      ],
+    };
+  }
+
+  return {
+    firstResponse: `Hello ${context.passengerName || 'there'}, this is [Agent Name] from Elder Strolls. I've reviewed your conversation and I'm here to help. How can I assist you today?`,
+    actions: [
+      'Review the customer\'s reservation details',
+      'Address the primary concern raised',
+      'Check for any loyalty status or preferences',
+      'Ensure customer satisfaction before closing',
+    ],
+  };
+}
+
+// Create a contextual handoff from live conversation
+export function createContextualHandoff(
+  handoffId: string,
+  liveMessages?: LiveTranscriptMessage[]
+): HandoffDossier {
+  // Check if we have enough live messages to use
+  const finalizedMessages = liveMessages?.filter((m) => m.isFinal) || [];
+
+  // Fall back to static demo if no meaningful conversation
+  if (finalizedMessages.length < 2) {
+    return getOrCreateDemoHandoff(handoffId);
+  }
+
+  // Extract context from the live conversation
+  const context = extractContextFromTranscript(finalizedMessages);
+  const transcript = convertTranscriptMessages(finalizedMessages);
+  const summary = generateContextualSummary(finalizedMessages, context);
+  const { firstResponse, actions } = generateSuggestedResponses(context);
+
+  // Determine sentiment and priority
+  const sentiment: SentimentScore = context.isUrgent
+    ? 'urgent'
+    : context.issueType === 'complaint'
+    ? 'frustrated'
+    : 'neutral';
+
+  const priority: 'normal' | 'high' | 'urgent' = context.isUrgent
+    ? 'urgent'
+    : context.issueType === 'complaint'
+    ? 'high'
+    : 'normal';
+
+  // Determine handoff reason
+  const handoffReason: HandoffReason = context.isUrgent
+    ? 'authorization_required'
+    : context.issueType === 'complaint'
+    ? 'customer_request'
+    : 'complex_issue';
+
+  // Build the dossier
+  const dossier: HandoffDossier = {
+    handoff_id: handoffId,
+    session_id: `session-${Date.now()}`,
+    status: 'pending',
+    priority,
+
+    conversation_summary: summary,
+
+    ai_actions_taken: [
+      'Engaged with customer via voice AI',
+      context.confirmationCode ? `Discussed reservation ${context.confirmationCode}` : 'Gathered customer information',
+      context.flightNumber ? `Referenced flight ${context.flightNumber}` : undefined,
+      context.isUrgent ? 'Recognized urgency in customer situation' : undefined,
+      'Determined human assistance required',
+    ].filter(Boolean) as string[],
+
+    sentiment_score: sentiment,
+    sentiment_reason: context.isUrgent
+      ? `Customer expressed urgency: ${context.urgencyKeywords.join(', ')}`
+      : `Customer sentiment detected as ${sentiment} based on conversation tone`,
+
+    metadata: {
+      confirmation_code: context.confirmationCode,
+      flight_number: context.flightNumber,
+      passenger_name: context.passengerName,
+      issue_type: context.issueType,
+    },
+
+    reservation: undefined, // No reservation data from live conversation
+
+    transcript,
+
+    handoff_reason: handoffReason,
+    handoff_reason_detail: context.isUrgent
+      ? `Urgent customer request requiring immediate human assistance - ${context.urgencyKeywords.join(', ')}`
+      : 'Customer conversation requires human agent intervention',
+
+    suggested_first_response: firstResponse,
+    suggested_actions: actions,
+
+    created_at: new Date().toISOString(),
+    bridge_message: "I'm connecting you with a specialist who can help with your request. I've shared our conversation with them so you won't need to repeat anything. They'll be with you in just a moment.",
+  };
+
+  // Store in demo handoff store
+  demoHandoffStore.set(handoffId, dossier);
+
+  return dossier;
+}
+
 // Generate a unique handoff ID for demo
 export function generateDemoHandoffId(): string {
   return `demo-handoff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

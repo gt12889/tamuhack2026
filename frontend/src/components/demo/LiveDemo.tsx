@@ -12,15 +12,10 @@ import { useElevenLabsConversation } from '@/hooks/useElevenLabsConversation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { startConversation, createHelperLink } from '@/lib/api';
-import { generateDemoHandoffId, getOrCreateDemoHandoff } from '@/lib/handoffDemoData';
+import { generateDemoHandoffId, createContextualHandoff, type LiveTranscriptMessage } from '@/lib/handoffDemoData';
 
-interface TranscriptMessage {
-  id: string;
-  role: 'agent' | 'user';
-  content: string;
-  timestamp: Date;
-  isFinal: boolean;
-}
+// Re-export for TranscriptPanel compatibility
+type TranscriptMessage = LiveTranscriptMessage;
 
 interface LiveDemoProps {
   phoneNumber?: string;
@@ -140,15 +135,15 @@ export function LiveDemo({
     setIsCreatingHandoff(true);
     try {
       const newHandoffId = generateDemoHandoffId();
-      // Pre-populate the demo handoff data
-      getOrCreateDemoHandoff(newHandoffId);
+      // Create contextual handoff using live conversation (falls back to static demo if insufficient messages)
+      createContextualHandoff(newHandoffId, messages);
       setHandoffId(newHandoffId);
     } catch (err) {
       console.error('Failed to create handoff:', err);
     } finally {
       setIsCreatingHandoff(false);
     }
-  }, []);
+  }, [messages]);
 
   // Get full agent handoff URL
   const getAgentUrl = useCallback(() => {
