@@ -5,9 +5,10 @@ import FlightStatusCard from "@/components/ui/FlightStatusCard";
 import type {Message,Reservation} from "@/types";
 
 
+// Demo reservation: PIT -> DFW, Monday January 19, 2026
 const DEMO_RESERVATION: Reservation = {
   id: 'demo-res-001',
-  confirmation_code: 'DEMO123',
+  confirmation_code: 'CZYBYU',
   passenger: {
     id: 'demo-pax-001',
     first_name: 'Margaret',
@@ -23,18 +24,18 @@ const DEMO_RESERVATION: Reservation = {
   flights: [
     {
       id: 'demo-flight-001',
-      flight_number: 'AA1234',
-      origin: 'DFW',
-      destination: 'ORD',
-      departure_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-      arrival_time: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(), // 5 hours from now
+      flight_number: 'AA1845',
+      origin: 'PIT',
+      destination: 'DFW',
+      departure_time: '2026-01-19T07:06:00-05:00', // 7:06 AM EST
+      arrival_time: '2026-01-19T09:50:00-06:00', // 9:50 AM CST
       gate: 'B22',
       status: 'scheduled',
       seat: '14A',
     },
   ],
   status: 'confirmed',
-  created_at: new Date().toISOString(),
+  created_at: '2026-01-15T10:00:00Z',
 };
 
 export default function TravelDashboard() {

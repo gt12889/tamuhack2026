@@ -141,6 +141,24 @@ AIRPORT_GATES = {
         'B15': {'lat': 33.4348, 'lng': -112.0085, 'terminal': '4'},
         'B20': {'lat': 33.4350, 'lng': -112.0080, 'terminal': '4'},
     },
+    'PIT': {
+        # Pittsburgh International Airport - Airside Terminal
+        'A1': {'lat': 40.4955, 'lng': -80.2425, 'terminal': 'Airside'},
+        'A5': {'lat': 40.4957, 'lng': -80.2420, 'terminal': 'Airside'},
+        'A10': {'lat': 40.4960, 'lng': -80.2415, 'terminal': 'Airside'},
+        'A15': {'lat': 40.4962, 'lng': -80.2410, 'terminal': 'Airside'},
+        'A20': {'lat': 40.4965, 'lng': -80.2405, 'terminal': 'Airside'},
+        'B1': {'lat': 40.4950, 'lng': -80.2420, 'terminal': 'Airside'},
+        'B5': {'lat': 40.4952, 'lng': -80.2415, 'terminal': 'Airside'},
+        'B10': {'lat': 40.4955, 'lng': -80.2410, 'terminal': 'Airside'},
+        'B15': {'lat': 40.4957, 'lng': -80.2405, 'terminal': 'Airside'},
+        'B20': {'lat': 40.4960, 'lng': -80.2400, 'terminal': 'Airside'},
+        'B22': {'lat': 40.4958, 'lng': -80.2413, 'terminal': 'Airside'},
+        'B25': {'lat': 40.4962, 'lng': -80.2395, 'terminal': 'Airside'},
+        'C1': {'lat': 40.4945, 'lng': -80.2430, 'terminal': 'Airside'},
+        'C5': {'lat': 40.4947, 'lng': -80.2425, 'terminal': 'Airside'},
+        'C10': {'lat': 40.4950, 'lng': -80.2420, 'terminal': 'Airside'},
+    },
 }
 
 # Airport geofences for detecting when user enters airport
