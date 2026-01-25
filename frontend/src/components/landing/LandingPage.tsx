@@ -16,7 +16,7 @@ interface LandingPageProps {
 }
 
 export function LandingPage({
-  phoneNumber = '+1-800-555-1234',
+  phoneNumber = '+1 (877) 211-0332',
   showDemoToggle = false,
   isDemoMode = false,
   onDemoToggle,

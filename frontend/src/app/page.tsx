@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { LandingPage } from '@/components/landing';
 import { LiveDemo } from '@/components/demo';
 
-// Retell AI Agent phone number
-const PHONE_NUMBER = '+1 (863) 341-8574';
+// ElevenLabs AI Agent phone number
+const PHONE_NUMBER = '+1 (877) 211-0332';
 
-// Retell Agent ID for web calls (optional - set via environment variable)
-const RETELL_AGENT_ID = process.env.NEXT_PUBLIC_RETELL_AGENT_ID;
+// ElevenLabs Agent ID for web calls (optional - set via environment variable)
+const ELEVENLABS_AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
 
 export default function Home() {
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -21,7 +21,7 @@ export default function Home() {
     return (
       <LiveDemo
         phoneNumber={PHONE_NUMBER}
-        agentId={RETELL_AGENT_ID}
+        agentId={ELEVENLABS_AGENT_ID}
         onExitDemo={handleDemoToggle}
       />
     );

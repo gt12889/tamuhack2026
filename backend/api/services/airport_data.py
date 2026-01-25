@@ -217,6 +217,12 @@ AIRPORT_GEOFENCES = {
         'radius_km': 2,
         'name': 'LaGuardia Airport',
     },
+    'PIT': {
+        'lat': 40.4958,
+        'lng': -80.2413,
+        'radius_km': 3,
+        'name': 'Pittsburgh International Airport',
+    },
 }
 
 # Terminal locations within airports (for general navigation)
@@ -233,6 +239,10 @@ AIRPORT_TERMINALS = {
         '2': {'lat': 41.9775, 'lng': -87.9050, 'name': 'Terminal 2'},
         '3': {'lat': 41.9755, 'lng': -87.9070, 'name': 'Terminal 3'},
         '5': {'lat': 41.9730, 'lng': -87.9090, 'name': 'Terminal 5 (International)'},
+    },
+    'PIT': {
+        'Airside': {'lat': 40.4955, 'lng': -80.2415, 'name': 'Airside Terminal'},
+        'Landside': {'lat': 40.4920, 'lng': -80.2370, 'name': 'Landside Terminal'},
     },
 }
 

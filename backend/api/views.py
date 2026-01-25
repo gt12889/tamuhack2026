@@ -1752,3 +1752,113 @@ def acknowledge_alert(request, alert_id):
         return Response({'success': True})
 
     return Response({'error': 'Alert not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# ==================== ElevenLabs Conversational AI Endpoints ====================
+
+from .services.elevenlabs_webhook_handler import elevenlabs_webhook_handler, ELEVENLABS_SERVER_TOOL_DEFINITIONS
+
+
+@api_view(['GET'])
+def elevenlabs_convai_status(request):
+    """
+    Check ElevenLabs Conversational AI configuration status.
+
+    Returns whether web calls are configured and ready.
+    """
+    configured = elevenlabs_service.is_web_configured()
+
+    return Response({
+        'configured': configured,
+        'service': 'ElevenLabs Conversational AI',
+        'agent_id': elevenlabs_service.agent_id if configured else None,
+    })
+
+
+@api_view(['POST'])
+def elevenlabs_create_web_call(request):
+    """
+    Create a web call for browser-based real-time voice interaction.
+
+    Returns signed_url for establishing a WebSocket connection with ElevenLabs.
+
+    Request body (optional):
+        agent_id: Override the default agent ID
+        session_id: Session ID for context
+    """
+    agent_id = request.data.get('agent_id')
+    session_id = request.data.get('session_id')
+
+    result = elevenlabs_service.get_signed_url(agent_id=agent_id)
+
+    if result:
+        response_data = {
+            'signed_url': result.get('signed_url'),
+            'agent_id': agent_id or elevenlabs_service.agent_id,
+        }
+
+        # Include session context if available
+        if session_id:
+            try:
+                session = Session.objects.get(id=session_id)
+                response_data['session_id'] = str(session.id)
+                response_data['session_state'] = session.state
+                if session.reservation:
+                    response_data['confirmation_code'] = session.reservation.confirmation_code
+            except Session.DoesNotExist:
+                pass
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    return Response(
+        {'error': 'Failed to create web call. Check ElevenLabs configuration (API key and agent ID).'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
+
+
+@api_view(['POST'])
+def elevenlabs_server_tool(request):
+    """
+    Webhook endpoint for ElevenLabs Conversational AI server tools.
+
+    ElevenLabs calls this endpoint when the agent invokes a server tool.
+    Configure this URL in the ElevenLabs dashboard for each server tool.
+
+    Request body:
+        tool_name: Name of the tool being called
+        parameters: Tool parameters as a dict
+
+    URL: https://yourdomain.com/api/elevenlabs/convai/webhook
+    """
+    tool_name = request.data.get('tool_name') or request.data.get('name')
+    parameters = request.data.get('parameters') or request.data.get('args') or {}
+
+    # Handle ElevenLabs' actual webhook format
+    if 'tool_call' in request.data:
+        tool_call = request.data['tool_call']
+        tool_name = tool_call.get('name')
+        parameters = tool_call.get('parameters', {})
+
+    if not tool_name:
+        return Response(
+            {'error': 'Missing tool_name'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = elevenlabs_webhook_handler.handle_server_tool(tool_name, parameters)
+
+    return Response(result)
+
+
+@api_view(['GET'])
+def elevenlabs_server_tool_definitions(request):
+    """
+    Get the server tool definitions for ElevenLabs agent configuration.
+
+    Use these definitions when setting up your ElevenLabs Conversational AI agent
+    to enable server tool capabilities.
+    """
+    return Response({
+        'tools': ELEVENLABS_SERVER_TOOL_DEFINITIONS,
+        'webhook_url': request.build_absolute_uri('/api/elevenlabs/convai/webhook'),
+    })

@@ -137,8 +137,8 @@ RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'AA Voice Concierge <noreply@
 ELEVENLABS_VOICE_ID = os.getenv('ELEVENLABS_VOICE_ID', 'EXAVITQu4vr4xnSDxMaL')  # Rachel voice
 ELEVENLABS_VOICE_ID_ES = os.getenv('ELEVENLABS_VOICE_ID_ES', 'ErXwobaYiN019PkySvjV')  # Spanish voice
 
-# ElevenLabs Conversational AI (for outbound calls via Twilio)
-ELEVENLABS_AGENT_ID = os.getenv('ELEVENLABS_AGENT_ID', '')
+# ElevenLabs Conversational AI (for web calls and outbound calls)
+ELEVENLABS_AGENT_ID = os.getenv('ELEVENLABS_MAIN_AGENT_ID', os.getenv('ELEVENLABS_AGENT_ID', ''))
 ELEVENLABS_REMINDER_AGENT_ID = os.getenv('ELEVENLABS_REMINDER_AGENT_ID', '')
 
 # Outbound reminder call provider: 'elevenlabs' or 'retell'

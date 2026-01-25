@@ -41,7 +41,7 @@ export function Header({ className, showDemoToggle, isDemoMode, onDemoToggle }: 
             </button>
           )}
           <a
-            href="tel:+18635418574"
+            href="tel:+18772110332"
             className="flex items-center gap-2 bg-white text-aa-blue px-4 py-2 rounded-lg font-bold hover:bg-gray-100 transition-colors"
           >
             <Phone className="w-5 h-5" />

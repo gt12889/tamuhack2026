@@ -116,6 +116,30 @@ export interface RetellStatus {
   default_agent_id?: string;
 }
 
+// ElevenLabs Conversational AI Types
+export interface ElevenLabsStatus {
+  configured: boolean;
+  service: string;
+  agent_id: string | null;
+}
+
+export interface ElevenLabsSignedUrlResponse {
+  signed_url: string;
+  agent_id: string;
+  session_id?: string;
+  session_state?: string;
+  confirmation_code?: string;
+}
+
+export interface ElevenLabsMessage {
+  source: 'ai' | 'user';
+  message: string;
+}
+
+export interface ElevenLabsModeChange {
+  mode: 'speaking' | 'listening';
+}
+
 // Family Helper Action Types
 export type FamilyActionType =
   | 'change_flight'
@@ -241,4 +265,16 @@ export interface LocationUpdateResponse {
   alert_status: AlertStatus | null;
   directions: string;
   alert_triggered: boolean;
+}
+
+// DFW Airport Navigation Types
+export interface DFWWaypoint {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  terminal: string;
+  instruction: string;
+  landmarks: string[];
+  estimatedTimeFromStart: number;
 }

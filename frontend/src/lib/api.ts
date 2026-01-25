@@ -276,6 +276,30 @@ export async function endRetellCall(callId: string): Promise<{ success: boolean 
   return response.data;
 }
 
+// ElevenLabs Conversational AI API
+export async function getElevenLabsStatus(): Promise<{
+  configured: boolean;
+  service: string;
+  agent_id: string | null;
+}> {
+  const response = await api.get('/api/elevenlabs/convai/status');
+  return response.data;
+}
+
+export async function getElevenLabsSignedUrl(params: {
+  agent_id?: string;
+  session_id?: string;
+}): Promise<{
+  signed_url: string;
+  agent_id: string;
+  session_id?: string;
+  session_state?: string;
+  confirmation_code?: string;
+}> {
+  const response = await api.post('/api/elevenlabs/convai/web-call', params);
+  return response.data;
+}
+
 // Location Tracking API
 export async function updateLocation(
   sessionId: string,
