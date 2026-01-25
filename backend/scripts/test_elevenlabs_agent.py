@@ -203,7 +203,43 @@ def test_lookup_reservation():
     else:
         checks.append(f'[X] Seat incorrect: {seat}')
     
-    all_passed = all('[OK]' in check for check in checks)
+    # Check for spoken_summary field (critical for agent to read back)
+    spoken_summary = result.get('spoken_summary', '')
+    has_spoken_summary = bool(spoken_summary)
+    
+    if has_spoken_summary:
+        checks.append('[OK] spoken_summary provided for agent to read back')
+        # Verify spoken_summary contains key information
+        summary_lower = spoken_summary.lower()
+        has_passenger_name = 'maria' in summary_lower
+        has_flight = 'AA2345' in spoken_summary or 'aa2345' in summary_lower
+        has_gate = 'D15' in spoken_summary or 'd15' in summary_lower
+        has_seat = '6A' in spoken_summary or '6a' in summary_lower
+        
+        if has_passenger_name:
+            checks.append('[OK] spoken_summary includes passenger name')
+        else:
+            checks.append('[X] spoken_summary missing passenger name')
+        
+        if has_flight:
+            checks.append('[OK] spoken_summary includes flight number')
+        else:
+            checks.append('[X] spoken_summary missing flight number')
+        
+        if has_gate:
+            checks.append('[OK] spoken_summary includes gate')
+        else:
+            checks.append('[X] spoken_summary missing gate')
+        
+        if has_seat:
+            checks.append('[OK] spoken_summary includes seat')
+        else:
+            checks.append('[X] spoken_summary missing seat')
+    else:
+        checks.append('[X] CRITICAL: No spoken_summary field - agent cannot read back results!')
+        all_passed = False  # Fail if no spoken_summary
+    
+    all_passed = all('[OK]' in check for check in checks) and all_passed
     
     # Expected agent response pattern
     expected_keywords = ['maria', 'garcia', 'AA2345', 'miami', 'dallas', 'D15', '6A']
@@ -212,6 +248,7 @@ def test_lookup_reservation():
         'tool_result': result,
         'validation_checks': checks,
         'expected_keywords': expected_keywords,
+        'spoken_summary': spoken_summary if has_spoken_summary else 'MISSING',
         'note': 'Agent should read back: "I found your reservation Maria. You are booked on flight AA2345 from Miami to Dallas departing January 29. Your gate is D15 and you are in seat 6A."'
     }
 
