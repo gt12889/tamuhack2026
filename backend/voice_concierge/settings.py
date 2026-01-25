@@ -129,12 +129,20 @@ REST_FRAMEWORK = {
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', '')
 RETELL_API_KEY = os.getenv('RETELL_API_KEY', '')
+RETELL_REMINDER_AGENT_ID = os.getenv('RETELL_REMINDER_AGENT_ID', '')
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
 RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'AA Voice Concierge <noreply@yourdomain.com>')
 
 # ElevenLabs configuration
 ELEVENLABS_VOICE_ID = os.getenv('ELEVENLABS_VOICE_ID', 'EXAVITQu4vr4xnSDxMaL')  # Rachel voice
 ELEVENLABS_VOICE_ID_ES = os.getenv('ELEVENLABS_VOICE_ID_ES', 'ErXwobaYiN019PkySvjV')  # Spanish voice
+
+# ElevenLabs Conversational AI (for outbound calls via Twilio)
+ELEVENLABS_AGENT_ID = os.getenv('ELEVENLABS_AGENT_ID', '')
+ELEVENLABS_REMINDER_AGENT_ID = os.getenv('ELEVENLABS_REMINDER_AGENT_ID', '')
+
+# Outbound reminder call provider: 'elevenlabs' or 'retell'
+REMINDER_CALL_PROVIDER = os.getenv('REMINDER_CALL_PROVIDER', 'elevenlabs')
 
 # Session expiry (30 minutes)
 SESSION_EXPIRY_MINUTES = 30

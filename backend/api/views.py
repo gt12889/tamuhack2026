@@ -26,10 +26,9 @@ from .serializers import (
     AddBagsActionSerializer,
     RequestWheelchairActionSerializer,
 )
-from .services import GeminiService, ElevenLabsService, retell_service, resend_service
+from .services import GeminiService, ElevenLabsService, retell_service, resend_service, reservation_service
 from .services.family_action_service import family_action_service
 from .mock_data import (
-    get_demo_reservations,
     get_alternative_flights,
     get_flights_for_date,
     get_airport_info,
@@ -45,58 +44,17 @@ elevenlabs_service = ElevenLabsService()
 SESSION_EXPIRY_MINUTES = 30
 
 
-def get_or_create_mock_reservation(confirmation_code: str):
-    """Get or create a reservation from mock data."""
-    demo_data = get_demo_reservations()
-
-    for res_data in demo_data:
-        if res_data['confirmation_code'].upper() == confirmation_code.upper():
-            # Check if already in DB - use prefetch to avoid N+1 queries
-            try:
-                return Reservation.objects.select_related('passenger').prefetch_related(
-                    'flight_segments__flight'
-                ).get(confirmation_code=confirmation_code.upper())
-            except Reservation.DoesNotExist:
-                pass
-
-            # Create passenger
-            passenger = Passenger.objects.create(
-                first_name=res_data['passenger']['first_name'],
-                last_name=res_data['passenger']['last_name'],
-                email=res_data['passenger']['email'],
-                phone=res_data['passenger'].get('phone'),
-                language_preference=res_data['passenger'].get('language_preference', 'en'),
-            )
-
-            # Create reservation
-            reservation = Reservation.objects.create(
-                confirmation_code=confirmation_code.upper(),
-                passenger=passenger,
-                status='confirmed',
-            )
-
-            # Create flights and segments
-            for i, flight_data in enumerate(res_data['flights']):
-                from dateutil.parser import parse
-                flight = Flight.objects.create(
-                    flight_number=flight_data['flight_number'],
-                    origin=flight_data['origin'],
-                    destination=flight_data['destination'],
-                    departure_time=parse(flight_data['departure_time']),
-                    arrival_time=parse(flight_data['arrival_time']),
-                    gate=flight_data.get('gate'),
-                    status=flight_data.get('status', 'scheduled'),
-                )
-                FlightSegment.objects.create(
-                    reservation=reservation,
-                    flight=flight,
-                    seat=flight_data.get('seat'),
-                    segment_order=i,
-                )
-
-            return reservation
-
-    return None
+def lookup_reservation_by_code(confirmation_code: str):
+    """
+    Look up a reservation by confirmation code from the database.
+    
+    Args:
+        confirmation_code: 6-character confirmation code
+        
+    Returns:
+        Reservation object or None if not found
+    """
+    return reservation_service.lookup_reservation(confirmation_code=confirmation_code)
 
 
 @api_view(['POST'])
@@ -223,7 +181,7 @@ def send_message(request):
     if session.state in ['greeting', 'lookup'] and not session.reservation:
         code = gemini_service.extract_confirmation_code(transcript)
         if code:
-            reservation = get_or_create_mock_reservation(code)
+            reservation = lookup_reservation_by_code(code)
             if reservation:
                 session.reservation = reservation
                 session.state = 'viewing'
@@ -288,6 +246,19 @@ def send_message(request):
         trip_summary = None
 
         if session.reservation and new_flight:
+            # Actually persist the flight change to the database
+            updated_reservation = reservation_service.change_flight(
+                reservation_id=str(session.reservation.id),
+                segment_order=0,  # Change the first flight segment
+                new_flight_data=new_flight,
+                new_seat=new_flight.get('seat')
+            )
+            
+            # Refresh the reservation reference
+            if updated_reservation:
+                session.reservation = updated_reservation
+                session.save()
+
             summary_result = gemini_service.generate_change_summary(
                 original_flight=original_flight,
                 new_flight=new_flight,
@@ -389,24 +360,20 @@ def get_session(request, session_id):
 
 @api_view(['GET'])
 def lookup_reservation(request):
-    """Look up a reservation by confirmation code, name, or email."""
-    code = request.query_params.get('confirmation_code', '').upper()
-    last_name = request.query_params.get('last_name', '').lower()
-    email = request.query_params.get('email', '').lower()
+    """Look up a reservation by confirmation code, name, or email from the database."""
+    code = request.query_params.get('confirmation_code', '').strip()
+    last_name = request.query_params.get('last_name', '').strip()
+    email = request.query_params.get('email', '').strip()
 
-    if code:
-        reservation = get_or_create_mock_reservation(code)
-        if reservation:
-            return Response({'reservation': ReservationSerializer(reservation).data})
+    # Use the reservation service to look up from database
+    reservation = reservation_service.lookup_reservation(
+        confirmation_code=code if code else None,
+        last_name=last_name if last_name else None,
+        email=email if email else None
+    )
 
-    # Search by last name or email in mock data
-    if last_name or email:
-        for res_data in get_demo_reservations():
-            if (last_name and res_data['passenger']['last_name'].lower() == last_name) or \
-               (email and res_data['passenger']['email'].lower() == email):
-                reservation = get_or_create_mock_reservation(res_data['confirmation_code'])
-                if reservation:
-                    return Response({'reservation': ReservationSerializer(reservation).data})
+    if reservation:
+        return Response({'reservation': ReservationSerializer(reservation).data})
 
     return Response(
         {'error': 'Reservation not found'},
@@ -415,17 +382,98 @@ def lookup_reservation(request):
 
 
 @api_view(['POST'])
+def create_reservation(request):
+    """
+    Create a new reservation with passenger and flight information.
+
+    Request body:
+        confirmation_code: 6-character confirmation code
+        passenger: {
+            first_name: str,
+            last_name: str,
+            email: str,
+            phone: str (optional),
+            language_preference: 'en' or 'es' (optional),
+            seat_preference: 'window', 'aisle', or 'middle' (optional)
+        }
+        flights: [
+            {
+                flight_number: str,
+                origin: str (airport code),
+                destination: str (airport code),
+                departure_time: ISO datetime str,
+                arrival_time: ISO datetime str,
+                gate: str (optional),
+                seat: str (optional),
+                status: str (optional, defaults to 'scheduled')
+            }
+        ]
+    """
+    confirmation_code = request.data.get('confirmation_code')
+    passenger_data = request.data.get('passenger')
+    flights_data = request.data.get('flights', [])
+
+    # Validation
+    if not confirmation_code:
+        return Response(
+            {'error': 'confirmation_code is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not passenger_data or not passenger_data.get('email'):
+        return Response(
+            {'error': 'passenger with email is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not flights_data:
+        return Response(
+            {'error': 'At least one flight is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Check if confirmation code already exists
+    existing = reservation_service.lookup_reservation(confirmation_code=confirmation_code)
+    if existing:
+        return Response(
+            {'error': f'Reservation with code {confirmation_code} already exists'},
+            status=status.HTTP_409_CONFLICT
+        )
+
+    # Create the reservation
+    reservation = reservation_service.create_reservation(
+        confirmation_code=confirmation_code,
+        passenger_data=passenger_data,
+        flight_segments=flights_data
+    )
+
+    if reservation:
+        return Response({
+            'success': True,
+            'reservation': ReservationSerializer(reservation).data
+        }, status=status.HTTP_201_CREATED)
+
+    return Response(
+        {'error': 'Failed to create reservation'},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
+
+
+@api_view(['POST'])
 def change_reservation(request):
-    """Change a flight reservation."""
+    """Change a flight reservation and persist to database."""
     session_id = request.data.get('session_id')
     reservation_id = request.data.get('reservation_id')
     new_flight_id = request.data.get('new_flight_id')
     original_flight_data = request.data.get('original_flight')
     new_flight_data = request.data.get('new_flight')
+    segment_order = request.data.get('segment_order', 0)  # Which flight segment to change
 
     try:
         session = Session.objects.get(id=session_id)
-        reservation = Reservation.objects.get(id=reservation_id)
+        reservation = Reservation.objects.select_related('passenger').prefetch_related(
+            'flight_segments__flight'
+        ).get(id=reservation_id)
     except (Session.DoesNotExist, Reservation.DoesNotExist):
         return Response(
             {'error': 'Session or reservation not found'},
@@ -435,9 +483,24 @@ def change_reservation(request):
     # Get language preference from session
     language = session.context.get('detected_language', 'en') if session.context else 'en'
 
-    # For demo, just update the status
-    reservation.status = 'changed'
-    reservation.save()
+    # Actually change the flight in the database using the reservation service
+    if new_flight_data:
+        updated_reservation = reservation_service.change_flight(
+            reservation_id=str(reservation_id),
+            segment_order=segment_order,
+            new_flight_data=new_flight_data,
+            new_seat=new_flight_data.get('seat')
+        )
+        if updated_reservation:
+            reservation = updated_reservation
+        else:
+            # Fallback: just update status if flight change failed
+            reservation.status = 'changed'
+            reservation.save()
+    else:
+        # No new flight data provided, just update status
+        reservation.status = 'changed'
+        reservation.save()
 
     session.state = 'complete'
     session.save()
@@ -1552,4 +1615,137 @@ def retell_function_definitions(request):
         'functions': RETELL_FUNCTION_DEFINITIONS,
         'webhook_url': request.build_absolute_uri('/api/retell/webhook'),
         'function_url': request.build_absolute_uri('/api/retell/function'),
+    })
+
+
+# ==================== Outbound Reminder Endpoints ====================
+
+from .services.reminder_service import reminder_service
+
+
+@api_view(['GET'])
+def reminder_status(request):
+    """
+    Check the status of the reminder service.
+
+    Returns configuration status and upcoming flights that would receive reminders.
+    """
+    upcoming_departures = reminder_service.get_upcoming_flights(
+        minutes_ahead=120,
+        reminder_type='departure_1hr'
+    )
+
+    upcoming_gate_closings = reminder_service.get_upcoming_flights(
+        minutes_ahead=35,
+        reminder_type='gate_closing'
+    )
+
+    return Response({
+        'configured': retell_service.is_configured(),
+        'service': 'Outbound Reminder Service',
+        'reminder_windows': reminder_service.REMINDER_WINDOWS,
+        'upcoming_departures': len(upcoming_departures),
+        'upcoming_gate_closings': len(upcoming_gate_closings),
+        'flights_preview': upcoming_departures[:5],  # Preview first 5
+    })
+
+
+@api_view(['POST'])
+def send_gate_reminders(request):
+    """
+    Trigger gate closing reminder calls.
+
+    This will call all passengers with flights departing in ~30 minutes.
+    Typically run by a scheduled task (cron/celery).
+
+    POST /api/reminders/gate-closing
+    """
+    results = reminder_service.send_gate_closing_reminders()
+
+    return Response({
+        'success': True,
+        'calls_initiated': len([r for r in results if r['status'] == 'called']),
+        'calls_failed': len([r for r in results if r['status'] == 'failed']),
+        'results': results,
+    })
+
+
+@api_view(['POST'])
+def send_departure_reminders(request):
+    """
+    Trigger 1-hour departure reminder calls.
+
+    This will call all passengers with flights departing in ~1 hour.
+    Typically run by a scheduled task (cron/celery).
+
+    POST /api/reminders/departure
+    """
+    results = reminder_service.send_departure_reminders()
+
+    return Response({
+        'success': True,
+        'calls_initiated': len([r for r in results if r['status'] == 'called']),
+        'calls_failed': len([r for r in results if r['status'] == 'failed']),
+        'results': results,
+    })
+
+
+@api_view(['POST'])
+def send_manual_reminder(request):
+    """
+    Manually send a reminder call for a specific reservation.
+
+    POST /api/reminders/manual
+    {
+        "confirmation_code": "DEMO123",
+        "reminder_type": "gate_closing"  // or "departure_1hr", "final_boarding"
+    }
+    """
+    confirmation_code = request.data.get('confirmation_code')
+    reminder_type = request.data.get('reminder_type', 'gate_closing')
+
+    if not confirmation_code:
+        return Response(
+            {'error': 'confirmation_code is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = reminder_service.send_manual_reminder(
+        reservation_code=confirmation_code,
+        reminder_type=reminder_type,
+    )
+
+    if result:
+        return Response({
+            'success': True,
+            'call_id': result.get('call_id'),
+            'message': f'Reminder call initiated for {confirmation_code}',
+        })
+    else:
+        return Response(
+            {'error': 'Failed to initiate reminder call. Check phone number and Retell configuration.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+def get_upcoming_flights_for_reminders(request):
+    """
+    Get list of flights that would receive reminders.
+
+    GET /api/reminders/upcoming?type=gate_closing&minutes=60
+    """
+    reminder_type = request.query_params.get('type', 'departure_1hr')
+    minutes = int(request.query_params.get('minutes', 120))
+
+    flights = reminder_service.get_upcoming_flights(
+        minutes_ahead=minutes,
+        reminder_type=reminder_type,
+    )
+
+    return Response({
+        'reminder_type': reminder_type,
+        'window_minutes': reminder_service.REMINDER_WINDOWS.get(reminder_type, 60),
+        'count': len(flights),
+        'flights': flights,
     })

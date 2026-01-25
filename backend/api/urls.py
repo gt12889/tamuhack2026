@@ -22,9 +22,10 @@ urlpatterns = [
     path('conversation/message', views.send_message, name='send_message'),
     path('conversation/<uuid:session_id>', views.get_session, name='get_session'),
 
-    # Reservation endpoints (legacy)
+    # Reservation endpoints
     path('reservation/lookup', views.lookup_reservation, name='lookup_reservation'),
     path('reservation/change', views.change_reservation, name='change_reservation'),
+    path('reservation/create', views.create_reservation, name='create_reservation'),
 
     # Flight endpoints (using AA Flight-Engine API)
     path('flights/', views.get_flights, name='get_flights'),
@@ -41,6 +42,16 @@ urlpatterns = [
     path('helper/create-link', views.create_helper_link, name='create_helper_link'),
     path('helper/<str:link_id>', views.get_helper_session, name='get_helper_session'),
     path('helper/<str:link_id>/suggest', views.send_helper_suggestion, name='send_helper_suggestion'),
+
+    # Family helper action endpoints
+    path('helper/<str:link_id>/actions', views.get_helper_actions, name='get_helper_actions'),
+    path('helper/<str:link_id>/actions/change-flight', views.helper_change_flight, name='helper_change_flight'),
+    path('helper/<str:link_id>/actions/cancel-flight', views.helper_cancel_flight, name='helper_cancel_flight'),
+    path('helper/<str:link_id>/actions/select-seat', views.helper_select_seat, name='helper_select_seat'),
+    path('helper/<str:link_id>/actions/add-bags', views.helper_add_bags, name='helper_add_bags'),
+    path('helper/<str:link_id>/actions/request-wheelchair', views.helper_request_wheelchair, name='helper_request_wheelchair'),
+    path('helper/<str:link_id>/flights', views.helper_get_flights, name='helper_get_flights'),
+    path('helper/<str:link_id>/seats', views.helper_get_seats, name='helper_get_seats'),
     
     # Health check
     path('health/', views.health_check, name='health_check'),
@@ -64,4 +75,11 @@ urlpatterns = [
     path('email/status', views.email_status, name='email_status'),
     path('email/booking-confirmation', views.send_booking_confirmation_email, name='send_booking_confirmation_email'),
     path('email/flight-change', views.send_flight_change_email, name='send_flight_change_email'),
+
+    # Outbound Reminder endpoints (Retell outbound calls)
+    path('reminders/status', views.reminder_status, name='reminder_status'),
+    path('reminders/gate-closing', views.send_gate_reminders, name='send_gate_reminders'),
+    path('reminders/departure', views.send_departure_reminders, name='send_departure_reminders'),
+    path('reminders/manual', views.send_manual_reminder, name='send_manual_reminder'),
+    path('reminders/upcoming', views.get_upcoming_flights_for_reminders, name='get_upcoming_flights_for_reminders'),
 ]

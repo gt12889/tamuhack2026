@@ -4,6 +4,8 @@ from .flight_engine_service import FlightEngineService, flight_engine
 from .retell_service import RetellService, retell_service
 from .retell_webhook_handler import RetellWebhookHandler, retell_webhook_handler, RETELL_FUNCTION_DEFINITIONS
 from .resend_service import ResendService, resend_service
+from .reservation_service import ReservationService, reservation_service
+from .reminder_service import ReminderService, reminder_service
 
 __all__ = [
     'GeminiService',
@@ -17,4 +19,8 @@ __all__ = [
     'RETELL_FUNCTION_DEFINITIONS',
     'ResendService',
     'resend_service',
+    'ReservationService',
+    'reservation_service',
+    'ReminderService',
+    'reminder_service',
 ]
