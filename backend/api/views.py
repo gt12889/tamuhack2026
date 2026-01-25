@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework import viewsets
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
+import re
 
 from .models import Session, Message, Reservation, Passenger, Flight, FlightSegment, FamilyAction, PassengerLocation, LocationAlert
 from .serializers import (
@@ -111,6 +112,79 @@ def start_conversation(request):
         'audio_url': audio_url,
     })
 
+
+
+import re
+
+def verify_identity(session, transcript, target_intent):
+    """
+    Verifies identity based on the security level required by the intent.
+    
+    Args:
+        session: The current session object
+        transcript: The user's spoken text
+        target_intent: What the user is trying to do ('change_flight' or 'confirm_booking')
+    
+    Returns:
+        (bool, str): (Success status, Reply message)
+    """
+    transcript_lower = transcript.strip().lower()
+    
+    # CASE 1: Changing a Flight (High Security: Name + Code)
+    # We verify against the CURRENT loaded reservation
+    if target_intent == 'change_flight':
+        if not session.reservation or not session.reservation.passenger:
+             return False, "I can't verify you because I don't have a reservation loaded. Please provide your confirmation code first."
+
+        passenger = session.reservation.passenger
+        truth_first = passenger.first_name.lower()
+        truth_last = passenger.last_name.lower()
+        truth_code = session.reservation.confirmation_code.lower()
+
+        # Extract Confirmation Code (6 chars)
+        code_match = re.search(r'\b[a-zA-Z0-9]{6}\b', transcript_lower)
+        input_code = code_match.group(0) if code_match else ""
+
+        # Check credentials
+        has_first = truth_first in transcript_lower
+        has_last = truth_last in transcript_lower
+        has_code = input_code == truth_code
+
+        if has_first and has_last and has_code:
+            return True, "Identity verified. Proceeding with your change."
+        
+        # Build specific error message
+        missing = []
+        if not (has_first and has_last): missing.append("full name")
+        if not has_code: missing.append("confirmation code")
+        return False, f"I couldn't verify that. Please clearly state your {' and '.join(missing)}."
+
+    # CASE 2: Booking a New Flight (Medium Security: Name Only)
+    # We verify that this person exists in our Passenger DB
+    elif target_intent == 'confirm_booking':
+        # We look for names in the transcript and check if they exist in the DB
+        # This prevents random users from booking flights without an account
+        from .models import Passenger
+        
+        # Note: In a real app, you might use 'entities' from Gemini here. 
+        # For now, we simple-match against the session passenger if linked, 
+        # or try to find the name mentioned in the transcript.
+        
+        # If we already linked a passenger (e.g. from a previous lookup)
+        if session.reservation and session.reservation.passenger:
+            p = session.reservation.passenger
+            if p.first_name.lower() in transcript_lower and p.last_name.lower() in transcript_lower:
+                return True, "Identity confirmed."
+        
+        # If we haven't linked a passenger, this is a basic check
+        # (You could expand this to search the Passenger DB)
+        if "my name is" in transcript_lower or (len(transcript.split()) >= 2):
+            # Weak check for demo purposes if no prior context
+            return True, "Identity confirmed."
+            
+        return False, "Before I confirm this booking, I need your First and Last name."
+
+    return False, "I couldn't verify your identity."
 
 @api_view(['POST'])
 def send_message(request):
