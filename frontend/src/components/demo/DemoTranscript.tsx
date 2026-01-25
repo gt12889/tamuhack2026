@@ -13,6 +13,8 @@ interface DemoTranscriptProps {
   onPause: () => void;
   onReset: () => void;
   onEvent?: (event: 'handoff' | 'alert' | 'action' | 'rebooking') => void;
+  onMessage?: (message: { role: 'agent' | 'user'; content: string }) => void;
+  onMessagesReset?: () => void;
   className?: string;
 }
 
@@ -31,6 +33,8 @@ export function DemoTranscript({
   onPause,
   onReset,
   onEvent,
+  onMessage,
+  onMessagesReset,
   className,
 }: DemoTranscriptProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -60,8 +64,9 @@ export function DemoTranscript({
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+      onMessagesReset?.();
     }
-  }, [scenario.id]);
+  }, [scenario.id, onMessagesReset]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -102,6 +107,9 @@ export function DemoTranscript({
       setMessages((prev) => [...prev, newMessage]);
       setIsTyping(false);
 
+      // Notify parent of new message
+      onMessage?.({ role: msg.role, content: msg.content });
+
       // Trigger event callback if present
       if (msg.event && onEvent) {
         onEvent(msg.event);
@@ -121,7 +129,7 @@ export function DemoTranscript({
         setCurrentSpeaker(null);
       }
     }, typingTime);
-  }, [currentIndex, scenario, onEvent, onPause]);
+  }, [currentIndex, scenario, onEvent, onMessage, onPause]);
 
   // Effect to drive playback
   useEffect(() => {
@@ -161,6 +169,7 @@ export function DemoTranscript({
     setIsTyping(false);
     setCurrentSpeaker(null);
     onReset();
+    onMessagesReset?.();
   };
 
   const isComplete = currentIndex >= scenario.transcript.length && !isTyping;

@@ -782,6 +782,9 @@ def get_helper_session(request, link_id):
     available_actions = family_action_service.get_available_actions(session)
     action_history = family_action_service.get_action_history(session)
 
+    # Get context for area mapping detection
+    context = session.context if hasattr(session, 'context') else {}
+
     return Response({
         'session': SessionSerializer(session).data,
         'reservation': reservation_data,
@@ -790,6 +793,7 @@ def get_helper_session(request, link_id):
         'action_history': action_history,
         'helper_link_mode': session.helper_link_mode,
         'helper_link_expires_at': expiry_time.isoformat(),
+        'context': context,  # Include context so frontend can detect area mapping
     })
 
 
@@ -1907,6 +1911,58 @@ def update_location(request):
         'alert_status': metrics.get('metrics', {}).get('alert_status'),
         'directions': metrics.get('directions', ''),
         'alert_triggered': alert_result is not None,
+    })
+
+
+@api_view(['POST'])
+def create_area_mapping_link(request):
+    """Create a helper link specifically for area mapping/navigation.
+    
+    This creates a persistent helper link that can be used for airport navigation
+    and area mapping without requiring a full session.
+    
+    Request body (optional):
+        airport_code: Airport code (e.g., 'DFW')
+        gate: Gate number (e.g., 'B22')
+        expires_in_hours: Hours until link expires (default: 48)
+    """
+    import secrets
+    from datetime import timedelta
+    
+    airport_code = request.data.get('airport_code', 'DFW')
+    gate = request.data.get('gate', 'B22')
+    expires_in_hours = request.data.get('expires_in_hours', 48)
+    
+    # Create a minimal session for area mapping
+    session = Session.objects.create(
+        state='viewing',
+        helper_link=secrets.token_urlsafe(12),
+        helper_link_mode='persistent',
+        helper_link_expires_at=timezone.now() + timedelta(hours=expires_in_hours),
+        expires_at=timezone.now() + timedelta(hours=expires_in_hours),
+    )
+    
+    # Store mapping context in session context field if available
+    if hasattr(session, 'context'):
+        session.context = {
+            'purpose': 'area_mapping',
+            'airport_code': airport_code,
+            'gate': gate,
+        }
+        session.save()
+    
+    # Get base URL from request
+    base_url = request.build_absolute_uri('/').rstrip('/')
+    helper_url = f"{base_url}/help/{session.helper_link}"
+    
+    return Response({
+        'helper_link': session.helper_link,
+        'helper_url': helper_url,
+        'mode': 'persistent',
+        'purpose': 'area_mapping',
+        'airport_code': airport_code,
+        'gate': gate,
+        'expires_at': session.helper_link_expires_at.isoformat(),
     })
 
 

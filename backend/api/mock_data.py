@@ -34,7 +34,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
     reservations = [
         {
             # Primary demo reservation: PIT -> DFW, Monday January 19, 2026
-            'confirmation_code': 'CZYBYU',
+            'confirmation_code': 'MEEMAW',  # Voice-friendly: "meemaw"
             'passenger': {
                 'first_name': 'Margaret',
                 'last_name': 'Johnson',
@@ -88,7 +88,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             ],
         },
         {
-            'confirmation_code': 'ABUEL1',
+            'confirmation_code': 'GRANNY',  # Voice-friendly: "granny"
             'passenger': {
                 'first_name': 'Maria',
                 'last_name': 'Garcia',
@@ -110,7 +110,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             ],
         },
         {
-            'confirmation_code': 'SENR02',
+            'confirmation_code': 'PAPA44',  # Voice-friendly: "papa forty-four"
             'passenger': {
                 'first_name': 'William',
                 'last_name': 'Thompson',
@@ -132,7 +132,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             ],
         },
         {
-            'confirmation_code': 'FAML03',
+            'confirmation_code': 'NANA55',  # Voice-friendly: "nana fifty-five"
             'passenger': {
                 'first_name': 'Dorothy',
                 'last_name': 'Williams',

@@ -40,6 +40,7 @@ urlpatterns = [
 
     # Family helper endpoints
     path('helper/create-link', views.create_helper_link, name='create_helper_link'),
+    path('helper/create-area-mapping-link', views.create_area_mapping_link, name='create_area_mapping_link'),
     path('helper/<str:link_id>', views.get_helper_session, name='get_helper_session'),
     path('helper/<str:link_id>/suggest', views.send_helper_suggestion, name='send_helper_suggestion'),
 
