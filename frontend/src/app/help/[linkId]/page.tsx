@@ -36,6 +36,12 @@ const MapboxLocationMap = dynamic(
   { ssr: false, loading: () => <div className="h-80 bg-gray-100 rounded-2xl animate-pulse" /> }
 );
 
+// Dynamically import CoordinatePicker for area mapping
+const CoordinatePicker = dynamic(
+  () => import('@/components/helper/CoordinatePicker').then((mod) => mod.CoordinatePicker),
+  { ssr: false, loading: () => <div className="h-96 bg-gray-100 rounded-2xl animate-pulse" /> }
+);
+
 // Generate DFW demo location data with waypoint-based movement
 function generateDFWDemoLocation(
   progress: number,
@@ -83,6 +89,8 @@ export default function HelperPage() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [iropStatus, setIropStatus] = useState<IROPStatus | null>(null);
   const [iropLoading, setIropLoading] = useState(false);
+  const [isAreaMapping, setIsAreaMapping] = useState(false);
+  const [areaMappingContext, setAreaMappingContext] = useState<{ airport_code?: string; gate?: string } | null>(null);
 
   // Demo state
   const [demoHandoff, setDemoHandoff] = useState<HandoffDossier | null>(null);
@@ -115,6 +123,20 @@ export default function HelperPage() {
       setMessages(data.messages as Message[]);
       setReservation(data.reservation);
       if (data.reservation) setDemoMode(false);
+      
+      // Check if this is an area mapping link
+      // Check session context or helper_link_mode
+      const context = (data as any).context || {};
+      const purpose = context.purpose || (data as any).helper_link_mode;
+      
+      if (purpose === 'area_mapping' || context.purpose === 'area_mapping') {
+        setIsAreaMapping(true);
+        setAreaMappingContext({
+          airport_code: context.airport_code || 'DFW',
+          gate: context.gate || 'B22',
+        });
+      }
+      
       setError(null);
     } catch {
       setError('This helper link is invalid or has expired.');
@@ -253,10 +275,120 @@ export default function HelperPage() {
     ? generateDFWDemoLocation(demoProgress, new Date(scenarioReservation.flights[0].departure_time), passengerDisplayName, scenarioReservation.flights[0]?.gate || 'B22')
     : locationData;
 
+  // Generate contextual response based on suggestion content
+  const generateDemoResponse = useCallback((suggestionText: string): { passengerResponse: string; agentResponse?: string } => {
+    const lowerSuggestion = suggestionText.toLowerCase();
+    const name = passengerDisplayName;
+
+    // Gate/directions related
+    if (lowerSuggestion.includes('gate') || lowerSuggestion.includes('direction') || lowerSuggestion.includes('where')) {
+      return {
+        passengerResponse: `Oh, thank you dear! I was just asking about that.`,
+        agentResponse: `I can help with that! ${name}, your gate is ${scenarioReservation.flights[0]?.gate || 'B22'}. Follow the signs for Terminal B.`,
+      };
+    }
+
+    // Time related
+    if (lowerSuggestion.includes('time') || lowerSuggestion.includes('hurry') || lowerSuggestion.includes('late') || lowerSuggestion.includes('rush')) {
+      return {
+        passengerResponse: `You're right, I should keep moving. I don't want to miss my flight!`,
+        agentResponse: `${name}, you have ${effectiveLocationData?.metrics?.time_to_departure_minutes || 'plenty of'} minutes until departure. You're doing great!`,
+      };
+    }
+
+    // Rest/sit related
+    if (lowerSuggestion.includes('rest') || lowerSuggestion.includes('sit') || lowerSuggestion.includes('break') || lowerSuggestion.includes('tired')) {
+      return {
+        passengerResponse: `That's a good idea, my feet are getting a bit tired.`,
+        agentResponse: `There are seats available nearby, ${name}. Take a short rest if you need.`,
+      };
+    }
+
+    // Help/assistance related
+    if (lowerSuggestion.includes('help') || lowerSuggestion.includes('assist') || lowerSuggestion.includes('wheelchair') || lowerSuggestion.includes('staff')) {
+      return {
+        passengerResponse: `Oh, should I ask for help? That might be a good idea.`,
+        agentResponse: `${name}, I can arrange for airport assistance if you'd like. Just say the word!`,
+      };
+    }
+
+    // Food/drink related
+    if (lowerSuggestion.includes('food') || lowerSuggestion.includes('eat') || lowerSuggestion.includes('drink') || lowerSuggestion.includes('water') || lowerSuggestion.includes('coffee')) {
+      return {
+        passengerResponse: `Hmm, a little snack does sound nice. Is there time?`,
+        agentResponse: `There's a café nearby, ${name}. You have time for a quick stop if you'd like.`,
+      };
+    }
+
+    // Bathroom related
+    if (lowerSuggestion.includes('bathroom') || lowerSuggestion.includes('restroom') || lowerSuggestion.includes('toilet')) {
+      return {
+        passengerResponse: `Good thinking! I should stop before the flight.`,
+        agentResponse: `${name}, there's a restroom coming up on your right.`,
+      };
+    }
+
+    // Default response
+    return {
+      passengerResponse: `Thank you for the suggestion, dear! That's very helpful.`,
+      agentResponse: `That's a great point. ${name}, your family is keeping an eye on your journey.`,
+    };
+  }, [passengerDisplayName, scenarioReservation, effectiveLocationData]);
+
   const handleSendSuggestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!suggestion.trim() || sending) return;
     setSending(true);
+
+    // Handle demo mode with simulated responses
+    if (demoMode) {
+      const suggestionText = suggestion.trim();
+      setSuggestion('');
+
+      // Add family suggestion to messages
+      demoMessageIdRef.current += 1;
+      const familyMsg: Message = {
+        id: `demo-msg-${demoMessageIdRef.current}`,
+        role: 'family',
+        content: suggestionText,
+        timestamp: new Date().toISOString(),
+      };
+      setDemoMessages(prev => [...prev, familyMsg]);
+
+      // Generate responses
+      const { passengerResponse, agentResponse } = generateDemoResponse(suggestionText);
+
+      // Passenger response after 1.5s
+      setTimeout(() => {
+        demoMessageIdRef.current += 1;
+        const passengerMsg: Message = {
+          id: `demo-msg-${demoMessageIdRef.current}`,
+          role: 'user',
+          content: passengerResponse,
+          timestamp: new Date().toISOString(),
+        };
+        setDemoMessages(prev => [...prev, passengerMsg]);
+
+        // Agent response after another 2s
+        if (agentResponse) {
+          setTimeout(() => {
+            demoMessageIdRef.current += 1;
+            const agentMsg: Message = {
+              id: `demo-msg-${demoMessageIdRef.current}`,
+              role: 'assistant',
+              content: agentResponse,
+              timestamp: new Date().toISOString(),
+            };
+            setDemoMessages(prev => [...prev, agentMsg]);
+          }, 2000);
+        }
+      }, 1500);
+
+      setSending(false);
+      return;
+    }
+
+    // Real mode - call API
     try {
       await sendHelperSuggestion(linkId, suggestion);
       setSuggestion('');
@@ -578,47 +710,60 @@ export default function HelperPage() {
                 </section>
               )}
 
-              {/* Location Tracking Map */}
-              <section className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-800">Live Location</h2>
-                  {effectiveLocationData?.metrics?.alert_status && (
-                    <span className={`px-3 py-1.5 text-sm font-medium rounded-full ${
-                      effectiveLocationData.metrics.alert_status === 'safe' ? 'bg-green-100 text-green-700' :
-                      effectiveLocationData.metrics.alert_status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
-                      effectiveLocationData.metrics.alert_status === 'urgent' ? 'bg-red-100 text-red-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {effectiveLocationData.metrics.alert_status === 'safe' ? 'On Track' :
-                       effectiveLocationData.metrics.alert_status === 'warning' ? 'Running Late' :
-                       effectiveLocationData.metrics.alert_status === 'urgent' ? 'Urgent' : 'Arrived'}
-                    </span>
-                  )}
-                </div>
-                <MapboxLocationMap
-                  passengerLocation={effectiveLocationData?.passenger_location ?? null}
-                  gateLocation={effectiveLocationData?.gate_location ?? null}
-                  metrics={effectiveLocationData?.metrics ?? null}
-                  directions={effectiveLocationData?.directions ?? ''}
-                  message={effectiveLocationData?.message ?? 'Waiting for location updates...'}
-                  alert={effectiveLocationData?.alert ?? null}
-                  onRefresh={demoMode ? undefined : fetchLocation}
-                  loading={demoMode ? false : locationLoading}
-                  waypoints={demoMode ? DFW_JOURNEY_WAYPOINTS : undefined}
-                  currentWaypointId={demoMode ? currentWaypoint?.id : undefined}
-                />
-              </section>
+              {/* Location Tracking Map or Coordinate Picker */}
+              {isAreaMapping ? (
+                <section className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                  <CoordinatePicker
+                    airportCode={areaMappingContext?.airport_code || 'DFW'}
+                    gate={areaMappingContext?.gate || 'B22'}
+                  />
+                </section>
+              ) : (
+                <section className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-800">Live Location</h2>
+                    {effectiveLocationData?.metrics?.alert_status && (
+                      <span className={`px-3 py-1.5 text-sm font-medium rounded-full ${
+                        effectiveLocationData.metrics.alert_status === 'safe' ? 'bg-green-100 text-green-700' :
+                        effectiveLocationData.metrics.alert_status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+                        effectiveLocationData.metrics.alert_status === 'urgent' ? 'bg-red-100 text-red-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {effectiveLocationData.metrics.alert_status === 'safe' ? 'On Track' :
+                         effectiveLocationData.metrics.alert_status === 'warning' ? 'Running Late' :
+                         effectiveLocationData.metrics.alert_status === 'urgent' ? 'Urgent' : 'Arrived'}
+                      </span>
+                    )}
+                  </div>
+                  <MapboxLocationMap
+                    passengerLocation={effectiveLocationData?.passenger_location ?? null}
+                    gateLocation={effectiveLocationData?.gate_location ?? null}
+                    metrics={effectiveLocationData?.metrics ?? null}
+                    directions={effectiveLocationData?.directions ?? ''}
+                    message={effectiveLocationData?.message ?? 'Waiting for location updates...'}
+                    alert={effectiveLocationData?.alert ?? null}
+                    onRefresh={demoMode ? undefined : fetchLocation}
+                    loading={demoMode ? false : locationLoading}
+                    waypoints={demoMode ? DFW_JOURNEY_WAYPOINTS : undefined}
+                    currentWaypointId={demoMode ? currentWaypoint?.id : undefined}
+                  />
+                </section>
+              )}
 
               {/* Conversation */}
               <section className="bg-white rounded-2xl p-6 shadow-sm">
                 <h2 className="text-lg font-semibold text-gray-800 mb-5">Conversation</h2>
                 <div className="space-y-4 max-h-72 overflow-y-auto">
-                  {messages.length === 0 ? (
-                    <p className="text-gray-400 text-center py-8 text-sm">
-                      No messages yet. The conversation will appear here.
-                    </p>
-                  ) : (
-                    messages.map((msg) => (
+                  {(() => {
+                    const displayMessages = demoMode ? demoMessages : messages;
+                    if (displayMessages.length === 0) {
+                      return (
+                        <p className="text-gray-400 text-center py-8 text-sm">
+                          {demoMode ? 'Press Play in the sidebar to start the call simulation.' : 'No messages yet. The conversation will appear here.'}
+                        </p>
+                      );
+                    }
+                    return displayMessages.map((msg) => (
                       <div
                         key={msg.id}
                         className={`p-4 rounded-xl text-sm ${
@@ -628,12 +773,12 @@ export default function HelperPage() {
                         }`}
                       >
                         <p className="text-xs font-medium mb-1.5 opacity-60">
-                          {msg.role === 'user' ? 'Your family member' : msg.role === 'family' ? 'You suggested' : 'AI Assistant'}
+                          {msg.role === 'user' ? (demoMode ? passengerDisplayName : 'Your family member') : msg.role === 'family' ? 'You suggested' : 'AI Assistant'}
                         </p>
                         <p className="leading-relaxed">{msg.content}</p>
                       </div>
-                    ))
-                  )}
+                    ));
+                  })()}
                 </div>
               </section>
 
