@@ -96,10 +96,10 @@ For Spanish, use format like:
 "¡Aquí está el resumen de su viaje! ✈️ Usted vuela de Dallas a Chicago el sábado 26 de enero a las 2:00 PM. Su asiento es el 14A, junto a la ventana. Su código de confirmación es D-E-M-O-1-2-3. ¡Que tenga un excelente viaje!"
 
 Respond with JSON:
-{
+{{
   "summary": "The trip summary text",
   "summary_short": "A 1-sentence version for quick reference"
-}"""
+}}"""
 
 # Flight change summary prompt
 CHANGE_SUMMARY_PROMPT = """Generate a friendly summary of a flight change for an elderly passenger.
@@ -121,10 +121,10 @@ For Spanish:
 "¡Excelentes noticias! Su vuelo ha sido cambiado. Antes tenía el vuelo del viernes a las 2pm, y ahora tiene el del sábado a las 2pm. Mismo asiento, 14A. Su código de confirmación sigue siendo: D-E-M-O-1-2-3."
 
 Respond with JSON:
-{
+{{
   "summary": "The change summary text",
   "changes": ["list of what changed"]
-}"""
+}}"""
 
 
 class GeminiService:
@@ -140,7 +140,7 @@ class GeminiService:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.api_key)
-                self._model = genai.GenerativeModel('gemini-1.5-flash')
+                self._model = genai.GenerativeModel('gemini-2.0-flash')
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini: {e}")
                 self._model = None
