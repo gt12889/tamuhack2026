@@ -36,7 +36,7 @@ dist/
 *.swp
 *.swo
 *~
-
+test_api.py
 # OS
 .DS_Store
 Thumbs.db
