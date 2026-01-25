@@ -266,6 +266,34 @@ def send_message(request):
     suggested_actions = []
     email_sent = False
 
+    # ---------------------------------------------------------
+    # 1. VERIFICATION GATEKEEPER
+    # ---------------------------------------------------------
+    if session.state == 'verifying_identity':
+        target_intent = session.context.get('target_intent')
+        
+        # Run the verification helper with entities
+        is_verified, verify_msg = verify_identity(session, transcript, target_intent, entities=entities)
+        
+        if is_verified:
+            session.context['is_verified'] = True
+            # Restore state based on what they wanted to do
+            if target_intent == 'change_flight':
+                session.state = 'changing'
+                intent = 'change_flight' # Proceed immediately to change logic
+            elif target_intent == 'confirm_booking':
+                session.state = 'booking'
+                intent = 'confirm_action' # Proceed immediately to booking logic
+        else:
+            # Verification Failed - Ask again
+            reply = verify_msg
+            audio_response = elevenlabs_service.synthesize(reply, language=detected_language)
+            Message.objects.create(session=session, role='assistant', content=reply, audio_url=audio_response.get('audio_url'))
+            return Response({
+                'reply': reply, 
+                'audio_url': audio_response.get('audio_url'), 
+                'session_state': session.state
+            })
     # Try to extract confirmation code if in lookup state
     if session.state in ['greeting', 'lookup'] and not session.reservation:
         code = gemini_service.extract_confirmation_code(transcript)
@@ -289,38 +317,51 @@ def send_message(request):
                 session.save()
 
     # Handle flight change intent
-    elif intent == 'change_flight' and session.reservation:
-        session.state = 'changing'
+    elif intent == 'change_flight':
+        if session.reservation:
+            # CHECK 1: Are they verified? (High Security)
+            if not session.context.get('is_verified'):
+                session.state = 'verifying_identity'
+                session.context['target_intent'] = 'change_flight'
+                session.save()
+                reply = "For security, please state your First Name, Last Name, and Confirmation Code to verify this change."
+            
+            else:
+                # Verified -> Show Options
+                session.state = 'changing'
+                
+                # [Your existing logic to get flights goes here]
+                first_segment = session.reservation.flight_segments.first()
+                if first_segment:
+                    from dateutil.parser import parse
+                    target_date = first_segment.flight.departure_time + timedelta(days=1)
+                    alternatives = get_alternative_flights(
+                        first_segment.flight.origin, 
+                        first_segment.flight.destination, 
+                        target_date.isoformat()
+                    )
+                    flight_options = alternatives
 
-        # Get alternative flights
-        first_segment = session.reservation.flight_segments.first()
-        if first_segment:
-            from dateutil.parser import parse
-            target_date = first_segment.flight.departure_time + timedelta(days=1)
-            alternatives = get_alternative_flights(
-                first_segment.flight.origin,
-                first_segment.flight.destination,
-                target_date.isoformat()
-            )
-            flight_options = alternatives
+                    if alternatives:
+                        opt1 = alternatives[0]
+                        time1 = parse(opt1['departure_time']).strftime('%I:%M %p')
+                        reply = f"I found some flights for you. There's one at {time1}. Would you like me to book that for you?"
 
-            if alternatives:
-                opt1 = alternatives[0]
-                time1 = parse(opt1['departure_time']).strftime('%I:%M %p')
-                reply = f"I found some flights for you. There's one at {time1}. Would you like me to book that for you?"
-
-                # Store original and new flight in session for email
-                session.context['original_flight'] = {
-                    'flight_number': first_segment.flight.flight_number,
-                    'origin': first_segment.flight.origin,
-                    'destination': first_segment.flight.destination,
-                    'departure_time': first_segment.flight.departure_time.isoformat(),
-                    'arrival_time': first_segment.flight.arrival_time.isoformat() if first_segment.flight.arrival_time else '',
-                    'seat': first_segment.seat or 'Not assigned',
-                }
-                session.context['new_flight'] = opt1  # Store the offered flight
-
-        session.save()
+                        session.context['original_flight'] = {
+                            'flight_number': first_segment.flight.flight_number,
+                            'origin': first_segment.flight.origin,
+                            'destination': first_segment.flight.destination,
+                            'departure_time': first_segment.flight.departure_time.isoformat(),
+                            'arrival_time': first_segment.flight.arrival_time.isoformat() if first_segment.flight.arrival_time else '',
+                            'seat': first_segment.seat or 'Not assigned',
+                        }
+                        session.context['new_flight'] = opt1
+                session.save()
+        else:
+            # HANDLE MISSING RESERVATION
+            reply = "I can help change your flight, but I need to find it first. What is your 6-letter confirmation code?"
+            session.state = 'lookup' # Force next message to be treated as a code
+            session.save()
 
     # Handle confirmation
     elif intent == 'confirm_action' and session.state == 'changing':
