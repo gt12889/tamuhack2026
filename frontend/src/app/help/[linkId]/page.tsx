@@ -90,6 +90,7 @@ export default function HelperPage() {
   const [selectedScenario, setSelectedScenario] = useState(DEMO_SCENARIOS[0]);
   const [transcriptPlaying, setTranscriptPlaying] = useState(false);
   const [demoProgress, setDemoProgress] = useState(0);
+  const [journeyComplete, setJourneyComplete] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const demoStartTimeRef = useRef<number | null>(null);
   const DEMO_JOURNEY_DURATION_MS = 120000;
@@ -217,25 +218,31 @@ export default function HelperPage() {
     if (!demoMode) {
       demoStartTimeRef.current = null;
       setDemoProgress(0);
+      setJourneyComplete(false);
       setHandoffTriggered(false);
       setDemoHandoff(null);
       return;
     }
     if (demoStartTimeRef.current === null) demoStartTimeRef.current = Date.now();
     const demoInterval = setInterval(() => {
-      if (demoStartTimeRef.current === null) return;
+      if (demoStartTimeRef.current === null || journeyComplete) return;
       const elapsed = Date.now() - demoStartTimeRef.current;
       const progress = Math.min(elapsed / DEMO_JOURNEY_DURATION_MS, 1);
       setDemoProgress(progress);
       if (progress >= 1) {
-        setTimeout(() => {
-          demoStartTimeRef.current = Date.now();
-          setDemoProgress(0);
-        }, 5000);
+        setJourneyComplete(true);
+        // Don't auto-restart - user must manually restart
       }
     }, 1000);
     return () => clearInterval(demoInterval);
-  }, [demoMode]);
+  }, [demoMode, journeyComplete]);
+
+  // Manual restart function for journey
+  const restartJourney = useCallback(() => {
+    demoStartTimeRef.current = Date.now();
+    setDemoProgress(0);
+    setJourneyComplete(false);
+  }, []);
 
   const currentWaypoint = demoMode ? getWaypointByProgress(demoProgress).current : null;
   const scenarioReservation = scenarioToReservation(selectedScenario);
@@ -471,27 +478,60 @@ export default function HelperPage() {
 
               {/* Journey Progress - Demo Mode */}
               {demoMode && currentWaypoint && (
-                <section className="bg-purple-50 border border-purple-200 rounded-2xl p-6">
+                <section className={`rounded-2xl p-6 transition-colors duration-500 ${
+                  journeyComplete
+                    ? 'bg-green-50 border border-green-200'
+                    : 'bg-purple-50 border border-purple-200'
+                }`}>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-purple-800">Journey Progress</h2>
-                    <span className="text-sm text-purple-600 font-medium bg-purple-100 px-3 py-1 rounded-full">
-                      {Math.round(demoProgress * 100)}% complete
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {journeyComplete && (
+                        <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                      <h2 className={`text-lg font-semibold ${journeyComplete ? 'text-green-800' : 'text-purple-800'}`}>
+                        {journeyComplete ? 'Journey Complete!' : 'Journey Progress'}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {journeyComplete ? (
+                        <button
+                          onClick={restartJourney}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-full hover:bg-green-700 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Restart
+                        </button>
+                      ) : (
+                        <span className="text-sm text-purple-600 font-medium bg-purple-100 px-3 py-1 rounded-full">
+                          {Math.round(demoProgress * 100)}% complete
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-5 mb-4">
                     <div className="flex-1">
-                      <p className="text-base font-medium text-purple-900">{currentWaypoint.name}</p>
-                      <p className="text-sm text-purple-600 mt-1">{currentWaypoint.instruction}</p>
+                      <p className={`text-base font-medium ${journeyComplete ? 'text-green-900' : 'text-purple-900'}`}>
+                        {journeyComplete ? `${passengerDisplayName} has arrived at Gate ${scenarioReservation.flights[0]?.gate || 'B22'}` : currentWaypoint.name}
+                      </p>
+                      <p className={`text-sm mt-1 ${journeyComplete ? 'text-green-600' : 'text-purple-600'}`}>
+                        {journeyComplete ? 'Ready for boarding' : currentWaypoint.instruction}
+                      </p>
                     </div>
-                    {demoProgress >= 1 && (
+                    {journeyComplete && (
                       <span className="px-4 py-1.5 bg-green-100 text-green-700 text-sm font-medium rounded-full">
                         Arrived!
                       </span>
                     )}
                   </div>
-                  <div className="w-full bg-purple-200 rounded-full h-3">
+                  <div className={`w-full rounded-full h-3 ${journeyComplete ? 'bg-green-200' : 'bg-purple-200'}`}>
                     <div
-                      className="bg-purple-600 h-3 rounded-full transition-all duration-1000"
+                      className={`h-3 rounded-full transition-all duration-1000 ${journeyComplete ? 'bg-green-500' : 'bg-purple-600'}`}
                       style={{ width: `${demoProgress * 100}%` }}
                     />
                   </div>
@@ -502,13 +542,17 @@ export default function HelperPage() {
                       const wpProgress = wpIndex / (DFW_JOURNEY_WAYPOINTS.length - 1);
                       const isCompleted = demoProgress >= wpProgress;
                       const isCurrent = currentWaypoint?.id === wp.id;
+                      const dotColor = journeyComplete ? 'bg-green-500' : 'bg-purple-600';
+                      const dotInactiveColor = journeyComplete ? 'bg-green-300' : 'bg-purple-300';
+                      const textColor = journeyComplete ? 'text-green-700' : 'text-purple-700';
+                      const textInactiveColor = journeyComplete ? 'text-green-400' : 'text-purple-400';
                       return (
                         <div key={wp.id} className="flex flex-col items-center">
                           <div className={`w-3 h-3 rounded-full ${
-                            isCurrent ? 'bg-purple-600 ring-2 ring-purple-300' :
-                            isCompleted ? 'bg-purple-600' : 'bg-purple-300'
+                            isCurrent ? `${dotColor} ring-2 ${journeyComplete ? 'ring-green-300' : 'ring-purple-300'}` :
+                            isCompleted ? dotColor : dotInactiveColor
                           }`} />
-                          <span className={`text-xs mt-1.5 ${isCompleted ? 'text-purple-700' : 'text-purple-400'}`}>
+                          <span className={`text-xs mt-1.5 ${isCompleted ? textColor : textInactiveColor}`}>
                             {idx === 0 ? 'Start' : idx === arr.length - 1 ? 'Gate' : ''}
                           </span>
                         </div>
