@@ -22,9 +22,10 @@ urlpatterns = [
     path('conversation/message', views.send_message, name='send_message'),
     path('conversation/<uuid:session_id>', views.get_session, name='get_session'),
 
-    # Reservation endpoints (legacy)
+    # Reservation endpoints
     path('reservation/lookup', views.lookup_reservation, name='lookup_reservation'),
     path('reservation/change', views.change_reservation, name='change_reservation'),
+    path('reservation/create', views.create_reservation, name='create_reservation'),
 
     # Flight endpoints (using AA Flight-Engine API)
     path('flights/', views.get_flights, name='get_flights'),

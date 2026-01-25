@@ -30,9 +30,10 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
     now = timezone.now()
 
     # Base reservations (always available)
+    # NOTE: confirmation_code max_length=6 in database schema
     reservations = [
         {
-            'confirmation_code': 'DEMO123',
+            'confirmation_code': 'DEMO12',
             'passenger': {
                 'first_name': 'Margaret',
                 'last_name': 'Johnson',
@@ -54,7 +55,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             ],
         },
         {
-            'confirmation_code': 'TEST456',
+            'confirmation_code': 'TEST45',
             'passenger': {
                 'first_name': 'Robert',
                 'last_name': 'Smith',
@@ -86,7 +87,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             ],
         },
         {
-            'confirmation_code': 'ABUELA1',
+            'confirmation_code': 'ABUEL1',
             'passenger': {
                 'first_name': 'Maria',
                 'last_name': 'Garcia',
@@ -108,7 +109,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             ],
         },
         {
-            'confirmation_code': 'SENIOR2',
+            'confirmation_code': 'SENR02',
             'passenger': {
                 'first_name': 'William',
                 'last_name': 'Thompson',
@@ -130,7 +131,7 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             ],
         },
         {
-            'confirmation_code': 'FAMILY3',
+            'confirmation_code': 'FAML03',
             'passenger': {
                 'first_name': 'Dorothy',
                 'last_name': 'Williams',
