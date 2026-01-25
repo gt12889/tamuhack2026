@@ -136,11 +136,16 @@ export function LiveDemo({
     startCall,
     endCall,
     error,
+    hasAgentId,
+    isSdkLoaded,
   } = useRetell({
     agentId,
     onCallStart: handleCallStart,
     onCallEnd: handleCallEnd,
     onTranscript: handleTranscript,
+    onError: (err) => {
+      console.error('Retell error:', err);
+    },
   });
 
   return (
@@ -184,11 +189,18 @@ export function LiveDemo({
                   {!isConnected ? (
                     <Button
                       onClick={startCall}
-                      disabled={isConnecting}
+                      disabled={isConnecting || !hasAgentId || !isSdkLoaded}
                       className="bg-white text-aa-blue hover:bg-gray-100"
+                      title={
+                        !hasAgentId 
+                          ? 'Agent ID is required. Configure NEXT_PUBLIC_RETELL_AGENT_ID or ensure an agent exists in Retell.'
+                          : !isSdkLoaded
+                          ? 'Retell SDK is loading. Please wait...'
+                          : undefined
+                      }
                     >
                       <Phone className="w-4 h-4 mr-2" />
-                      {isConnecting ? 'Connecting...' : 'Start Web Call'}
+                      {isConnecting ? 'Connecting...' : !isSdkLoaded ? 'Loading SDK...' : 'Start Web Call'}
                     </Button>
                   ) : (
                     <Button
