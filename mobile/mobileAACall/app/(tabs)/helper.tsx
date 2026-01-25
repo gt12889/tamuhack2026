@@ -1,8 +1,13 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView, ScrollView, Text, StyleSheet } from "react-native";
 import PassengerCard from "@/components/ui/PassengerCard";
 import FlightStatusCard from "@/components/ui/FlightStatusCard";
 import type {Message,Reservation} from "@/types";
+import { getHelperSession, sendHelperSuggestion } from '@/lib/api';
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { router, useLocalSearchParams } from "expo-router";
+
+
 
 
 const DEMO_RESERVATION: Reservation = {
@@ -38,6 +43,57 @@ const DEMO_RESERVATION: Reservation = {
 };
 
 export default function TravelDashboard() {
+  const params = useLocalSearchParams();
+  const linkId = params.linkId as string;
+  
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [reservation, setReservation] = useState<Reservation | null>(null);
+  const [suggestion, setSuggestion] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+
+  const fetchSession = useCallback(async () => {
+    try {
+      const data = await getHelperSession(linkId);
+      setMessages(data.messages as Message[]);
+      setReservation(data.reservation);
+      // Auto-disable demo mode when real data arrives
+      if (data.reservation) {
+        setDemoMode(false);
+      }
+      setError(null);
+    } catch (err) {
+      setError('This helper link is invalid or has expired.');
+    } finally {
+      setLoading(false);
+    }
+  }, [linkId]);
+
+  useEffect(() => {
+    fetchSession();
+
+    // Poll for updates every 3 seconds
+    const interval = setInterval(fetchSession, 3000);
+    return () => clearInterval(interval);
+  }, [fetchSession]);
+
+  const handleSendSuggestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!suggestion.trim() || sending) return;
+
+    setSending(true);
+    try {
+      await sendHelperSuggestion(linkId, suggestion);
+      setSuggestion('');
+      await fetchSession();
+    } catch (err) {
+      setError('Failed to send suggestion. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
 
 
 
@@ -48,7 +104,7 @@ export default function TravelDashboard() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.header}>Travel Dashboard</Text>
 
-        <PassengerCard />
+        <PassengerCard reservation={DEMO_RESERVATION} />
             
         {DEMO_RESERVATION.flights.map((flight:any) => (
             <FlightStatusCard key={flight.id} flight={flight} />

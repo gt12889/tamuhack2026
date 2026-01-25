@@ -41,7 +41,7 @@ const DEMO_RESERVATION: Reservation = {
 
 export default function HelperPage() {
   const params = useParams();
-  const linkId = params.linkId as string;
+  const linkId = params.code as string;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [reservation, setReservation] = useState<Reservation | null>(null);
@@ -70,7 +70,7 @@ export default function HelperPage() {
 
   useEffect(() => {
     fetchSession();
-
+    console.log(params)
     // Poll for updates every 3 seconds
     const interval = setInterval(fetchSession, 3000);
     return () => clearInterval(interval);
