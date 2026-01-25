@@ -244,7 +244,7 @@ LocationAlert:
 
 ---
 
-### 5. Flight Information
+### 7. Flight Information
 
 **Data Sources:**
 - Mock database with demo reservations
@@ -260,12 +260,13 @@ LocationAlert:
 | Boarding | Blue | Now boarding |
 | Departed | Gray | Already departed |
 
-**Demo Reservations:**
-| Code | Passenger | Route | Language |
-|------|-----------|-------|----------|
-| DEMO123 | Margaret Johnson | DFW → ORD | English |
-| TEST456 | Robert Smith | LAX → JFK → MIA | English |
-| ABUELA1 | Maria Garcia | MIA → SJU | Spanish |
+**Demo Reservations (Voice-Friendly Codes):**
+| Code | Passenger | Route | Language | Scenario |
+|------|-----------|-------|----------|----------|
+| MEEMAW | Margaret Johnson | DFW → ORD | English | Standard |
+| GRANNY | Maria Garcia | MIA → SJU | Spanish | IROP delay |
+| PAPA44 | Robert Smith | LAX → JFK → MIA | English | Multi-segment |
+| NANA55 | Eleanor Williams | ORD → PHX | English | Family |
 
 ---
 
@@ -290,9 +291,10 @@ Message (role, content, audio_url, intent, entities)
 | Service | Purpose | Provider |
 |---------|---------|----------|
 | GeminiService | NLU + Response generation | Google Gemini 1.5 Flash |
-| ElevenLabsService | Text-to-speech | ElevenLabs Turbo v2.5 |
-| RetellService | Real-time voice calls | Retell AI Platform |
+| ElevenLabsService | TTS + Conversational AI | ElevenLabs |
+| ElevenLabsWebhookHandler | Server tool processing | Backend |
 | FlightEngineService | Flight data | AA Flight-Engine |
+| LocationService | GPS tracking + alerts | Backend |
 
 **API Endpoints:**
 | Method | Endpoint | Description |
@@ -492,22 +494,33 @@ docker-compose up
 
 ---
 
+## Implemented Features (formerly Future Enhancements)
+
+- [x] Seat selection interface (via helper actions)
+- [x] Baggage management (add bags via voice or helper)
+- [x] Wheelchair assistance (request via voice or helper)
+- [x] IROP handling (delays, cancellations, missed connections)
+- [x] Location tracking (GPS, gate distance, walking time)
+- [x] Caregiver full action capabilities
+
 ## Future Enhancements
 
 - [ ] Multi-passenger bookings
-- [ ] Seat selection interface
-- [ ] Baggage management
 - [ ] Loyalty program integration
-- [ ] Push notifications
+- [ ] Push notifications for helpers
 - [ ] Offline mode
 - [ ] Additional languages (French, German, etc.)
+- [ ] Real AA API integration (currently mock data)
+- [ ] Airport indoor maps integration
+- [ ] Proactive delay notifications via outbound calls
 
 ---
 
 ## References
 
 - [Google Gemini API](https://ai.google.dev/docs)
-- [ElevenLabs API](https://elevenlabs.io/docs)
-- [Retell AI Platform](https://retellai.com/docs)
+- [ElevenLabs Conversational AI](https://elevenlabs.io/docs/conversational-ai)
+- [ElevenLabs TTS API](https://elevenlabs.io/docs)
 - [AA Flight-Engine](https://github.com/AmericanAirlines/Flight-Engine)
 - [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
+- [Mapbox GL JS](https://docs.mapbox.com/mapbox-gl-js/)

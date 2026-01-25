@@ -167,6 +167,7 @@ export function useElevenLabsConversation({
       const conversation = await Conversation.startSession({
         signedUrl: signedUrlResponse.signed_url,
         onConnect: (_props: { conversationId: string }) => {
+          console.log('[ElevenLabs] Connected! ConversationId:', _props.conversationId);
           setIsConnecting(false);
           setIsConnected(true);
           if (onConnect) onConnect();
@@ -176,12 +177,20 @@ export function useElevenLabsConversation({
           conversationRef.current = null;
           if (onDisconnect) onDisconnect();
         },
-        onMessage: (payload: { message: string; source: string; role: string }) => {
+        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; type?: string }) => {
+          console.log('[ElevenLabs] Raw message received:', JSON.stringify(payload, null, 2));
           if (onMessage) {
-            // Map ElevenLabs message format to our expected format
-            // role is 'user' | 'agent', source is deprecated 'user' | 'ai'
-            const role = payload.role === 'agent' ? 'agent' : 'user';
-            onMessage({ role, content: payload.message });
+            // Handle different payload formats from ElevenLabs SDK versions
+            // Newer: { role: 'user'|'agent', message: string }
+            // Older: { source: 'user'|'ai', message: string }
+            // Some versions: { text: string, type: string }
+            const content = payload.message || payload.text || '';
+            const role = payload.role === 'agent' || payload.source === 'ai' ? 'agent' : 'user';
+
+            if (content) {
+              console.log('[ElevenLabs] Calling onMessage with:', { role, content });
+              onMessage({ role, content });
+            }
           }
         },
         onModeChange: (modePayload: { mode: 'speaking' | 'listening' }) => {

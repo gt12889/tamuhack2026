@@ -237,9 +237,9 @@ def test_lookup_reservation():
             checks.append('[X] spoken_summary missing seat')
     else:
         checks.append('[X] CRITICAL: No spoken_summary field - agent cannot read back results!')
-        all_passed = False  # Fail if no spoken_summary
     
-    all_passed = all('[OK]' in check for check in checks) and all_passed
+    # Check if all validations passed
+    all_passed = all('[OK]' in check for check in checks) and has_spoken_summary
     
     # Expected agent response pattern
     expected_keywords = ['maria', 'garcia', 'AA2345', 'miami', 'dallas', 'D15', '6A']
