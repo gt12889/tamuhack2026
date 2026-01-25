@@ -4,6 +4,30 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { createRetellWebCall, endRetellCall, getRetellStatus } from '@/lib/api';
 import type { RetellWebCall } from '@/types';
 
+// Dynamic import for Retell Web SDK
+let RetellWebClientModule: any = null;
+let sdkLoadPromise: Promise<any> | null = null;
+
+async function loadRetellSDK() {
+  if (RetellWebClientModule) {
+    return RetellWebClientModule;
+  }
+  
+  if (sdkLoadPromise) {
+    return sdkLoadPromise;
+  }
+  
+  sdkLoadPromise = import('retell-client-js-sdk').then((module) => {
+    RetellWebClientModule = module;
+    return module;
+  }).catch((error) => {
+    sdkLoadPromise = null;
+    throw error;
+  });
+  
+  return sdkLoadPromise;
+}
+
 interface UseRetellOptions {
   agentId?: string;
   sessionId?: string;
@@ -23,12 +47,6 @@ interface UseRetellReturn {
   error: string | null;
   hasAgentId: boolean;
   isSdkLoaded: boolean;
-}
-
-declare global {
-  interface Window {
-    RetellWebClient?: new () => RetellWebClientInstance;
-  }
 }
 
 interface RetellWebClientInstance {
@@ -60,7 +78,6 @@ export function useRetell({
 
   const webClientRef = useRef<RetellWebClientInstance | null>(null);
   const callDataRef = useRef<RetellWebCall | null>(null);
-  const scriptLoadedRef = useRef(false);
 
   // Check if Retell is configured on mount and get default agent ID
   useEffect(() => {
@@ -78,52 +95,24 @@ export function useRetell({
     checkStatus();
   }, []);
 
-  // Load Retell Web SDK
+  // Preload Retell Web SDK
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (scriptLoadedRef.current) return;
-
-    // Check if already loaded
-    if (window.RetellWebClient) {
-      setIsSdkLoaded(true);
-      scriptLoadedRef.current = true;
-      return;
-    }
-
-    // Load the SDK dynamically
-    const script = document.createElement('script');
-    script.src = 'https://sdk.retellai.com/retell-web-sdk.js';
-    script.async = true;
     
-    script.onload = () => {
-      console.log('Retell Web SDK loaded');
-      // Double-check it's actually available
-      if (window.RetellWebClient) {
+    // Try to load the SDK in the background
+    loadRetellSDK()
+      .then(() => {
         setIsSdkLoaded(true);
         setSdkLoadError(null);
-      } else {
-        const errorMsg = 'Retell SDK script loaded but RetellWebClient is not available';
+        console.log('Retell Web SDK loaded successfully');
+      })
+      .catch((err) => {
+        const errorMsg = `Failed to load Retell Web SDK: ${err.message || 'Unknown error'}`;
+        console.error('Failed to load Retell Web SDK:', err);
         setSdkLoadError(errorMsg);
         setError(errorMsg);
-        console.error(errorMsg);
-      }
-    };
-    
-    script.onerror = () => {
-      const errorMsg = 'Failed to load Retell Web SDK. Please check your internet connection and try again.';
-      console.error('Failed to load Retell Web SDK');
-      setSdkLoadError(errorMsg);
-      setError(errorMsg);
-      if (onError) onError(errorMsg);
-    };
-    
-    document.body.appendChild(script);
-    scriptLoadedRef.current = true;
-
-    // Cleanup function
-    return () => {
-      // Only cleanup if component unmounts, not on every render
-    };
+        if (onError) onError(errorMsg);
+      });
   }, [onError]);
 
   const startCall = useCallback(async () => {
@@ -137,8 +126,8 @@ export function useRetell({
       return;
     }
 
-    // Wait for SDK to load if it's not loaded yet
-    if (!window.RetellWebClient && !isSdkLoaded) {
+    // Ensure SDK is loaded
+    if (!isSdkLoaded) {
       // Check if there was a load error
       if (sdkLoadError) {
         setError(sdkLoadError);
@@ -146,27 +135,22 @@ export function useRetell({
         return;
       }
       
-      // Wait up to 5 seconds for SDK to load
-      let attempts = 0;
-      const maxAttempts = 50; // 50 attempts * 100ms = 5 seconds
-      
-      while (!window.RetellWebClient && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      
-      if (!window.RetellWebClient) {
-        const errorMsg = 'Retell SDK is still loading. Please wait a moment and try again.';
+      // Try to load the SDK now
+      try {
+        await loadRetellSDK();
+        setIsSdkLoaded(true);
+        setSdkLoadError(null);
+      } catch (err) {
+        const errorMsg = `Failed to load Retell Web SDK: ${err instanceof Error ? err.message : 'Unknown error'}`;
         setError(errorMsg);
         if (onError) onError(errorMsg);
         return;
       }
-      
-      setIsSdkLoaded(true);
     }
 
-    if (!window.RetellWebClient) {
-      const errorMsg = 'Retell SDK not loaded. Please refresh the page and try again.';
+    // Get the RetellWebClient class from the loaded module
+    if (!RetellWebClientModule || !RetellWebClientModule.RetellWebClient) {
+      const errorMsg = 'Retell SDK not properly loaded. Please refresh the page and try again.';
       setError(errorMsg);
       if (onError) onError(errorMsg);
       return;
@@ -187,7 +171,8 @@ export function useRetell({
       setCallId(webCall.call_id);
 
       // Initialize Retell Web Client
-      const webClient = new window.RetellWebClient();
+      const { RetellWebClient } = RetellWebClientModule;
+      const webClient = new RetellWebClient();
       webClientRef.current = webClient;
 
       // Set up event handlers
