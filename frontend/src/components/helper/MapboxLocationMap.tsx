@@ -63,6 +63,10 @@ export function MapboxLocationMap({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [userHasInteracted, setUserHasInteracted] = useState(false);
   const [initialCenterDone, setInitialCenterDone] = useState(false);
+  const [mapError, setMapError] = useState(false);
+
+  const hasMapboxToken = !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const hasLocationData = !!(passengerLocation || gateLocation);
 
   // Track user interactions (zoom, pan, etc.)
   const handleMapInteraction = useCallback(() => {
@@ -174,6 +178,39 @@ export function MapboxLocationMap({
 
       {/* Mapbox Map */}
       <div className="h-80">
+        {!hasMapboxToken || mapError ? (
+          /* Fallback when Mapbox isn't available */
+          <div className="h-full bg-gradient-to-br from-purple-100 to-purple-200 flex flex-col items-center justify-center p-6">
+            <div className="w-16 h-16 bg-purple-300 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            {hasLocationData ? (
+              <>
+                <p className="text-purple-800 font-semibold text-center mb-2">Location Tracking Active</p>
+                <p className="text-purple-600 text-sm text-center">
+                  {metrics?.distance_meters ? `${metrics.distance_meters}m to Gate` : 'Tracking in progress'}
+                </p>
+                {gateLocation && (
+                  <div className="mt-3 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                    Destination: Gate {gateLocation.gate}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-purple-800 font-semibold text-center mb-2">Awaiting Location</p>
+                <p className="text-purple-600 text-sm text-center">
+                  Location data will appear when available
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
         <Map
           ref={mapRef}
           mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
@@ -186,6 +223,7 @@ export function MapboxLocationMap({
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
           onLoad={() => setMapLoaded(true)}
+          onError={() => setMapError(true)}
           onMoveStart={handleMapInteraction}
           onZoomStart={handleMapInteraction}
           onDragStart={handleMapInteraction}
@@ -292,12 +330,13 @@ export function MapboxLocationMap({
               );
             })}
         </Map>
+        )}
       </div>
 
       {/* Metrics Panel */}
       <div className="p-6">
         {/* Status Badge */}
-        {metrics?.alert_status && (
+        {metrics?.alert_status ? (
           <div
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4"
             style={{
@@ -310,29 +349,47 @@ export function MapboxLocationMap({
               {metrics.alert_status === 'safe' ? 'On Track' : metrics.alert_status}
             </span>
           </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 bg-gray-100 text-gray-500">
+            <span className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+            <span className="font-medium text-sm">Awaiting Data</span>
+          </div>
         )}
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-2xl font-bold text-gray-800">
-              {metrics?.distance_meters ? `${metrics.distance_meters}m` : '--'}
+              {metrics?.distance_meters != null ? `${metrics.distance_meters}m` : (
+                <span className="text-gray-400">--</span>
+              )}
             </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide">Distance</div>
           </div>
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-2xl font-bold text-gray-800">
-              {metrics?.walking_time_minutes ? `${metrics.walking_time_minutes} min` : '--'}
+              {metrics?.walking_time_minutes != null ? `${metrics.walking_time_minutes} min` : (
+                <span className="text-gray-400">--</span>
+              )}
             </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide">Walk Time</div>
           </div>
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-2xl font-bold text-gray-800">
-              {metrics?.time_to_departure_minutes ? `${metrics.time_to_departure_minutes} min` : '--'}
+              {metrics?.time_to_departure_minutes != null ? `${metrics.time_to_departure_minutes} min` : (
+                <span className="text-gray-400">--</span>
+              )}
             </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide">To Departure</div>
           </div>
         </div>
+
+        {/* No Data Message */}
+        {!hasLocationData && (
+          <div className="text-center py-3 text-sm text-gray-500 bg-gray-50 rounded-lg mb-4">
+            <p>Location tracking will activate when your family member starts their journey</p>
+          </div>
+        )}
 
         {/* Directions */}
         {directions && (
