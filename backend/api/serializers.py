@@ -1,4 +1,4 @@
-"""Serializers for AA Voice Concierge API."""
+"""Serializers for Elder Strolls API."""
 
 from rest_framework import serializers
 from .models import Passenger, Flight, Reservation, FlightSegment, Session, Message, FamilyAction, PassengerLocation, LocationAlert

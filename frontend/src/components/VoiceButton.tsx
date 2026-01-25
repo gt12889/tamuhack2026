@@ -37,7 +37,7 @@ export function VoiceButton({ state, onClick, disabled }: VoiceButtonProps) {
         return (
           <>
             <MicrophoneIcon className="w-16 h-16 text-white" />
-            <span className="mt-4 text-white text-body-lg font-bold">Talk to AA</span>
+            <span className="mt-4 text-white text-body-lg font-bold">Talk to Elder Strolls</span>
           </>
         );
     }
@@ -77,7 +77,7 @@ export function VoiceButton({ state, onClick, disabled }: VoiceButtonProps) {
         onClick={onClick}
         disabled={disabled || state === 'processing' || state === 'speaking'}
         className={getButtonStyle()}
-        aria-label={state === 'idle' ? 'Start talking to AA assistant' : getStatusText()}
+        aria-label={state === 'idle' ? 'Start talking to Elder Strolls assistant' : getStatusText()}
       >
         {getButtonContent()}
       </button>

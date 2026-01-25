@@ -1,7 +1,8 @@
-"""API views for AA Voice Concierge."""
+"""API views for Elder Strolls."""
 
 import uuid
 import secrets
+import os
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import status
@@ -10,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework import viewsets
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
+import re
 
 from .models import Session, Message, Reservation, Passenger, Flight, FlightSegment, FamilyAction, PassengerLocation, LocationAlert
 from .serializers import (
@@ -90,7 +92,7 @@ def start_conversation(request):
         context={},
     )
 
-    greeting = "Hi! I'm your American Airlines assistant. I'm here to help with your trip. What do you need today?"
+    greeting = "Hi! I'm your Elder Strolls assistant. I'm here to help with your trip. What do you need today?"
 
     # Generate audio for greeting
     audio_response = elevenlabs_service.synthesize(greeting)
@@ -111,6 +113,89 @@ def start_conversation(request):
         'audio_url': audio_url,
     })
 
+def verify_identity(session, transcript, target_intent, entities=None):
+    """
+    Verifies identity using Gemini service extraction capabilities.
+    
+    Args:
+        session: The current session object
+        transcript: The user's spoken text
+        target_intent: 'change_flight' or 'confirm_booking'
+        entities: Dict of entities extracted by Gemini (optional)
+    """
+    if entities is None:
+        entities = {}
+        
+    transcript_lower = transcript.strip().lower()
+    
+    # CASE 1: Changing a Flight (High Security: Name + Code)
+    if target_intent == 'change_flight':
+        if not session.reservation or not session.reservation.passenger:
+             return False, "I can't verify you because I don't have a reservation loaded. Please provide your confirmation code first."
+
+        passenger = session.reservation.passenger
+        truth_first = passenger.first_name.lower()
+        truth_last = passenger.last_name.lower()
+        truth_code = session.reservation.confirmation_code.lower()
+
+        # 1. Extract Code (Use GeminiService's robust method)
+        # This handles "D as in Delta", "D-E-M-O", etc.
+        input_code = gemini_service.extract_confirmation_code(transcript)
+        
+        # Fallback: Check if Gemini extracted it as an entity
+        if not input_code and entities.get('confirmation_code'):
+            input_code = entities.get('confirmation_code')
+
+        # 2. Extract Names (Prioritize Gemini Entities, Fallback to Substring)
+        input_first = entities.get('first_name', '').lower()
+        input_last = entities.get('last_name', '').lower()
+
+        # Check First Name
+        has_first = (input_first == truth_first) or (truth_first in transcript_lower)
+        
+        # Check Last Name
+        has_last = (input_last == truth_last) or (truth_last in transcript_lower)
+
+        # Check Code
+        has_code = input_code and (input_code.lower() == truth_code)
+
+        if has_first and has_last and has_code:
+            return True, "Identity verified. Proceeding with your change."
+        
+        # Detailed error handling
+        missing = []
+        if not (has_first and has_last): missing.append("full name")
+        if not has_code: missing.append("confirmation code")
+        return False, f"I couldn't verify that. Please clearly state your {' and '.join(missing)}."
+
+    # CASE 2: Booking a New Flight (Medium Security: Name Only)
+    elif target_intent == 'confirm_booking':
+        # Check if we have entities from Gemini
+        input_first = entities.get('first_name', '').lower()
+        input_last = entities.get('last_name', '').lower()
+        
+        # If we have a reservation context, verify against it
+        if session.reservation and session.reservation.passenger:
+            p = session.reservation.passenger
+            truth_first = p.first_name.lower()
+            truth_last = p.last_name.lower()
+            
+            has_first = (input_first == truth_first) or (truth_first in transcript_lower)
+            has_last = (input_last == truth_last) or (truth_last in transcript_lower)
+            
+            if has_first and has_last:
+                return True, "Identity confirmed."
+        
+        # If no reservation context, just ensure names were provided/extracted
+        # (This prevents confirming empty/garbage input)
+        elif input_first and input_last:
+            return True, "Identity confirmed."
+        elif "my name is" in transcript_lower:
+            return True, "Identity confirmed."
+            
+        return False, "Before I confirm this booking, I need your First and Last name."
+
+    return False, "I couldn't verify your identity."
 
 @api_view(['POST'])
 def send_message(request):
@@ -182,6 +267,34 @@ def send_message(request):
     suggested_actions = []
     email_sent = False
 
+    # ---------------------------------------------------------
+    # 1. VERIFICATION GATEKEEPER
+    # ---------------------------------------------------------
+    if session.state == 'verifying_identity':
+        target_intent = session.context.get('target_intent')
+        
+        # Run the verification helper with entities
+        is_verified, verify_msg = verify_identity(session, transcript, target_intent, entities=entities)
+        
+        if is_verified:
+            session.context['is_verified'] = True
+            # Restore state based on what they wanted to do
+            if target_intent == 'change_flight':
+                session.state = 'changing'
+                intent = 'change_flight' # Proceed immediately to change logic
+            elif target_intent == 'confirm_booking':
+                session.state = 'booking'
+                intent = 'confirm_action' # Proceed immediately to booking logic
+        else:
+            # Verification Failed - Ask again
+            reply = verify_msg
+            audio_response = elevenlabs_service.synthesize(reply, language=detected_language)
+            Message.objects.create(session=session, role='assistant', content=reply, audio_url=audio_response.get('audio_url'))
+            return Response({
+                'reply': reply, 
+                'audio_url': audio_response.get('audio_url'), 
+                'session_state': session.state
+            })
     # Try to extract confirmation code if in lookup state
     if session.state in ['greeting', 'lookup'] and not session.reservation:
         code = gemini_service.extract_confirmation_code(transcript)
@@ -205,38 +318,51 @@ def send_message(request):
                 session.save()
 
     # Handle flight change intent
-    elif intent == 'change_flight' and session.reservation:
-        session.state = 'changing'
+    elif intent == 'change_flight':
+        if session.reservation:
+            # CHECK 1: Are they verified? (High Security)
+            if not session.context.get('is_verified'):
+                session.state = 'verifying_identity'
+                session.context['target_intent'] = 'change_flight'
+                session.save()
+                reply = "For security, please state your First Name, Last Name, and Confirmation Code to verify this change."
+            
+            else:
+                # Verified -> Show Options
+                session.state = 'changing'
+                
+                # [Your existing logic to get flights goes here]
+                first_segment = session.reservation.flight_segments.first()
+                if first_segment:
+                    from dateutil.parser import parse
+                    target_date = first_segment.flight.departure_time + timedelta(days=1)
+                    alternatives = get_alternative_flights(
+                        first_segment.flight.origin, 
+                        first_segment.flight.destination, 
+                        target_date.isoformat()
+                    )
+                    flight_options = alternatives
 
-        # Get alternative flights
-        first_segment = session.reservation.flight_segments.first()
-        if first_segment:
-            from dateutil.parser import parse
-            target_date = first_segment.flight.departure_time + timedelta(days=1)
-            alternatives = get_alternative_flights(
-                first_segment.flight.origin,
-                first_segment.flight.destination,
-                target_date.isoformat()
-            )
-            flight_options = alternatives
+                    if alternatives:
+                        opt1 = alternatives[0]
+                        time1 = parse(opt1['departure_time']).strftime('%I:%M %p')
+                        reply = f"I found some flights for you. There's one at {time1}. Would you like me to book that for you?"
 
-            if alternatives:
-                opt1 = alternatives[0]
-                time1 = parse(opt1['departure_time']).strftime('%I:%M %p')
-                reply = f"I found some flights for you. There's one at {time1}. Would you like me to book that for you?"
-
-                # Store original and new flight in session for email
-                session.context['original_flight'] = {
-                    'flight_number': first_segment.flight.flight_number,
-                    'origin': first_segment.flight.origin,
-                    'destination': first_segment.flight.destination,
-                    'departure_time': first_segment.flight.departure_time.isoformat(),
-                    'arrival_time': first_segment.flight.arrival_time.isoformat() if first_segment.flight.arrival_time else '',
-                    'seat': first_segment.seat or 'Not assigned',
-                }
-                session.context['new_flight'] = opt1  # Store the offered flight
-
-        session.save()
+                        session.context['original_flight'] = {
+                            'flight_number': first_segment.flight.flight_number,
+                            'origin': first_segment.flight.origin,
+                            'destination': first_segment.flight.destination,
+                            'departure_time': first_segment.flight.departure_time.isoformat(),
+                            'arrival_time': first_segment.flight.arrival_time.isoformat() if first_segment.flight.arrival_time else '',
+                            'seat': first_segment.seat or 'Not assigned',
+                        }
+                        session.context['new_flight'] = opt1
+                session.save()
+        else:
+            # HANDLE MISSING RESERVATION
+            reply = "I can help change your flight, but I need to find it first. What is your 6-letter confirmation code?"
+            session.state = 'lookup' # Force next message to be treated as a code
+            session.save()
 
     # Handle confirmation
     elif intent == 'confirm_action' and session.state == 'changing':
@@ -580,10 +706,10 @@ def create_helper_link(request):
 
     Request body:
         session_id: UUID of the session
-        mode: 'session' (30 min expiry) or 'persistent' (until flight departure)
+        mode: 'session' (30 min expiry), 'persistent' (until flight departure), or 'demo' (2 hours)
     """
     session_id = request.data.get('session_id')
-    mode = request.data.get('mode', 'session')
+    mode = request.data.get('mode', 'demo')  # Default to demo mode for 2-hour persistence
 
     try:
         session = Session.objects.get(id=session_id)
@@ -599,7 +725,10 @@ def create_helper_link(request):
     # Set helper link mode and expiry
     session.helper_link_mode = mode
 
-    if mode == 'persistent' and session.reservation:
+    if mode == 'demo':
+        # Demo mode: 2 hours from now
+        session.helper_link_expires_at = timezone.now() + timedelta(hours=2)
+    elif mode == 'persistent' and session.reservation:
         # Set expiry to flight departure time
         first_segment = session.reservation.flight_segments.first()
         if first_segment and first_segment.flight.departure_time:
@@ -636,7 +765,8 @@ def get_helper_session(request, link_id):
         )
 
     # Check expiry based on mode
-    if session.helper_link_mode == 'persistent':
+    # Both 'persistent' and 'demo' modes use helper_link_expires_at
+    if session.helper_link_mode in ('persistent', 'demo'):
         expiry_time = session.helper_link_expires_at or session.expires_at
     else:
         expiry_time = session.expires_at
@@ -657,6 +787,9 @@ def get_helper_session(request, link_id):
     available_actions = family_action_service.get_available_actions(session)
     action_history = family_action_service.get_action_history(session)
 
+    # Get context for area mapping detection
+    context = session.context if hasattr(session, 'context') else {}
+
     return Response({
         'session': SessionSerializer(session).data,
         'reservation': reservation_data,
@@ -665,6 +798,7 @@ def get_helper_session(request, link_id):
         'action_history': action_history,
         'helper_link_mode': session.helper_link_mode,
         'helper_link_expires_at': expiry_time.isoformat(),
+        'context': context,  # Include context so frontend can detect area mapping
     })
 
 
@@ -707,7 +841,8 @@ def _get_valid_helper_session(link_id: str):
         )
 
     # Check expiry based on mode
-    if session.helper_link_mode == 'persistent':
+    # Both 'persistent' and 'demo' modes use helper_link_expires_at
+    if session.helper_link_mode in ('persistent', 'demo'):
         expiry_time = session.helper_link_expires_at or session.expires_at
     else:
         expiry_time = session.expires_at
@@ -964,6 +1099,151 @@ def helper_get_seats(request, link_id):
     })
 
 
+# ==================== IROP (Irregular Operations) Endpoints ====================
+
+@api_view(['GET'])
+def get_irop_status(request, link_id):
+    """
+    Get IROP (Irregular Operations) status for the reservation.
+
+    Returns disruption info, rebooking options, and connection risks.
+    """
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    if not session.reservation:
+        return Response({
+            'has_disruption': False,
+            'disruption': None,
+            'affected_flights': [],
+            'connection_at_risk': False,
+            'auto_rebooking_available': False,
+            'requires_action': False,
+        })
+
+    # Get IROP status from mock data
+    from .mock_data import get_irop_status as get_mock_irop_status
+    irop_status = get_mock_irop_status(session.reservation.confirmation_code)
+
+    return Response(irop_status)
+
+
+@api_view(['POST'])
+def helper_accept_rebooking(request, link_id):
+    """
+    Accept an auto-rebooking offer on behalf of the passenger.
+
+    This queues a confirmation request to the passenger via voice assistant.
+
+    Request body:
+        rebooking_option_id: ID of the rebooking option to accept
+        notes: Optional notes from the family helper
+    """
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    rebooking_option_id = request.data.get('rebooking_option_id')
+    notes = request.data.get('notes', '')
+
+    if not rebooking_option_id:
+        return Response(
+            {'error': 'rebooking_option_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not session.reservation:
+        return Response(
+            {'error': 'No reservation found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get IROP status to validate the rebooking option
+    from .mock_data import get_irop_status as get_mock_irop_status
+    irop_status = get_mock_irop_status(session.reservation.confirmation_code)
+
+    if not irop_status.get('has_disruption'):
+        return Response(
+            {'error': 'No disruption found for this reservation'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Find the selected rebooking option
+    disruption = irop_status['disruption']
+    selected_option = None
+    for opt in disruption.get('rebooking_options', []):
+        if opt['option_id'] == rebooking_option_id:
+            selected_option = opt
+            break
+
+    if not selected_option:
+        return Response(
+            {'error': 'Invalid rebooking option'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Create a family action record
+    result = family_action_service.execute_accept_rebooking(
+        session=session,
+        rebooking_option=selected_option,
+        notes=notes,
+    )
+
+    if result.get('success'):
+        # Add a message to the conversation for the passenger
+        Message.objects.create(
+            session=session,
+            role='family',
+            content=f"Your family helper has selected a rebooking option for you: Flight {selected_option['flight_number']} departing at {selected_option['departure_time']}. Please confirm if you'd like to accept this rebooking.",
+        )
+
+        return Response(result)
+
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def helper_acknowledge_disruption(request, link_id):
+    """
+    Acknowledge a flight disruption notification.
+
+    Request body:
+        disruption_id: ID of the disruption to acknowledge
+        notes: Optional notes from the family helper
+    """
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    disruption_id = request.data.get('disruption_id')
+    notes = request.data.get('notes', '')
+
+    if not disruption_id:
+        return Response(
+            {'error': 'disruption_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not session.reservation:
+        return Response(
+            {'error': 'No reservation found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Create a family action record
+    result = family_action_service.execute_acknowledge_disruption(
+        session=session,
+        disruption_id=disruption_id,
+        notes=notes,
+    )
+
+    if result.get('success'):
+        return Response(result)
+
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(['GET'])
 def health_check(request):
     """Health check endpoint for deployment monitoring."""
@@ -976,7 +1256,7 @@ def health_check(request):
         return Response({
             'status': 'healthy',
             'database': 'connected',
-            'service': 'AA Voice Concierge API'
+            'service': 'Elder Strolls API'
         }, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({
@@ -1117,7 +1397,7 @@ def retell_status(request):
 @api_view(['POST'])
 def retell_create_agent(request):
     """Create a new Retell voice agent."""
-    agent_name = request.data.get('agent_name', 'AA Voice Concierge')
+    agent_name = request.data.get('agent_name', 'Elder Strolls')
     voice_id = request.data.get('voice_id', 'eleven_labs_rachel')
     llm_websocket_url = request.data.get('llm_websocket_url')
 
@@ -1640,6 +1920,55 @@ def update_location(request):
     })
 
 
+@api_view(['POST'])
+def create_area_mapping_link(request):
+    """Create a helper link specifically for area mapping/navigation.
+
+    This creates a demo helper link (2 hours) that can be used for airport navigation
+    and area mapping without requiring a full session.
+
+    Request body (optional):
+        airport_code: Airport code (e.g., 'DFW')
+        gate: Gate number (e.g., 'B22')
+        expires_in_hours: Hours until link expires (default: 2 for demo)
+    """
+    airport_code = request.data.get('airport_code', 'DFW')
+    gate = request.data.get('gate', 'B22')
+    expires_in_hours = request.data.get('expires_in_hours', 2)  # Default to 2 hours for demo
+
+    # Create a minimal session for area mapping
+    session = Session.objects.create(
+        state='viewing',
+        helper_link=secrets.token_urlsafe(12),
+        helper_link_mode='persistent',  # Use persistent mode
+        helper_link_expires_at=timezone.now() + timedelta(hours=expires_in_hours),
+        expires_at=timezone.now() + timedelta(hours=expires_in_hours),
+    )
+    
+    # Store mapping context in session context field
+    session.context = {
+        'purpose': 'area_mapping',
+        'airport_code': airport_code,
+        'gate': gate,
+    }
+    session.save()
+    
+    # Get base URL from request - use frontend URL if available, otherwise construct from request
+    # For area mapping, we want the frontend URL, not backend URL
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    helper_url = f"{frontend_url}/help/{session.helper_link}"
+    
+    return Response({
+        'helper_link': session.helper_link,
+        'helper_url': helper_url,
+        'mode': 'persistent',
+        'purpose': 'area_mapping',
+        'airport_code': airport_code,
+        'gate': gate,
+        'expires_at': session.helper_link_expires_at.isoformat(),
+    })
+
+
 @api_view(['GET'])
 def get_helper_location(request, link_id):
     """Get location data for family helper dashboard."""
@@ -1775,21 +2104,118 @@ def elevenlabs_convai_status(request):
     })
 
 
+@api_view(['GET'])
+def elevenlabs_get_live_transcript(request, conversation_id):
+    """
+    Get live transcript updates for a conversation.
+    
+    This endpoint retrieves transcript messages stored by the post_transcript tool.
+    The frontend polls this endpoint during active calls to get real-time updates.
+    """
+    from django.core.cache import cache
+    
+    cache_key = f'elevenlabs_transcript_{conversation_id}'
+    transcript = cache.get(cache_key, [])
+    
+    return Response({
+        'conversation_id': conversation_id,
+        'messages': transcript,
+        'message_count': len(transcript),
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def elevenlabs_get_conversation(request, conversation_id):
+    """
+    Get conversation details and transcript from ElevenLabs.
+    
+    This endpoint fetches the full conversation transcript after a call ends.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Fetching conversation transcript for conversation_id: {conversation_id}")
+    result = elevenlabs_service.get_conversation(conversation_id)
+    
+    if result:
+        logger.info(f"ElevenLabs API response keys: {list(result.keys())}")
+        logger.info(f"ElevenLabs API response (first 500 chars): {str(result)[:500]}")
+        
+        # Extract messages/transcript from the response
+        # The format may vary, so we'll handle different structures
+        messages = []
+        
+        # Check various possible fields for transcript data
+        if 'transcript' in result:
+            transcript_data = result['transcript']
+            logger.info(f"Found 'transcript' field, type: {type(transcript_data)}")
+            if isinstance(transcript_data, list):
+                messages = transcript_data
+            elif isinstance(transcript_data, dict) and 'messages' in transcript_data:
+                messages = transcript_data['messages']
+        elif 'messages' in result:
+            logger.info(f"Found 'messages' field, count: {len(result['messages']) if isinstance(result['messages'], list) else 'N/A'}")
+            messages = result['messages']
+        elif 'history' in result:
+            logger.info(f"Found 'history' field")
+            messages = result['history']
+        else:
+            logger.warning(f"No transcript/messages/history field found. Available keys: {list(result.keys())}")
+        
+        # Normalize message format
+        normalized_messages = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                normalized_messages.append({
+                    'role': msg.get('role', msg.get('speaker', 'agent')),
+                    'content': msg.get('content', msg.get('text', msg.get('message', ''))),
+                    'timestamp': msg.get('timestamp', msg.get('time')),
+                })
+        
+        logger.info(f"Normalized {len(normalized_messages)} messages from transcript")
+        
+        return Response({
+            'conversation_id': conversation_id,
+            'messages': normalized_messages,
+            'duration_ms': result.get('duration_ms'),
+            'status': result.get('status', 'completed'),
+            'raw_response_keys': list(result.keys()),  # Debug info
+        }, status=status.HTTP_200_OK)
+    
+    logger.warning(f"Failed to retrieve conversation {conversation_id} from ElevenLabs")
+    return Response(
+        {'error': 'Conversation not found or failed to retrieve'},
+        status=status.HTTP_404_NOT_FOUND
+    )
+
+
 @api_view(['POST'])
 def elevenlabs_create_web_call(request):
     """
     Create a web call for browser-based real-time voice interaction.
 
     Returns signed_url for establishing a WebSocket connection with ElevenLabs.
+    Uses Scribe Realtime ASR with explicit language setting.
 
     Request body (optional):
         agent_id: Override the default agent ID
         session_id: Session ID for context
+        language: Language code ('en' or 'es'). Defaults to 'en'. Required for Scribe Realtime ASR.
     """
     agent_id = request.data.get('agent_id')
     session_id = request.data.get('session_id')
+    language = request.data.get('language', 'en')  # Default to English, required for Scribe Realtime
 
-    result = elevenlabs_service.get_signed_url(agent_id=agent_id)
+    # Get language from session context if available
+    if session_id:
+        try:
+            session = Session.objects.get(id=session_id)
+            if session.context and session.context.get('detected_language'):
+                language = session.context.get('detected_language')
+        except Session.DoesNotExist:
+            pass
+
+    result = elevenlabs_service.get_signed_url(agent_id=agent_id, language=language)
 
     if result:
         response_data = {
@@ -1824,24 +2250,49 @@ def elevenlabs_server_tool(request):
     ElevenLabs calls this endpoint when the agent invokes a server tool.
     Configure this URL in the ElevenLabs dashboard for each server tool.
 
-    Request body:
-        tool_name: Name of the tool being called
-        parameters: Tool parameters as a dict
+    Request body formats supported:
+    1. Standard: {"tool_name": "lookup_reservation", "parameters": {"confirmation_code": "PAPA44"}}
+    2. Tool call: {"tool_call": {"name": "lookup_reservation", "parameters": {...}}}
+    3. Direct format: {"lookup_reservation": "lookup_reservation", "confirmation_code": "PAPA44"}
 
     URL: https://yourdomain.com/api/elevenlabs/convai/webhook
     """
-    tool_name = request.data.get('tool_name') or request.data.get('name')
-    parameters = request.data.get('parameters') or request.data.get('args') or {}
+    data = request.data
+    tool_name = None
+    parameters = {}
 
-    # Handle ElevenLabs' actual webhook format
-    if 'tool_call' in request.data:
-        tool_call = request.data['tool_call']
+    # Format 1: Standard format with tool_name and parameters
+    if 'tool_name' in data or 'name' in data:
+        tool_name = data.get('tool_name') or data.get('name')
+        parameters = data.get('parameters') or data.get('args') or {}
+    
+    # Format 2: Tool call format
+    elif 'tool_call' in data:
+        tool_call = data['tool_call']
         tool_name = tool_call.get('name')
         parameters = tool_call.get('parameters', {})
+    
+    # Format 3: Direct format where tool name is a key in the request
+    # Example: {"lookup_reservation": "lookup_reservation", "confirmation_code": "PAPA44"}
+    else:
+        # Check if any key matches a known tool name
+        known_tools = [
+            'lookup_reservation', 'change_flight', 'create_booking', 'get_flight_options',
+            'get_reservation_status', 'get_directions', 'create_family_helper_link',
+            'check_flight_delays', 'get_gate_directions', 'request_wheelchair', 'add_bags',
+            'post_transcript'
+        ]
+        
+        for tool in known_tools:
+            if tool in data:
+                tool_name = tool
+                # Extract all other keys as parameters (excluding the tool_name key itself)
+                parameters = {k: v for k, v in data.items() if k != tool_name}
+                break
 
     if not tool_name:
         return Response(
-            {'error': 'Missing tool_name'},
+            {'error': 'Missing tool_name. Request format not recognized.', 'received_data': dict(data)},
             status=status.HTTP_400_BAD_REQUEST
         )
 

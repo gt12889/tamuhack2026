@@ -98,7 +98,7 @@ Elderly passengers often struggle with:
 
 ### 3. Family Helper Mode
 
-**Purpose:** Allow remote family members to view conversations and send suggestions.
+**Purpose:** Allow remote family members to view conversations, send suggestions, AND perform actions on behalf of the passenger.
 
 **Features:**
 - Generate unique shareable link (8-character URL-safe token)
@@ -106,49 +106,145 @@ Elderly passengers often struggle with:
 - Passenger information dashboard
 - Flight status cards with countdown timers
 - Send text suggestions (read aloud to passenger)
-- Session expiry (30 minutes)
+- **Full action capabilities** (see below)
+- Session expiry (configurable, default 30 minutes)
+- Link modes: `full` (all actions) or `view_only` (read + suggest only)
+
+**Caregiver Actions:**
+| Action | Endpoint | Description |
+|--------|----------|-------------|
+| Change Flight | `/actions/change-flight` | Rebook passenger to alternative flight |
+| Cancel Flight | `/actions/cancel-flight` | Cancel the reservation |
+| Select Seat | `/actions/select-seat` | Choose preferred seat |
+| Add Bags | `/actions/add-bags` | Add checked baggage |
+| Request Wheelchair | `/actions/request-wheelchair` | Request wheelchair assistance |
+| Accept Rebooking | `/actions/accept-rebooking` | Accept IROP rebooking |
+| Acknowledge Disruption | `/actions/acknowledge-disruption` | Acknowledge disruption notification |
 
 **Dashboard Components:**
 - PassengerInfoCard: Name, email, phone, AAdvantage#, preferences
 - FlightStatusCard: Flight#, route, times, gate, seat, status badge, countdown
+- **IROP Alert Banner**: Shows disruption status and actions
 - Conversation transcript with role indicators
 - Suggestion input form
+- **Action buttons panel**: Quick access to all caregiver actions
+- **Location map**: Real-time passenger location with gate distance
 
 **Security:**
 - Links expire with session
 - No authentication required (token-based access)
-- Limited to read + suggest (no modifications)
+- Action permissions controlled by link mode
 
 ---
 
-### 4. Real-Time Voice Calls (Retell AI)
+### 4. Real-Time Voice Calls (ElevenLabs Conversational AI)
 
-**Phone Number:** +1 (863) 341-8574
+**Phone Number:** +1 (877) 211-0332
 
 **Capabilities:**
-- Web-based voice calls (WebSocket)
-- Outbound phone calls
+- Web-based voice calls via signed URL
+- Phone calls via ElevenLabs platform
 - Real-time transcription
-- Function calling for backend operations
+- Server tool calling for backend operations
+- Natural voice with configurable speed/stability
 
-**Available Functions:**
-| Function | Description |
-|----------|-------------|
-| `lookup_reservation` | Find by confirmation code |
+**Available Server Tools (11 total):**
+| Tool | Description |
+|------|-------------|
+| `lookup_reservation` | Find reservation by confirmation code |
 | `change_flight` | Reschedule to new date |
 | `create_booking` | Book new flight |
 | `get_flight_options` | Search available flights |
 | `get_reservation_status` | Check booking status |
+| `create_family_helper_link` | Generate helper link for caregiver |
+| `check_flight_delays` | Check for delays and disruptions |
+| `get_gate_directions` | Get directions to departure gate |
+| `request_wheelchair` | Request wheelchair assistance |
+| `add_bags` | Add checked baggage |
+| `get_irop_rebooking_options` | Get IROP rebooking options |
 
-**Webhook Events:**
-- `call_started` - Initialize session
-- `call_ended` - Store transcript
-- `call_analyzed` - Post-call analytics
-- `function_call` - Execute backend logic
+**Server Tool Response Format:**
+All tools return a `spoken_summary` field that the agent reads aloud to the user.
 
 ---
 
-### 5. Flight Information
+### 5. IROP (Irregular Operations) Handling
+
+**Purpose:** Automatically detect and handle flight disruptions with proactive rebooking options.
+
+**Disruption Types:**
+| Type | Detection | Response |
+|------|-----------|----------|
+| Delay | Flight departure time changed | Show new time, offer rebooking if significant |
+| Cancellation | Flight status = cancelled | Present rebooking options immediately |
+| Missed Connection | Insufficient connection time | Analyze risk, offer alternative routes |
+
+**IROP Scenarios (Mock Data):**
+| Scenario | Trigger | Rebooking Options |
+|----------|---------|-------------------|
+| Delay | Original flight delayed 2+ hours | 3 alternative flights |
+| Cancellation | Flight cancelled | Next available flights |
+| Missed Connection | < 30min connection time | Alternative routing |
+
+**Caregiver IROP Actions:**
+- View disruption details and severity
+- See rebooking options with times/prices
+- Accept or decline airline-proposed rebooking
+- Acknowledge disruption notification
+
+**API Endpoints:**
+- `GET /helper/{link_id}/irop-status` - Get current disruption status
+- `POST /helper/{link_id}/actions/accept-rebooking` - Accept rebooking
+- `POST /helper/{link_id}/actions/acknowledge-disruption` - Acknowledge
+
+---
+
+### 6. Location Tracking
+
+**Purpose:** Track elderly passenger's real-time location to ensure they reach their gate on time.
+
+**Features:**
+- GPS coordinates with accuracy radius
+- Distance to departure gate (feet/meters)
+- Walking time estimates
+- Automatic alerts when at risk of missing flight
+
+**Alert Statuses:**
+| Status | Color | Condition |
+|--------|-------|-----------|
+| `safe` | Green | > 30 min to departure or close to gate |
+| `warning` | Yellow | 15-30 min and far from gate |
+| `urgent` | Red | < 15 min and far from gate |
+| `arrived` | Blue | At or near departure gate |
+
+**Data Model:**
+```
+LocationUpdate:
+  - session_id (FK to Session)
+  - latitude, longitude
+  - accuracy (meters)
+  - timestamp
+  - gate_distance_feet
+  - estimated_walk_time_minutes
+  - alert_status
+
+LocationAlert:
+  - session_id (FK to Session)
+  - alert_type (far_from_gate, low_time, etc.)
+  - severity (warning, urgent)
+  - message
+  - acknowledged (boolean)
+```
+
+**API Endpoints:**
+- `POST /location/update` - Update passenger location
+- `POST /location/alert` - Trigger alert
+- `GET /location/{session_id}/history` - Get location history
+- `GET /helper/{link_id}/location` - Get location for caregiver view
+
+---
+
+### 7. Flight Information
 
 **Data Sources:**
 - Mock database with demo reservations
@@ -164,12 +260,13 @@ Elderly passengers often struggle with:
 | Boarding | Blue | Now boarding |
 | Departed | Gray | Already departed |
 
-**Demo Reservations:**
-| Code | Passenger | Route | Language |
-|------|-----------|-------|----------|
-| DEMO123 | Margaret Johnson | DFW → ORD | English |
-| TEST456 | Robert Smith | LAX → JFK → MIA | English |
-| ABUELA1 | Maria Garcia | MIA → SJU | Spanish |
+**Demo Reservations (Voice-Friendly Codes):**
+| Code | Passenger | Route | Language | Scenario |
+|------|-----------|-------|----------|----------|
+| MEEMAW | Margaret Johnson | DFW → ORD | English | Standard |
+| GRANNY | Maria Garcia | MIA → SJU | Spanish | IROP delay |
+| PAPA44 | Robert Smith | LAX → JFK → MIA | English | Multi-segment |
+| NANA55 | Eleanor Williams | ORD → PHX | English | Family |
 
 ---
 
@@ -194,9 +291,10 @@ Message (role, content, audio_url, intent, entities)
 | Service | Purpose | Provider |
 |---------|---------|----------|
 | GeminiService | NLU + Response generation | Google Gemini 1.5 Flash |
-| ElevenLabsService | Text-to-speech | ElevenLabs Turbo v2.5 |
-| RetellService | Real-time voice calls | Retell AI Platform |
+| ElevenLabsService | TTS + Conversational AI | ElevenLabs |
+| ElevenLabsWebhookHandler | Server tool processing | Backend |
 | FlightEngineService | Flight data | AA Flight-Engine |
+| LocationService | GPS tracking + alerts | Backend |
 
 **API Endpoints:**
 | Method | Endpoint | Description |
@@ -396,22 +494,33 @@ docker-compose up
 
 ---
 
+## Implemented Features (formerly Future Enhancements)
+
+- [x] Seat selection interface (via helper actions)
+- [x] Baggage management (add bags via voice or helper)
+- [x] Wheelchair assistance (request via voice or helper)
+- [x] IROP handling (delays, cancellations, missed connections)
+- [x] Location tracking (GPS, gate distance, walking time)
+- [x] Caregiver full action capabilities
+
 ## Future Enhancements
 
 - [ ] Multi-passenger bookings
-- [ ] Seat selection interface
-- [ ] Baggage management
 - [ ] Loyalty program integration
-- [ ] Push notifications
+- [ ] Push notifications for helpers
 - [ ] Offline mode
 - [ ] Additional languages (French, German, etc.)
+- [ ] Real AA API integration (currently mock data)
+- [ ] Airport indoor maps integration
+- [ ] Proactive delay notifications via outbound calls
 
 ---
 
 ## References
 
 - [Google Gemini API](https://ai.google.dev/docs)
-- [ElevenLabs API](https://elevenlabs.io/docs)
-- [Retell AI Platform](https://retellai.com/docs)
+- [ElevenLabs Conversational AI](https://elevenlabs.io/docs/conversational-ai)
+- [ElevenLabs TTS API](https://elevenlabs.io/docs)
 - [AA Flight-Engine](https://github.com/AmericanAirlines/Flight-Engine)
 - [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
+- [Mapbox GL JS](https://docs.mapbox.com/mapbox-gl-js/)

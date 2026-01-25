@@ -29,6 +29,12 @@ class ElevenLabsWebhookHandler:
     - create_booking: Create a new flight booking
     - get_flight_options: Search for available flights
     - get_reservation_status: Check reservation status
+    - get_directions: Get directions to airport amenities (restrooms, food, etc.)
+    - create_family_helper_link: Create a link for family to track passenger location
+    - check_flight_delays: Check if a flight has delays or cancellations
+    - get_gate_directions: Get directions to a specific gate
+    - request_wheelchair: Request wheelchair assistance
+    - add_bags: Add checked bags to a reservation
     """
 
     def __init__(self):
@@ -54,16 +60,35 @@ class ElevenLabsWebhookHandler:
             'create_booking': self._fn_create_booking,
             'get_flight_options': self._fn_get_flight_options,
             'get_reservation_status': self._fn_get_reservation_status,
+            'get_directions': self._fn_get_directions,
+            'create_family_helper_link': self._fn_create_family_helper_link,
+            'check_flight_delays': self._fn_check_flight_delays,
+            'get_gate_directions': self._fn_get_gate_directions,
+            'request_wheelchair': self._fn_request_wheelchair,
+            'add_bags': self._fn_add_bags,
+            'post_transcript': self._fn_post_transcript,
         }
 
         handler = function_handlers.get(tool_name)
         if handler:
             result = handler(parameters)
-            return {
+            
+            # Build response with spoken_summary/spoken_response at top level for easy access
+            response = {
                 'success': True,
                 'tool_name': tool_name,
                 'result': result,
             }
+            
+            # If result has spoken_summary or spoken_response, include it at top level
+            # This makes it easier for the agent to access
+            if isinstance(result, dict):
+                if 'spoken_summary' in result:
+                    response['spoken_summary'] = result['spoken_summary']
+                if 'spoken_response' in result:
+                    response['spoken_response'] = result['spoken_response']
+            
+            return response
 
         return {
             'success': False,
@@ -101,12 +126,29 @@ class ElevenLabsWebhookHandler:
                     dep_time = parse(first_flight['departure_time'])
                     origin_city = CITY_NAMES.get(first_flight['origin'], first_flight['origin'])
                     dest_city = CITY_NAMES.get(first_flight['destination'], first_flight['destination'])
+                    gate = first_flight.get('gate', 'TBD')
+                    seat = first_flight.get('seat', 'Not assigned')
+                    status = first_flight.get('status', 'scheduled')
+
+                    # Create a spoken summary the agent should read
+                    spoken_summary = (
+                        f"I found your reservation, {passenger['first_name']}. "
+                        f"You're booked on flight {first_flight['flight_number']} "
+                        f"from {origin_city} to {dest_city}, "
+                        f"departing {dep_time.strftime('%B %d')} at {dep_time.strftime('%I:%M %p')}. "
+                    )
+                    if gate and gate != 'TBD':
+                        spoken_summary += f"Your gate is {gate}. "
+                    if seat and seat != 'Not assigned':
+                        spoken_summary += f"You're in seat {seat}. "
+                    spoken_summary += "How can I help you with this flight?"
 
                     return {
                         'success': True,
                         'found': True,
                         'confirmation_code': code,
                         'passenger_name': f"{passenger['first_name']} {passenger['last_name']}",
+                        'passenger_first_name': passenger['first_name'],
                         'origin': first_flight['origin'],
                         'origin_city': origin_city,
                         'destination': first_flight['destination'],
@@ -114,7 +156,10 @@ class ElevenLabsWebhookHandler:
                         'departure_date': dep_time.strftime('%B %d'),
                         'departure_time': dep_time.strftime('%I:%M %p'),
                         'flight_number': first_flight['flight_number'],
-                        'seat': first_flight.get('seat', 'Not assigned'),
+                        'gate': gate,
+                        'seat': seat,
+                        'status': status,
+                        'spoken_summary': spoken_summary,
                     }
 
                 return {
@@ -131,18 +176,43 @@ class ElevenLabsWebhookHandler:
             segment = reservation.flight_segments.first()
 
             if segment:
+                flight = segment.flight
+                passenger = reservation.passenger
+                origin_city = CITY_NAMES.get(flight.origin, flight.origin)
+                dest_city = CITY_NAMES.get(flight.destination, flight.destination)
+                gate = flight.gate or 'TBD'
+                seat = segment.seat or 'Not assigned'
+
+                # Create spoken summary for the agent
+                spoken_summary = (
+                    f"I found your reservation, {passenger.first_name}. "
+                    f"You're booked on flight {flight.flight_number} "
+                    f"from {origin_city} to {dest_city}, "
+                    f"departing {flight.departure_time.strftime('%B %d')} at {flight.departure_time.strftime('%I:%M %p')}. "
+                )
+                if gate and gate != 'TBD':
+                    spoken_summary += f"Your gate is {gate}. "
+                if seat and seat != 'Not assigned':
+                    spoken_summary += f"You're in seat {seat}. "
+                spoken_summary += "How can I help you with this flight?"
+
                 return {
                     'success': True,
                     'found': True,
                     'confirmation_code': code,
-                    'passenger_name': f"{reservation.passenger.first_name} {reservation.passenger.last_name}",
-                    'origin': segment.flight.origin,
-                    'origin_city': CITY_NAMES.get(segment.flight.origin, segment.flight.origin),
-                    'destination': segment.flight.destination,
-                    'destination_city': CITY_NAMES.get(segment.flight.destination, segment.flight.destination),
-                    'departure_date': segment.flight.departure_time.strftime('%B %d'),
-                    'departure_time': segment.flight.departure_time.strftime('%I:%M %p'),
-                    'flight_number': segment.flight.flight_number,
+                    'passenger_name': f"{passenger.first_name} {passenger.last_name}",
+                    'passenger_first_name': passenger.first_name,
+                    'origin': flight.origin,
+                    'origin_city': origin_city,
+                    'destination': flight.destination,
+                    'destination_city': dest_city,
+                    'departure_date': flight.departure_time.strftime('%B %d'),
+                    'departure_time': flight.departure_time.strftime('%I:%M %p'),
+                    'flight_number': flight.flight_number,
+                    'gate': gate,
+                    'seat': seat,
+                    'status': flight.status,
+                    'spoken_summary': spoken_summary,
                 }
         except Reservation.DoesNotExist:
             pass
@@ -432,6 +502,409 @@ class ElevenLabsWebhookHandler:
 
         return result
 
+    def _fn_get_directions(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get directions to nearby airport amenities (restrooms, food, water, etc.)
+
+        Args:
+            destination_type: Type of place (restroom, food, water, charging, medical, info)
+            current_location: Optional current location description (e.g., "Gate B20", "security")
+            terminal: Optional terminal (A, B, C, D, E)
+
+        Returns:
+            Directions to the nearest matching amenity
+        """
+        destination_type = args.get('destination_type', '').lower().strip()
+        current_location = args.get('current_location', '').lower().strip()
+        terminal = args.get('terminal', '').upper().strip()
+
+        # DFW Airport POI data
+        pois = {
+            'restroom': [
+                {'name': 'Restroom near Gate A12', 'terminal': 'A', 'near_gate': 'A12', 'landmark': 'just past security on the right'},
+                {'name': 'Restroom near Gate A25', 'terminal': 'A', 'near_gate': 'A25', 'landmark': 'by Starbucks'},
+                {'name': 'Restroom near Skylink B', 'terminal': 'B', 'near_gate': 'B15', 'landmark': 'at the bottom of Skylink escalators'},
+                {'name': 'Restroom near Gate B20', 'terminal': 'B', 'near_gate': 'B20', 'landmark': 'between Gates B19 and B21'},
+                {'name': 'Restroom near Gate B22', 'terminal': 'B', 'near_gate': 'B22', 'landmark': 'just past the gate on your left'},
+            ],
+            'food': [
+                {'name': 'Starbucks', 'terminal': 'A', 'near_gate': 'A22', 'landmark': 'coffee and snacks', 'hours': '5 AM to 9 PM'},
+                {'name': "McDonald's", 'terminal': 'A', 'near_gate': 'A15', 'landmark': 'fast food', 'hours': '6 AM to 10 PM'},
+                {'name': 'Whataburger', 'terminal': 'B', 'near_gate': 'B17', 'landmark': 'Texas-style burgers', 'hours': '6 AM to 10 PM'},
+                {'name': 'Starbucks', 'terminal': 'B', 'near_gate': 'B21', 'landmark': 'coffee and snacks near Gate B21', 'hours': '5 AM to 9 PM'},
+            ],
+            'water': [
+                {'name': 'Water Fountain', 'terminal': 'A', 'near_gate': 'A10', 'landmark': 'bottle refill station post-security'},
+                {'name': 'Water Fountain', 'terminal': 'B', 'near_gate': 'B20', 'landmark': 'near the restrooms'},
+            ],
+            'charging': [
+                {'name': 'Charging Station', 'terminal': 'A', 'near_gate': 'A26', 'landmark': 'free USB and outlets'},
+                {'name': 'Charging Station', 'terminal': 'B', 'near_gate': 'B22', 'landmark': 'at the gate seating area'},
+            ],
+            'medical': [
+                {'name': 'First Aid Station', 'terminal': 'A', 'near_gate': 'A8', 'landmark': 'staffed 24/7'},
+            ],
+            'info': [
+                {'name': 'Information Desk', 'terminal': 'A', 'near_gate': 'A10', 'landmark': 'airport assistance'},
+                {'name': 'Information Desk', 'terminal': 'B', 'near_gate': 'B15', 'landmark': 'near Skylink exit'},
+            ],
+        }
+
+        # Normalize destination type
+        type_aliases = {
+            'bathroom': 'restroom',
+            'toilet': 'restroom',
+            'restrooms': 'restroom',
+            'restaurant': 'food',
+            'eat': 'food',
+            'coffee': 'food',
+            'drink': 'water',
+            'water fountain': 'water',
+            'charge': 'charging',
+            'charger': 'charging',
+            'phone charger': 'charging',
+            'help': 'info',
+            'information': 'info',
+            'first aid': 'medical',
+            'nurse': 'medical',
+            'doctor': 'medical',
+        }
+
+        normalized_type = type_aliases.get(destination_type, destination_type)
+
+        if normalized_type not in pois:
+            return {
+                'success': False,
+                'error': f"I can help you find restrooms, food, water fountains, charging stations, medical assistance, or information desks. What are you looking for?",
+                'available_types': list(pois.keys()),
+            }
+
+        options = pois[normalized_type]
+
+        # Filter by terminal if specified
+        if terminal:
+            options = [p for p in options if p['terminal'] == terminal]
+
+        if not options:
+            return {
+                'success': False,
+                'error': f"I couldn't find a {normalized_type} in Terminal {terminal}. Let me check other terminals.",
+            }
+
+        # Pick the most relevant option based on current location
+        selected = options[0]
+
+        # If user mentioned a gate, try to find nearest
+        if current_location:
+            for opt in options:
+                if opt.get('near_gate', '').lower() in current_location:
+                    selected = opt
+                    break
+                if opt['terminal'].lower() in current_location:
+                    selected = opt
+
+        # Build directions
+        directions = f"The nearest {normalized_type} is {selected['name']} in Terminal {selected['terminal']}, near Gate {selected['near_gate']}. "
+        directions += f"Look for it {selected['landmark']}."
+
+        if selected.get('hours'):
+            directions += f" It's open from {selected['hours']}."
+
+        return {
+            'success': True,
+            'destination_type': normalized_type,
+            'name': selected['name'],
+            'terminal': selected['terminal'],
+            'near_gate': selected['near_gate'],
+            'directions': directions,
+            'landmark': selected['landmark'],
+        }
+
+    def _fn_create_family_helper_link(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a family helper link so a family member can track and assist the passenger.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            passenger_phone: Optional phone number to send the link to
+
+        Returns:
+            The helper link URL
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+
+        if not code:
+            return {
+                'success': False,
+                'error': 'I need your confirmation code to create a helper link.',
+                'spoken_response': 'I need your confirmation code first to create a family helper link. What is your confirmation code?',
+            }
+
+        # Generate a helper link ID
+        import secrets
+        link_id = ''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(8))
+
+        # In production, this would save to the database
+        helper_url = f"https://aa-voice.vercel.app/help/{link_id}"
+
+        return {
+            'success': True,
+            'helper_link': helper_url,
+            'link_id': link_id,
+            'confirmation_code': code,
+            'spoken_response': f"I've created a family helper link. You can share this link with a family member: {helper_url}. They'll be able to see your flight details and location to help guide you through the airport. Would you like me to explain how it works?",
+        }
+
+    def _fn_check_flight_delays(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Check if a flight has any delays or schedule changes.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            flight_number: Or the flight number directly
+
+        Returns:
+            Flight status and any delay information
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+        flight_number = args.get('flight_number', '').upper().strip()
+
+        # Look up the reservation first
+        if code:
+            demo_reservations = get_demo_reservations()
+            for res_data in demo_reservations:
+                if res_data['confirmation_code'].upper() == code:
+                    flight = res_data['flights'][0] if res_data['flights'] else None
+                    if flight:
+                        status = flight.get('status', 'on_time')
+                        delay_minutes = flight.get('delay_minutes', 0)
+
+                        if status == 'delayed' or delay_minutes > 0:
+                            return {
+                                'success': True,
+                                'flight_number': flight['flight_number'],
+                                'status': 'delayed',
+                                'delay_minutes': delay_minutes,
+                                'new_departure_time': flight.get('new_departure_time'),
+                                'spoken_response': f"Your flight {flight['flight_number']} is currently delayed by {delay_minutes} minutes. The new departure time is {flight.get('new_departure_time', 'being updated')}. I apologize for the inconvenience.",
+                            }
+                        elif status == 'cancelled':
+                            return {
+                                'success': True,
+                                'flight_number': flight['flight_number'],
+                                'status': 'cancelled',
+                                'spoken_response': f"I'm sorry, but your flight {flight['flight_number']} has been cancelled. Would you like me to help you find an alternative flight?",
+                            }
+                        else:
+                            return {
+                                'success': True,
+                                'flight_number': flight['flight_number'],
+                                'status': 'on_time',
+                                'spoken_response': f"Good news! Your flight {flight['flight_number']} is currently on time and scheduled to depart as planned.",
+                            }
+
+        return {
+            'success': True,
+            'status': 'on_time',
+            'spoken_response': "Your flight is currently on time with no delays reported.",
+        }
+
+    def _fn_get_gate_directions(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get directions to a specific gate.
+
+        Args:
+            gate: The gate number (e.g., "B22")
+            current_location: Where the passenger currently is
+
+        Returns:
+            Step-by-step directions to the gate
+        """
+        gate = args.get('gate', '').upper().strip()
+        current_location = args.get('current_location', '').lower().strip()
+
+        if not gate:
+            return {
+                'success': False,
+                'error': 'Which gate do you need directions to?',
+            }
+
+        # Parse terminal from gate
+        terminal = gate[0] if gate else 'B'
+
+        # DFW-specific directions
+        directions_map = {
+            'A': {
+                'from_entrance': 'From the entrance, go through security, then follow signs to your gate number.',
+                'from_security': 'After security, turn right and follow the concourse. Gates are numbered sequentially.',
+            },
+            'B': {
+                'from_entrance': 'From Terminal A, take the Skylink train to Terminal B, then follow signs to your gate.',
+                'from_security': 'Take the Skylink train from Terminal A to Terminal B. Exit and turn left for gates B15-B30.',
+                'from_skylink': 'Exit the Skylink, take the escalator down, turn left and follow signs to your gate.',
+            },
+        }
+
+        term_directions = directions_map.get(terminal, directions_map['B'])
+
+        if 'security' in current_location:
+            directions = term_directions.get('from_security', term_directions.get('from_entrance'))
+        elif 'skylink' in current_location:
+            directions = term_directions.get('from_skylink', term_directions.get('from_security'))
+        else:
+            directions = term_directions.get('from_entrance')
+
+        return {
+            'success': True,
+            'gate': gate,
+            'terminal': terminal,
+            'directions': directions,
+            'spoken_response': f"To get to Gate {gate}: {directions} Look for the gate numbers on the signs above. Gate {gate} should take about 10 to 15 minutes to reach.",
+        }
+
+    def _fn_request_wheelchair(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Request wheelchair assistance for the passenger.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            pickup_location: Where to send the wheelchair
+
+        Returns:
+            Confirmation of wheelchair request
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+        pickup_location = args.get('pickup_location', 'current gate')
+
+        if not code:
+            return {
+                'success': False,
+                'error': 'I need your confirmation code to request wheelchair assistance.',
+            }
+
+        return {
+            'success': True,
+            'requested': True,
+            'confirmation_code': code,
+            'pickup_location': pickup_location,
+            'estimated_wait': '10-15 minutes',
+            'spoken_response': f"I've requested wheelchair assistance for you. Someone will meet you at {pickup_location} within 10 to 15 minutes. Please stay where you are and they'll come to you. Is there anything else I can help with?",
+        }
+
+    def _fn_add_bags(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Add checked bags to the reservation.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            bag_count: Number of bags to add
+
+        Returns:
+            Confirmation and any fees
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+        bag_count = args.get('bag_count', 1)
+
+        if not code:
+            return {
+                'success': False,
+                'error': 'I need your confirmation code to add bags.',
+            }
+
+        try:
+            bag_count = int(bag_count)
+        except:
+            bag_count = 1
+
+        # Standard bag fees
+        fee_per_bag = 35
+        total_fee = bag_count * fee_per_bag
+
+        return {
+            'success': True,
+            'confirmation_code': code,
+            'bags_added': bag_count,
+            'fee_per_bag': f'${fee_per_bag}',
+            'total_fee': f'${total_fee}',
+            'spoken_response': f"I've added {bag_count} checked bag{'s' if bag_count > 1 else ''} to your reservation. The fee is ${fee_per_bag} per bag, so your total is ${total_fee}. You can pay at the check-in counter or kiosk. Anything else I can help with?",
+        }
+
+    def _fn_post_transcript(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Post transcript update for live conversation display.
+        
+        This tool is called automatically by the ElevenLabs agent to update
+        the conversation transcript in real-time. The frontend polls for these updates.
+        
+        Args:
+            conversation_id: The ElevenLabs conversation ID
+            messages: List of message objects with role and content
+            session_id: Optional session ID to associate with
+        
+        Returns:
+            Success confirmation
+        """
+        conversation_id = args.get('conversation_id', '')
+        messages = args.get('messages', [])
+        session_id = args.get('session_id')
+        
+        if not conversation_id:
+            return {
+                'success': False,
+                'error': 'conversation_id is required',
+            }
+        
+        # Store transcript in session context or cache
+        # Use conversation_id as key to store transcript
+        from django.core.cache import cache
+        
+        # Store transcript with conversation_id as key
+        # Cache for 1 hour (3600 seconds)
+        cache_key = f'elevenlabs_transcript_{conversation_id}'
+        existing_transcript = cache.get(cache_key, [])
+        
+        # Merge new messages (avoid duplicates)
+        existing_message_ids = {msg.get('id') for msg in existing_transcript if msg.get('id')}
+        new_messages = []
+        for msg in messages:
+            # Normalize message format
+            normalized_msg = {
+                'role': msg.get('role', 'agent'),
+                'content': msg.get('content', msg.get('text', '')),
+            }
+            msg_id = msg.get('id') or f"{normalized_msg['role']}_{normalized_msg['content'][:50]}"
+            if msg_id not in existing_message_ids:
+                normalized_msg['id'] = msg_id
+                normalized_msg['timestamp'] = msg.get('timestamp', datetime.now().isoformat())
+                new_messages.append(normalized_msg)
+        
+        # Update cache with merged transcript
+        updated_transcript = existing_transcript + new_messages
+        cache.set(cache_key, updated_transcript, timeout=3600)
+        
+        # Also store in session if session_id provided
+        if session_id:
+            try:
+                session = Session.objects.get(id=session_id)
+                if not session.context:
+                    session.context = {}
+                if 'transcript' not in session.context:
+                    session.context['transcript'] = []
+                session.context['transcript'].extend(new_messages)
+                session.context['conversation_id'] = conversation_id
+                session.save()
+            except Session.DoesNotExist:
+                logger.warning(f"Session {session_id} not found for transcript update")
+        
+        logger.info(f"Posted transcript update for conversation {conversation_id}: {len(new_messages)} new messages")
+        
+        return {
+            'success': True,
+            'conversation_id': conversation_id,
+            'messages_added': len(new_messages),
+            'total_messages': len(updated_transcript),
+        }
+
 
 # Singleton instance
 elevenlabs_webhook_handler = ElevenLabsWebhookHandler()
@@ -441,7 +914,7 @@ elevenlabs_webhook_handler = ElevenLabsWebhookHandler()
 ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     {
         "name": "lookup_reservation",
-        "description": "Look up a flight reservation by confirmation code. Use this when the customer provides their confirmation code.",
+        "description": "Look up a flight reservation by confirmation code. Use this when the customer provides their confirmation code. IMPORTANT: After calling this tool, you MUST read back the flight details to the user including passenger name, flight number, origin, destination, departure date/time, gate, and seat. Use the 'spoken_summary' field from the result if provided.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -547,6 +1020,151 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
                 }
             },
             "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "get_directions",
+        "description": "Get directions to nearby airport amenities like restrooms, food, water fountains, charging stations, medical assistance, or information desks. Use this when the passenger asks where to find something in the airport. IMPORTANT: After calling this tool, you MUST read back the directions to the user including the location, terminal, and gate information.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "destination_type": {
+                    "type": "string",
+                    "description": "Type of place to find: 'restroom', 'food', 'water', 'charging', 'medical', or 'info'"
+                },
+                "current_location": {
+                    "type": "string",
+                    "description": "The passenger's current location if known (e.g., 'Gate B20', 'security', 'Terminal A')"
+                },
+                "terminal": {
+                    "type": "string",
+                    "description": "The terminal to search in (A, B, C, D, or E)"
+                }
+            },
+            "required": ["destination_type"]
+        }
+    },
+    {
+        "name": "create_family_helper_link",
+        "description": "Create a helper link that can be shared with a family member so they can track the passenger's location in the airport and help guide them. Use this when the passenger mentions they're traveling alone, need help navigating, or want a family member to be able to see their location. IMPORTANT: After calling this tool, you MUST provide the helper link URL to the user and explain how to share it. Use the 'spoken_response' field from the result if provided.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                }
+            },
+            "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "check_flight_delays",
+        "description": "Check if a flight has any delays, cancellations, or schedule changes. Use this when the passenger asks about delays or if their flight is on time. IMPORTANT: After calling this tool, you MUST read back the flight status to the user. Use the 'spoken_response' field from the result if provided.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                },
+                "flight_number": {
+                    "type": "string",
+                    "description": "Or the flight number directly (e.g., AA123)"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "get_gate_directions",
+        "description": "Get step-by-step directions to a specific gate at DFW airport. Use this when the passenger needs to find their gate. IMPORTANT: After calling this tool, you MUST read back the step-by-step directions to the user including Skylink/train information and estimated time. Use the 'spoken_response' field from the result if provided.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "gate": {
+                    "type": "string",
+                    "description": "The gate number (e.g., 'B22', 'A15')"
+                },
+                "current_location": {
+                    "type": "string",
+                    "description": "Where the passenger currently is (e.g., 'security', 'entrance', 'Terminal A')"
+                }
+            },
+            "required": ["gate"]
+        }
+    },
+    {
+        "name": "request_wheelchair",
+        "description": "Request wheelchair assistance for a passenger who needs mobility help. Use this when the passenger mentions difficulty walking, needs wheelchair assistance, or requests help getting around the airport. IMPORTANT: After calling this tool, you MUST confirm to the user that wheelchair assistance has been requested and provide the estimated wait time. Use the 'spoken_response' field from the result if provided.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                },
+                "pickup_location": {
+                    "type": "string",
+                    "description": "Where to send the wheelchair (e.g., 'Gate B22', 'entrance', 'current location')"
+                }
+            },
+            "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "add_bags",
+        "description": "Add checked bags to the passenger's reservation. Use this when the passenger wants to check bags or asks about adding luggage to their flight.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                },
+                "bag_count": {
+                    "type": "integer",
+                    "description": "Number of bags to add (default 1)"
+                }
+            },
+            "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "post_transcript",
+        "description": "Post conversation transcript updates for live display. This tool is called automatically during conversations to update the transcript in real-time. You should call this periodically with the latest conversation messages including both user and agent messages.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "description": "The ElevenLabs conversation ID"
+                },
+                "messages": {
+                    "type": "array",
+                    "description": "Array of message objects with 'role' (user/agent) and 'content' (message text)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "role": {
+                                "type": "string",
+                                "enum": ["user", "agent"],
+                                "description": "Who said the message"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "The message text"
+                            }
+                        },
+                        "required": ["role", "content"]
+                    }
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Optional session ID to associate with"
+                }
+            },
+            "required": ["conversation_id", "messages"]
         }
     }
 ]

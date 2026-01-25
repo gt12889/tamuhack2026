@@ -1,0 +1,849 @@
+[
+  {
+    "type": "webhook",
+    "name": "lookup_reservation",
+    "description": "Look up a flight reservation by confirmation code. Use this when the customer provides their confirmation code. IMPORTANT: After calling this tool, you MUST read back the flight details to the user including passenger name, flight number, origin, destination, departure date/time, gate, and seat. Use the 'spoken_summary' field from the result if provided.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for lookup_reservation",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "lookup_reservation",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "confirmation_code",
+            "type": "string",
+            "description": "The 6-character confirmation code (e.g., DEMO123, ABC456)",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "change_flight",
+    "description": "Change an existing flight reservation to a new date. Use after looking up the reservation.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for change_flight",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "change_flight",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "confirmation_code",
+            "type": "string",
+            "description": "The confirmation code of the reservation to change",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "new_date",
+            "type": "string",
+            "description": "The new date for the flight (e.g., 'tomorrow', 'January 26', 'next Saturday')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "preferred_time",
+            "type": "string",
+            "description": "Optional time preference: 'morning', 'afternoon', or 'evening'",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          },
+          {
+            "id": "selected_flight_id",
+            "type": "string",
+            "description": "The ID of the selected flight option (after showing options)",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "create_booking",
+    "description": "Create a new flight booking. Collect origin, destination, date, and passenger name.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for create_booking",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "create_booking",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "origin",
+            "type": "string",
+            "description": "Origin city or airport code (e.g., 'Dallas', 'DFW')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "destination",
+            "type": "string",
+            "description": "Destination city or airport code (e.g., 'Chicago', 'ORD')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "date",
+            "type": "string",
+            "description": "Travel date (e.g., 'tomorrow', 'next Tuesday', 'January 28')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "first_name",
+            "type": "string",
+            "description": "Passenger's first name",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          },
+          {
+            "id": "last_name",
+            "type": "string",
+            "description": "Passenger's last name",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          },
+          {
+            "id": "selected_flight_id",
+            "type": "string",
+            "description": "The ID of the selected flight option",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "get_flight_options",
+    "description": "Search for available flights between two cities on a specific date.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for get_flight_options",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "get_flight_options",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "origin",
+            "type": "string",
+            "description": "Origin city or airport code",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "destination",
+            "type": "string",
+            "description": "Destination city or airport code",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "date",
+            "type": "string",
+            "description": "Travel date",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "get_reservation_status",
+    "description": "Check the status of an existing reservation.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for get_reservation_status",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "get_reservation_status",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "confirmation_code",
+            "type": "string",
+            "description": "The confirmation code to check",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "get_directions",
+    "description": "Get directions to nearby airport amenities like restrooms, food, water fountains, charging stations, medical assistance, or information desks. Use this when the passenger asks where to find something in the airport. IMPORTANT: After calling this tool, you MUST read back the directions to the user including the location, terminal, and gate information.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for get_directions",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "get_directions",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "destination_type",
+            "type": "string",
+            "description": "Type of place to find: 'restroom', 'food', 'water', 'charging', 'medical', or 'info'",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "current_location",
+            "type": "string",
+            "description": "The passenger's current location if known (e.g., 'Gate B20', 'security', 'Terminal A')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          },
+          {
+            "id": "terminal",
+            "type": "string",
+            "description": "The terminal to search in (A, B, C, D, or E)",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "create_family_helper_link",
+    "description": "Create a helper link that can be shared with a family member so they can track the passenger's location in the airport and help guide them. Use this when the passenger mentions they're traveling alone, need help navigating, or want a family member to be able to see their location. IMPORTANT: After calling this tool, you MUST provide the helper link URL to the user and explain how to share it. Use the 'spoken_response' field from the result if provided.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for create_family_helper_link",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "create_family_helper_link",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "confirmation_code",
+            "type": "string",
+            "description": "The passenger's confirmation code",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "check_flight_delays",
+    "description": "Check if a flight has any delays, cancellations, or schedule changes. Use this when the passenger asks about delays or if their flight is on time. IMPORTANT: After calling this tool, you MUST read back the flight status to the user. Use the 'spoken_response' field from the result if provided.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for check_flight_delays",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "check_flight_delays",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "confirmation_code",
+            "type": "string",
+            "description": "The passenger's confirmation code",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          },
+          {
+            "id": "flight_number",
+            "type": "string",
+            "description": "Or the flight number directly (e.g., AA123)",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "get_gate_directions",
+    "description": "Get step-by-step directions to a specific gate at DFW airport. Use this when the passenger needs to find their gate. IMPORTANT: After calling this tool, you MUST read back the step-by-step directions to the user including Skylink/train information and estimated time. Use the 'spoken_response' field from the result if provided.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for get_gate_directions",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "get_gate_directions",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "gate",
+            "type": "string",
+            "description": "The gate number (e.g., 'B22', 'A15')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "current_location",
+            "type": "string",
+            "description": "Where the passenger currently is (e.g., 'security', 'entrance', 'Terminal A')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "request_wheelchair",
+    "description": "Request wheelchair assistance for a passenger who needs mobility help. Use this when the passenger mentions difficulty walking, needs wheelchair assistance, or requests help getting around the airport. IMPORTANT: After calling this tool, you MUST confirm to the user that wheelchair assistance has been requested and provide the estimated wait time. Use the 'spoken_response' field from the result if provided.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for request_wheelchair",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "request_wheelchair",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "confirmation_code",
+            "type": "string",
+            "description": "The passenger's confirmation code",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "pickup_location",
+            "type": "string",
+            "description": "Where to send the wheelchair (e.g., 'Gate B22', 'entrance', 'current location')",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "add_bags",
+    "description": "Add checked bags to the passenger's reservation. Use this when the passenger wants to check bags or asks about adding luggage to their flight.",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request body for add_bags",
+        "required": true,
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "description": "Tool identifier",
+            "dynamic_variable": "",
+            "constant_value": "add_bags",
+            "value_type": "constant",
+            "required": true
+          },
+          {
+            "id": "confirmation_code",
+            "type": "string",
+            "description": "The passenger's confirmation code",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": true,
+            "enum": null
+          },
+          {
+            "id": "bag_count",
+            "type": "integer",
+            "description": "Number of bags to add (default 1)",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "value_type": "llm_prompt",
+            "required": false,
+            "enum": null
+          }
+        ],
+        "dynamic_variable": "",
+        "constant_value": "",
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "assignments": [],
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  },
+  {
+    "type": "webhook",
+    "name": "post_transcript",
+    "description": "Post conversation transcript updates for live display. This tool is called automatically during conversations to update the transcript in real-time.",
+    "disable_interruptions": false,
+    "force_pre_tool_speech": "auto",
+    "assignments": [],
+    "tool_call_sound": null,
+    "tool_call_sound_behavior": "auto",
+    "execution_mode": "immediate",
+    "api_schema": {
+      "url": "https://cost-wizard-traveller-concerning.trycloudflare.com/api/elevenlabs/convai/webhook",
+      "method": "POST",
+      "path_params_schema": [],
+      "query_params_schema": [],
+      "request_body_schema": {
+        "id": "body",
+        "type": "object",
+        "description": "Request parameters",
+        "properties": [
+          {
+            "id": "tool_name",
+            "type": "string",
+            "value_type": "constant",
+            "description": "",
+            "dynamic_variable": "",
+            "constant_value": "post_transcript",
+            "enum": null,
+            "is_system_provided": false,
+            "required": true
+          },
+          {
+            "id": "conversation_id",
+            "type": "string",
+            "value_type": "llm_prompt",
+            "description": "The ElevenLabs conversation ID",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "enum": null,
+            "is_system_provided": false,
+            "required": true
+          },
+          {
+            "id": "messages",
+            "type": "array",
+            "value_type": "llm_prompt",
+            "description": "Array of message objects with role and content",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "enum": null,
+            "is_system_provided": false,
+            "required": true,
+            "items": {
+              "type": "object",
+              "description": "A message object with role and content",
+              "properties": [
+                {
+                  "id": "role",
+                  "type": "string",
+                  "value_type": "llm_prompt",
+                  "description": "Who said the message (user or agent)",
+                  "dynamic_variable": "",
+                  "constant_value": "",
+                  "enum": ["user", "agent"],
+                  "is_system_provided": false,
+                  "required": true
+                },
+                {
+                  "id": "content",
+                  "type": "string",
+                  "value_type": "llm_prompt",
+                  "description": "The message text content",
+                  "dynamic_variable": "",
+                  "constant_value": "",
+                  "enum": null,
+                  "is_system_provided": false,
+                  "required": true
+                }
+              ]
+            }
+          },
+          {
+            "id": "session_id",
+            "type": "string",
+            "value_type": "llm_prompt",
+            "description": "Optional session ID",
+            "dynamic_variable": "",
+            "constant_value": "",
+            "enum": null,
+            "is_system_provided": false,
+            "required": false
+          }
+        ],
+        "required": false,
+        "value_type": "llm_prompt"
+      },
+      "request_headers": [],
+      "auth_connection": null
+    },
+    "response_timeout_secs": 20,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    }
+  }
+]

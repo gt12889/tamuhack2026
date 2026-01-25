@@ -107,13 +107,13 @@ export function PassengerInfoCard({ passenger, confirmationCode }: PassengerInfo
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
               </svg>
-              {getSeatPreferenceLabel(passenger.preferences.seat_preference)}
+              {getSeatPreferenceLabel(passenger.preferences?.seat_preference)}
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-medium">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
               </svg>
-              {getLanguageLabel(passenger.preferences.language)}
+              {getLanguageLabel(passenger.preferences?.language || 'en')}
             </span>
           </div>
         </div>

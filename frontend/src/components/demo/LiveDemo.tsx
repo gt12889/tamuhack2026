@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Monitor, Phone, Users, Copy, Check, ExternalLink, PlayCircle } from 'lucide-react';
+import { Monitor, Phone, Users, Copy, Check, ExternalLink, PlayCircle, Headphones, AlertTriangle } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CallToAction } from '@/components/landing/CallToAction';
@@ -12,14 +12,10 @@ import { useElevenLabsConversation } from '@/hooks/useElevenLabsConversation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { startConversation, createHelperLink } from '@/lib/api';
+import { generateDemoHandoffId, createContextualHandoff, type LiveTranscriptMessage } from '@/lib/handoffDemoData';
 
-interface TranscriptMessage {
-  id: string;
-  role: 'agent' | 'user';
-  content: string;
-  timestamp: Date;
-  isFinal: boolean;
-}
+// Re-export for TranscriptPanel compatibility
+type TranscriptMessage = LiveTranscriptMessage;
 
 interface LiveDemoProps {
   phoneNumber?: string;
@@ -45,14 +41,21 @@ export function LiveDemo({
   // Sample workflow demo state
   const [showSampleDemo, setShowSampleDemo] = useState(false);
 
-  const handleTranscript = useCallback((role: 'agent' | 'user', text: string, isFinal: boolean) => {
-    setCurrentSpeaker(role);
+  // Agent handoff state
+  const [handoffId, setHandoffId] = useState<string | null>(null);
+  const [isCreatingHandoff, setIsCreatingHandoff] = useState(false);
+  const [handoffLinkCopied, setHandoffLinkCopied] = useState(false);
 
+  const handleTranscript = useCallback((role: 'agent' | 'user', text: string, isFinal: boolean) => {
     setMessages((prev) => {
-      // Find existing non-final message from same role
-      const lastIndex = prev.findIndex(
-        (m) => m.role === role && !m.isFinal
-      );
+      // Find existing non-final message from same role (most recent)
+      let lastIndex = -1;
+      for (let i = prev.length - 1; i >= 0; i -= 1) {
+        if (prev[i].role === role && !prev[i].isFinal) {
+          lastIndex = i;
+          break;
+        }
+      }
 
       if (lastIndex !== -1) {
         // Update existing message
@@ -77,10 +80,6 @@ export function LiveDemo({
         ];
       }
     });
-
-    if (isFinal) {
-      setCurrentSpeaker(null);
-    }
   }, []);
 
   const handleCallStart = useCallback(() => {
@@ -129,10 +128,44 @@ export function LiveDemo({
     }
   }, [helperLink, getHelperUrl]);
 
+  // Create agent handoff
+  const handleCreateHandoff = useCallback(() => {
+    setIsCreatingHandoff(true);
+    try {
+      const newHandoffId = generateDemoHandoffId();
+      // Create contextual handoff using live conversation (falls back to static demo if insufficient messages)
+      createContextualHandoff(newHandoffId, messages);
+      setHandoffId(newHandoffId);
+    } catch (err) {
+      console.error('Failed to create handoff:', err);
+    } finally {
+      setIsCreatingHandoff(false);
+    }
+  }, [messages]);
+
+  // Get full agent handoff URL
+  const getAgentUrl = useCallback(() => {
+    if (!handoffId) return '';
+    return `${window.location.origin}/agent/${handoffId}`;
+  }, [handoffId]);
+
+  // Copy agent handoff link
+  const handleCopyAgentLink = useCallback(() => {
+    if (handoffId) {
+      navigator.clipboard.writeText(getAgentUrl());
+      setHandoffLinkCopied(true);
+      setTimeout(() => setHandoffLinkCopied(false), 2000);
+    }
+  }, [handoffId, getAgentUrl]);
+
   // Handle ElevenLabs message callback
-  const handleMessage = useCallback((message: { role: 'agent' | 'user'; content: string }) => {
-    handleTranscript(message.role, message.content, true);
+  const handleMessage = useCallback((message: { role: 'agent' | 'user'; content: string; isFinal?: boolean }) => {
+    handleTranscript(message.role, message.content, message.isFinal ?? true);
   }, [handleTranscript]);
+
+  const handleModeChange = useCallback((mode: { mode: 'speaking' | 'listening' }) => {
+    setCurrentSpeaker(mode.mode === 'speaking' ? 'agent' : 'user');
+  }, []);
 
   const {
     isConfigured,
@@ -148,6 +181,23 @@ export function LiveDemo({
     onConnect: handleCallStart,
     onDisconnect: handleCallEnd,
     onMessage: handleMessage,
+    onUserSpeech: (transcript: string) => {
+      console.log('[LiveDemo] User speech:', transcript);
+      handleTranscript('user', transcript, true);
+    },
+    onAgentSpeech: (transcript: string) => {
+      console.log('[LiveDemo] Agent speech:', transcript);
+      handleTranscript('agent', transcript, true);
+    },
+    onModeChange: (mode) => {
+      console.log('[LiveDemo] Mode changed:', mode);
+      handleModeChange(mode);
+      if (mode.mode === 'listening') {
+        setCurrentSpeaker('user');
+      } else if (mode.mode === 'speaking') {
+        setCurrentSpeaker('agent');
+      }
+    },
     onError: (err) => {
       console.error('ElevenLabs error:', err);
     },
@@ -339,6 +389,7 @@ export function LiveDemo({
           </motion.div>
           )}
 
+
           {/* Error Display - Only in Live Mode */}
           {!showSampleDemo && error && (
             <motion.div
@@ -363,6 +414,64 @@ export function LiveDemo({
                 You can still demo by calling the phone number.
               </p>
             </motion.div>
+          )}
+          {/* Agent Handoff Demo - Only in Live Mode */}
+          {!showSampleDemo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-8 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl p-4"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 rounded-full p-2">
+                  <Headphones className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold">Agent Handoff Demo</h3>
+                  <p className="text-sm opacity-90">
+                    Simulate MeeMaw requesting help with a fee waiver
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {!handoffId ? (
+                  <Button
+                    onClick={handleCreateHandoff}
+                    disabled={isCreatingHandoff}
+                    className="bg-white text-orange-700 hover:bg-gray-100"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    {isCreatingHandoff ? 'Creating...' : 'Simulate Handoff'}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleCopyAgentLink}
+                      className="bg-white/20 hover:bg-white/30"
+                      title="Copy agent link"
+                    >
+                      {handoffLinkCopied ? (
+                        <Check className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Copy className="w-4 h-4 mr-2" />
+                      )}
+                      {handoffLinkCopied ? 'Copied!' : 'Copy Link'}
+                    </Button>
+                    <Button
+                      onClick={() => window.open(getAgentUrl(), '_blank')}
+                      className="bg-white text-orange-700 hover:bg-gray-100"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Open Agent Console
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
           )}
         </div>
       </main>

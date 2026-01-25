@@ -25,7 +25,7 @@ class RetellService:
 
     def create_agent(
         self,
-        agent_name: str = "AA Voice Concierge",
+        agent_name: str = "Elder Strolls",
         voice_id: str = "eleven_labs_rachel",
         llm_websocket_url: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -61,7 +61,7 @@ class RetellService:
                 "interruption_sensitivity": 0.5,
                 "enable_backchannel": True,  # Natural acknowledgments
                 "boosted_keywords": [
-                    "American Airlines", "flight", "reservation",
+                    "Elder Strolls", "flight", "reservation",
                     "confirmation", "change", "cancel", "help"
                 ],
             }

@@ -4,18 +4,20 @@ import type {
   Reservation,
   Session,
   FlightSegment,
-  RetellAgent,
-  RetellWebCall,
-  RetellPhoneCall,
-  RetellStatus,
   HelperSessionResponse,
   FlightOption,
   SeatMapResponse,
   ActionResult,
   HelperLocationResponse,
   LocationUpdateResponse,
+  IROPStatus,
+  HandoffDossier,
+  CreateHandoffRequest,
+  CreateHandoffResponse,
+  HandoffStatus,
 } from '@/types';
 
+// Default to port 8000, but allow override via environment variable
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
@@ -224,58 +226,6 @@ export async function getHelperSeats(linkId: string): Promise<SeatMapResponse> {
   return response.data;
 }
 
-// Retell AI API
-export async function getRetellStatus(): Promise<RetellStatus> {
-  const response = await api.get('/api/retell/status');
-  return response.data;
-}
-
-export async function listRetellAgents(): Promise<{ agents: RetellAgent[] }> {
-  const response = await api.get('/api/retell/agents');
-  return response.data;
-}
-
-export async function createRetellAgent(params: {
-  agent_name?: string;
-  voice_id?: string;
-  llm_websocket_url?: string;
-}): Promise<RetellAgent> {
-  const response = await api.post('/api/retell/agents/create', params);
-  return response.data;
-}
-
-export async function getRetellAgent(agentId: string): Promise<RetellAgent> {
-  const response = await api.get(`/api/retell/agents/${agentId}`);
-  return response.data;
-}
-
-export async function createRetellWebCall(params: {
-  agent_id: string;
-  session_id?: string;
-}): Promise<RetellWebCall> {
-  const response = await api.post('/api/retell/calls/web', params);
-  return response.data;
-}
-
-export async function createRetellPhoneCall(params: {
-  agent_id: string;
-  to_number: string;
-  from_number?: string;
-}): Promise<RetellPhoneCall> {
-  const response = await api.post('/api/retell/calls/phone', params);
-  return response.data;
-}
-
-export async function getRetellCall(callId: string): Promise<RetellPhoneCall | RetellWebCall> {
-  const response = await api.get(`/api/retell/calls/${callId}`);
-  return response.data;
-}
-
-export async function endRetellCall(callId: string): Promise<{ success: boolean }> {
-  const response = await api.post(`/api/retell/calls/${callId}/end`);
-  return response.data;
-}
-
 // ElevenLabs Conversational AI API
 export async function getElevenLabsStatus(): Promise<{
   configured: boolean;
@@ -289,6 +239,7 @@ export async function getElevenLabsStatus(): Promise<{
 export async function getElevenLabsSignedUrl(params: {
   agent_id?: string;
   session_id?: string;
+  language?: string;
 }): Promise<{
   signed_url: string;
   agent_id: string;
@@ -298,6 +249,63 @@ export async function getElevenLabsSignedUrl(params: {
 }> {
   const response = await api.post('/api/elevenlabs/convai/web-call', params);
   return response.data;
+}
+
+export async function getElevenLabsTranscript(conversationId: string): Promise<{
+  conversation_id: string;
+  messages: Array<{
+    role: 'user' | 'agent' | 'assistant';
+    content: string;
+    text?: string;
+    timestamp?: string;
+  }>;
+  duration_ms?: number;
+  status?: string;
+}> {
+  const response = await api.get(`/api/elevenlabs/convai/conversation/${conversationId}`);
+  return response.data;
+}
+
+export async function getElevenLabsLiveTranscript(conversationId: string): Promise<{
+  conversation_id: string;
+  messages: Array<{
+    role: 'user' | 'agent';
+    content: string;
+    id?: string;
+    timestamp?: string;
+  }>;
+  message_count: number;
+}> {
+  const response = await api.get(`/api/elevenlabs/convai/transcript/${conversationId}`);
+  return response.data;
+}
+
+export async function postElevenLabsTranscript(params: {
+  conversation_id: string;
+  messages: Array<{
+    role: 'user' | 'agent';
+    content: string;
+  }>;
+  session_id?: string;
+}): Promise<{
+  success: boolean;
+  conversation_id: string;
+  messages_added: number;
+  total_messages: number;
+}> {
+  try {
+    const response = await api.post('/api/elevenlabs/convai/webhook', {
+      tool_name: 'post_transcript',
+      conversation_id: params.conversation_id,
+      messages: params.messages,
+      session_id: params.session_id,
+    });
+    console.log('[ElevenLabs] Successfully posted transcript:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('[ElevenLabs] Error posting transcript:', error.response?.data || error.message);
+    throw error;
+  }
 }
 
 // Location Tracking API
@@ -364,6 +372,108 @@ export async function getLocationAlerts(
 
 export async function acknowledgeAlert(alertId: string): Promise<{ success: boolean }> {
   const response = await api.post(`/api/location/alerts/${alertId}/acknowledge`);
+  return response.data;
+}
+
+// IROP (Irregular Operations) API
+export async function getIROPStatus(linkId: string): Promise<IROPStatus> {
+  const response = await api.get(`/api/helper/${linkId}/irop-status`);
+  return response.data;
+}
+
+export async function helperAcceptRebooking(
+  linkId: string,
+  rebookingOptionId: string,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/accept-rebooking`, {
+    rebooking_option_id: rebookingOptionId,
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+export async function helperAcknowledgeDisruption(
+  linkId: string,
+  disruptionId: string,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/acknowledge-disruption`, {
+    disruption_id: disruptionId,
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+// Agent Handoff API
+export async function createHandoff(
+  request: CreateHandoffRequest
+): Promise<CreateHandoffResponse> {
+  const response = await api.post('/api/handoff/create', request);
+  return response.data;
+}
+
+export async function getHandoff(handoffId: string): Promise<HandoffDossier> {
+  const response = await api.get(`/api/handoff/${handoffId}`);
+  return response.data;
+}
+
+export async function getActiveHandoffs(): Promise<{
+  handoffs: HandoffDossier[];
+  total_pending: number;
+}> {
+  const response = await api.get('/api/handoff/active');
+  return response.data;
+}
+
+export async function agentJoinHandoff(handoffId: string): Promise<{
+  success: boolean;
+  handoff: HandoffDossier;
+}> {
+  const response = await api.post(`/api/handoff/${handoffId}/join`);
+  return response.data;
+}
+
+export async function agentSendMessage(
+  handoffId: string,
+  message: string,
+  isInternalNote: boolean = false
+): Promise<{
+  success: boolean;
+  message_id: string;
+}> {
+  const response = await api.post(`/api/handoff/${handoffId}/message`, {
+    message,
+    is_internal_note: isInternalNote,
+  });
+  return response.data;
+}
+
+export async function updateHandoffStatus(
+  handoffId: string,
+  status: HandoffStatus,
+  resolutionNotes?: string
+): Promise<{
+  success: boolean;
+  handoff: HandoffDossier;
+}> {
+  const response = await api.post(`/api/handoff/${handoffId}/status`, {
+    status,
+    resolution_notes: resolutionNotes,
+  });
+  return response.data;
+}
+
+export async function getHandoffMessages(handoffId: string): Promise<{
+  messages: Array<{
+    id: string;
+    role: 'user' | 'ai' | 'agent';
+    content: string;
+    timestamp: string;
+    is_internal_note?: boolean;
+  }>;
+}> {
+  const response = await api.get(`/api/handoff/${handoffId}/messages`);
   return response.data;
 }
 

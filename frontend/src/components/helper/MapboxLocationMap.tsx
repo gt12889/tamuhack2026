@@ -1,10 +1,19 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
 import type { MapRef } from 'react-map-gl/mapbox';
-import type { LocationData, GateLocation, LocationMetrics, LocationAlert, AlertStatus } from '@/types';
+import type { LocationData, GateLocation, LocationMetrics, LocationAlert, AlertStatus, DFWWaypoint } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+interface POIMarker {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  type: 'waypoint' | 'security' | 'restroom' | 'food' | 'info' | 'skylink';
+  isActive?: boolean;
+}
 
 interface MapboxLocationMapProps {
   passengerLocation: LocationData | null;
@@ -15,6 +24,9 @@ interface MapboxLocationMapProps {
   alert: LocationAlert | null;
   onRefresh?: () => void;
   loading?: boolean;
+  waypoints?: DFWWaypoint[];
+  currentWaypointId?: string;
+  showPOIs?: boolean;
 }
 
 // Alert status colors
@@ -25,6 +37,16 @@ const ALERT_COLORS: Record<AlertStatus, string> = {
   arrived: '#3b82f6',   // blue
 };
 
+// Waypoint type to icon/color mapping
+const WAYPOINT_STYLES: Record<string, { color: string; icon: string }> = {
+  security: { color: '#f59e0b', icon: '🛡️' },
+  skylink: { color: '#8b5cf6', icon: '🚆' },
+  restroom: { color: '#06b6d4', icon: '🚻' },
+  food: { color: '#f97316', icon: '🍔' },
+  info: { color: '#3b82f6', icon: 'ℹ️' },
+  waypoint: { color: '#9ca3af', icon: '📍' },
+};
+
 export function MapboxLocationMap({
   passengerLocation,
   gateLocation,
@@ -33,15 +55,35 @@ export function MapboxLocationMap({
   alert,
   onRefresh,
   loading,
+  waypoints,
+  currentWaypointId,
+  showPOIs = false,
 }: MapboxLocationMapProps) {
   const mapRef = useRef<MapRef>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [userHasInteracted, setUserHasInteracted] = useState(false);
+  const [initialCenterDone, setInitialCenterDone] = useState(false);
+  const [mapError, setMapError] = useState(false);
 
-  // Center map on passenger or gate when locations change
+  const hasMapboxToken = !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const hasLocationData = !!(passengerLocation || gateLocation);
+
+  // Track user interactions (zoom, pan, etc.)
+  const handleMapInteraction = useCallback(() => {
+    setUserHasInteracted(true);
+  }, []);
+
+  // Center map on passenger or gate when locations change (only if user hasn't interacted)
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
 
     const map = mapRef.current;
+
+    // Only auto-center if user hasn't manually interacted with the map
+    // OR if this is the first time we're loading locations
+    if (userHasInteracted && initialCenterDone) {
+      return; // Don't reset if user has zoomed/panned
+    }
 
     if (passengerLocation && gateLocation) {
       // Fit bounds to show both markers
@@ -55,12 +97,15 @@ export function MapboxLocationMap({
         padding: 60,
         duration: 1000,
       });
+      setInitialCenterDone(true);
     } else if (passengerLocation) {
       map.flyTo({ center: [passengerLocation.lng, passengerLocation.lat], zoom: 17 });
+      setInitialCenterDone(true);
     } else if (gateLocation) {
       map.flyTo({ center: [gateLocation.lng, gateLocation.lat], zoom: 17 });
+      setInitialCenterDone(true);
     }
-  }, [passengerLocation, gateLocation, mapLoaded]);
+  }, [passengerLocation, gateLocation, mapLoaded, userHasInteracted, initialCenterDone]);
 
   // Default center (will be overridden when locations load)
   const defaultCenter = passengerLocation
@@ -133,6 +178,39 @@ export function MapboxLocationMap({
 
       {/* Mapbox Map */}
       <div className="h-80">
+        {!hasMapboxToken || mapError ? (
+          /* Fallback when Mapbox isn't available */
+          <div className="h-full bg-gradient-to-br from-purple-100 to-purple-200 flex flex-col items-center justify-center p-6">
+            <div className="w-16 h-16 bg-purple-300 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            {hasLocationData ? (
+              <>
+                <p className="text-purple-800 font-semibold text-center mb-2">Location Tracking Active</p>
+                <p className="text-purple-600 text-sm text-center">
+                  {metrics?.distance_meters ? `${metrics.distance_meters}m to Gate` : 'Tracking in progress'}
+                </p>
+                {gateLocation && (
+                  <div className="mt-3 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                    Destination: Gate {gateLocation.gate}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-purple-800 font-semibold text-center mb-2">Awaiting Location</p>
+                <p className="text-purple-600 text-sm text-center">
+                  Location data will appear when available
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
         <Map
           ref={mapRef}
           mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
@@ -145,6 +223,10 @@ export function MapboxLocationMap({
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
           onLoad={() => setMapLoaded(true)}
+          onError={() => setMapError(true)}
+          onMoveStart={handleMapInteraction}
+          onZoomStart={handleMapInteraction}
+          onDragStart={handleMapInteraction}
         >
           <NavigationControl position="top-right" />
 
@@ -196,13 +278,65 @@ export function MapboxLocationMap({
               </div>
             </Marker>
           )}
+
+          {/* Journey Waypoints (key landmarks) */}
+          {waypoints && waypoints
+            .filter(wp =>
+              wp.id === 'security' ||
+              wp.id === 'skylink_a' ||
+              wp.id === 'skylink_b' ||
+              wp.id === currentWaypointId
+            )
+            .map(wp => {
+              const isActive = wp.id === currentWaypointId;
+              const wpType = wp.id.includes('security') ? 'security'
+                : wp.id.includes('skylink') ? 'skylink'
+                : 'waypoint';
+              const style = WAYPOINT_STYLES[wpType];
+
+              return (
+                <Marker
+                  key={wp.id}
+                  longitude={wp.lng}
+                  latitude={wp.lat}
+                  anchor="center"
+                >
+                  <div className="relative flex flex-col items-center">
+                    {isActive && (
+                      <div
+                        className="absolute inset-0 w-8 h-8 -m-2 rounded-full animate-ping opacity-40"
+                        style={{ backgroundColor: style.color }}
+                      />
+                    )}
+                    <div
+                      className={`w-6 h-6 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-xs ${isActive ? 'ring-2 ring-offset-1' : ''}`}
+                      style={{
+                        backgroundColor: style.color,
+                        '--tw-ring-color': style.color,
+                      } as React.CSSProperties}
+                    >
+                      {style.icon}
+                    </div>
+                    {isActive && (
+                      <div
+                        className="mt-1 px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap"
+                        style={{ backgroundColor: style.color }}
+                      >
+                        {wp.name}
+                      </div>
+                    )}
+                  </div>
+                </Marker>
+              );
+            })}
         </Map>
+        )}
       </div>
 
       {/* Metrics Panel */}
       <div className="p-6">
         {/* Status Badge */}
-        {metrics?.alert_status && (
+        {metrics?.alert_status ? (
           <div
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4"
             style={{
@@ -215,29 +349,47 @@ export function MapboxLocationMap({
               {metrics.alert_status === 'safe' ? 'On Track' : metrics.alert_status}
             </span>
           </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-4 bg-gray-100 text-gray-500">
+            <span className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+            <span className="font-medium text-sm">Awaiting Data</span>
+          </div>
         )}
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-2xl font-bold text-gray-800">
-              {metrics?.distance_meters ? `${metrics.distance_meters}m` : '--'}
+              {metrics?.distance_meters != null ? `${metrics.distance_meters}m` : (
+                <span className="text-gray-400">--</span>
+              )}
             </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide">Distance</div>
           </div>
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-2xl font-bold text-gray-800">
-              {metrics?.walking_time_minutes ? `${metrics.walking_time_minutes} min` : '--'}
+              {metrics?.walking_time_minutes != null ? `${metrics.walking_time_minutes} min` : (
+                <span className="text-gray-400">--</span>
+              )}
             </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide">Walk Time</div>
           </div>
           <div className="text-center p-3 bg-gray-50 rounded-lg">
             <div className="text-2xl font-bold text-gray-800">
-              {metrics?.time_to_departure_minutes ? `${metrics.time_to_departure_minutes} min` : '--'}
+              {metrics?.time_to_departure_minutes != null ? `${metrics.time_to_departure_minutes} min` : (
+                <span className="text-gray-400">--</span>
+              )}
             </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide">To Departure</div>
           </div>
         </div>
+
+        {/* No Data Message */}
+        {!hasLocationData && (
+          <div className="text-center py-3 text-sm text-gray-500 bg-gray-50 rounded-lg mb-4">
+            <p>Location tracking will activate when your family member starts their journey</p>
+          </div>
+        )}
 
         {/* Directions */}
         {directions && (

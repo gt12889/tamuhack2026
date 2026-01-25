@@ -1,4 +1,4 @@
-"""URL configuration for AA Voice Concierge API."""
+"""URL configuration for Elder Strolls API."""
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -40,6 +40,7 @@ urlpatterns = [
 
     # Family helper endpoints
     path('helper/create-link', views.create_helper_link, name='create_helper_link'),
+    path('helper/create-area-mapping-link', views.create_area_mapping_link, name='create_area_mapping_link'),
     path('helper/<str:link_id>', views.get_helper_session, name='get_helper_session'),
     path('helper/<str:link_id>/suggest', views.send_helper_suggestion, name='send_helper_suggestion'),
 
@@ -52,7 +53,12 @@ urlpatterns = [
     path('helper/<str:link_id>/actions/request-wheelchair', views.helper_request_wheelchair, name='helper_request_wheelchair'),
     path('helper/<str:link_id>/flights', views.helper_get_flights, name='helper_get_flights'),
     path('helper/<str:link_id>/seats', views.helper_get_seats, name='helper_get_seats'),
-    
+
+    # IROP (Irregular Operations) endpoints
+    path('helper/<str:link_id>/irop-status', views.get_irop_status, name='get_irop_status'),
+    path('helper/<str:link_id>/actions/accept-rebooking', views.helper_accept_rebooking, name='helper_accept_rebooking'),
+    path('helper/<str:link_id>/actions/acknowledge-disruption', views.helper_acknowledge_disruption, name='helper_acknowledge_disruption'),
+
     # Health check
     path('health/', views.health_check, name='health_check'),
 
@@ -90,6 +96,8 @@ urlpatterns = [
     # ElevenLabs Conversational AI endpoints
     path('elevenlabs/convai/status', views.elevenlabs_convai_status, name='elevenlabs_convai_status'),
     path('elevenlabs/convai/web-call', views.elevenlabs_create_web_call, name='elevenlabs_create_web_call'),
+    path('elevenlabs/convai/conversation/<str:conversation_id>', views.elevenlabs_get_conversation, name='elevenlabs_get_conversation'),
+    path('elevenlabs/convai/transcript/<str:conversation_id>', views.elevenlabs_get_live_transcript, name='elevenlabs_get_live_transcript'),
     path('elevenlabs/convai/webhook', views.elevenlabs_server_tool, name='elevenlabs_server_tool'),
     path('elevenlabs/convai/tools', views.elevenlabs_server_tool_definitions, name='elevenlabs_server_tool_definitions'),
 ]

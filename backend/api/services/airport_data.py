@@ -9,41 +9,72 @@ from typing import Dict, Any, Optional, Tuple
 # Coordinates are approximate gate/terminal locations
 AIRPORT_GATES = {
     'DFW': {
-        # Terminal A
+        # Terminal A - Gates along concourse (from user-provided coordinates)
+        'A8': {'lat': 32.902284, 'lng': -97.038667, 'terminal': 'A'},
+        'A9': {'lat': 32.902483, 'lng': -97.037603, 'terminal': 'A'},
+        'A10': {'lat': 32.902758, 'lng': -97.037303, 'terminal': 'A'},
+        'A11': {'lat': 32.902971, 'lng': -97.036631, 'terminal': 'A'},
+        'A12': {'lat': 32.904, 'lng': -97.035697, 'terminal': 'A'},
+        'A13': {'lat': 32.904344, 'lng': -97.035743, 'terminal': 'A'},
+        'A14': {'lat': 32.905115, 'lng': -97.035788, 'terminal': 'A'},
+        'A15': {'lat': 32.906287, 'lng': -97.036545, 'terminal': 'A'},
+        'A16': {'lat': 32.906577, 'lng': -97.037045, 'terminal': 'A'},
+        'A20': {'lat': 32.906989, 'lng': -97.038336, 'terminal': 'A'},
+        'A22': {'lat': 32.906539, 'lng': -97.036408, 'terminal': 'A'},
+        'A25': {'lat': 32.905943, 'lng': -97.035954, 'terminal': 'A'},
+        'A26': {'lat': 32.90497, 'lng': -97.035712, 'terminal': 'A'},
+        # Additional A gates (keeping existing for other gates not on this path)
         'A1': {'lat': 32.9002, 'lng': -97.0370, 'terminal': 'A'},
         'A2': {'lat': 32.9004, 'lng': -97.0368, 'terminal': 'A'},
         'A3': {'lat': 32.9006, 'lng': -97.0366, 'terminal': 'A'},
-        'A10': {'lat': 32.9010, 'lng': -97.0360, 'terminal': 'A'},
-        'A15': {'lat': 32.9012, 'lng': -97.0355, 'terminal': 'A'},
-        'A20': {'lat': 32.9015, 'lng': -97.0350, 'terminal': 'A'},
-        'A25': {'lat': 32.9018, 'lng': -97.0345, 'terminal': 'A'},
         'A30': {'lat': 32.9020, 'lng': -97.0340, 'terminal': 'A'},
         'A35': {'lat': 32.9022, 'lng': -97.0335, 'terminal': 'A'},
         'A38': {'lat': 32.9024, 'lng': -97.0332, 'terminal': 'A'},
-        # Terminal B
+        # Terminal B - Gates along concourse (from user-provided coordinates)
+        'B22': {'lat': 32.906823, 'lng': -97.042602, 'terminal': 'B'},
+        'B21': {'lat': 32.906721, 'lng': -97.043151, 'terminal': 'B'},
+        'B20': {'lat': 32.906628, 'lng': -97.043488, 'terminal': 'B'},
+        'B19': {'lat': 32.906406, 'lng': -97.044053, 'terminal': 'B'},
+        'B18': {'lat': 32.906233, 'lng': -97.044391, 'terminal': 'B'},
+        'B17': {'lat': 32.905919, 'lng': -97.044729, 'terminal': 'B'},
+        'B16': {'lat': 32.905329, 'lng': -97.044941, 'terminal': 'B'},
+        'B15': {'lat': 32.904779, 'lng': -97.045178, 'terminal': 'B'},
+        'B14': {'lat': 32.904293, 'lng': -97.045166, 'terminal': 'B'},
+        'B13': {'lat': 32.903885, 'lng': -97.045065, 'terminal': 'B'},
+        'B12': {'lat': 32.903655, 'lng': -97.044954, 'terminal': 'B'},
+        'B11': {'lat': 32.903302, 'lng': -97.044814, 'terminal': 'B'},
+        # Additional B gates (interpolated from mapped path)
+        'B7': {'lat': 32.9028, 'lng': -97.0446, 'terminal': 'B'},  # Interpolated between B10 and B11
         'B1': {'lat': 32.8975, 'lng': -97.0382, 'terminal': 'B'},
         'B5': {'lat': 32.8978, 'lng': -97.0380, 'terminal': 'B'},
         'B10': {'lat': 32.8980, 'lng': -97.0375, 'terminal': 'B'},
-        'B15': {'lat': 32.8982, 'lng': -97.0370, 'terminal': 'B'},
-        'B20': {'lat': 32.8985, 'lng': -97.0365, 'terminal': 'B'},
-        'B22': {'lat': 32.8986, 'lng': -97.0363, 'terminal': 'B'},
         'B25': {'lat': 32.8988, 'lng': -97.0360, 'terminal': 'B'},
         'B30': {'lat': 32.8990, 'lng': -97.0355, 'terminal': 'B'},
         'B35': {'lat': 32.8992, 'lng': -97.0350, 'terminal': 'B'},
         'B40': {'lat': 32.8995, 'lng': -97.0345, 'terminal': 'B'},
         'B45': {'lat': 32.8998, 'lng': -97.0340, 'terminal': 'B'},
-        # Terminal C
-        'C1': {'lat': 32.8950, 'lng': -97.0400, 'terminal': 'C'},
-        'C5': {'lat': 32.8952, 'lng': -97.0395, 'terminal': 'C'},
-        'C10': {'lat': 32.8955, 'lng': -97.0390, 'terminal': 'C'},
-        'C15': {'lat': 32.8958, 'lng': -97.0385, 'terminal': 'C'},
+        # Terminal C - Gates along concourse (from user-provided coordinates)
+        'C1': {'lat': 32.899709, 'lng': -97.037636, 'terminal': 'C'},
+        'C2': {'lat': 32.899611, 'lng': -97.03717, 'terminal': 'C'},
+        'C3': {'lat': 32.899459, 'lng': -97.036613, 'terminal': 'C'},
+        'C4': {'lat': 32.899057, 'lng': -97.036303, 'terminal': 'C'},
+        'C5': {'lat': 32.898023, 'lng': -97.035912, 'terminal': 'C'},
+        'C6': {'lat': 32.897664, 'lng': -97.035744, 'terminal': 'C'},
+        'C7': {'lat': 32.896969, 'lng': -97.035692, 'terminal': 'C'},
+        'C8': {'lat': 32.896219, 'lng': -97.035832, 'terminal': 'C'},
+        'C9': {'lat': 32.895103, 'lng': -97.037386, 'terminal': 'C'},
+        # Additional C gates (interpolated from mapped path)
+        'C10': {'lat': 32.8945, 'lng': -97.0378, 'terminal': 'C'},  # Interpolated between C9 and beyond
+        'C15': {'lat': 32.8930, 'lng': -97.0382, 'terminal': 'C'},  # Extrapolated from C9 pattern (continuing the curve)
         'C20': {'lat': 32.8960, 'lng': -97.0380, 'terminal': 'C'},
         'C25': {'lat': 32.8962, 'lng': -97.0375, 'terminal': 'C'},
         'C30': {'lat': 32.8965, 'lng': -97.0370, 'terminal': 'C'},
-        # Terminal D
+        # Terminal D - Gates (interpolated based on pattern from other terminals)
         'D1': {'lat': 32.8925, 'lng': -97.0420, 'terminal': 'D'},
         'D5': {'lat': 32.8928, 'lng': -97.0415, 'terminal': 'D'},
+        'D8': {'lat': 32.8929, 'lng': -97.0412, 'terminal': 'D'},  # Interpolated: 60% from D5 to D10
         'D10': {'lat': 32.8930, 'lng': -97.0410, 'terminal': 'D'},
+        'D12': {'lat': 32.8931, 'lng': -97.0408, 'terminal': 'D'},  # Interpolated: 40% from D10 to D15
         'D15': {'lat': 32.8932, 'lng': -97.0405, 'terminal': 'D'},
         'D20': {'lat': 32.8935, 'lng': -97.0400, 'terminal': 'D'},
         'D25': {'lat': 32.8938, 'lng': -97.0395, 'terminal': 'D'},
@@ -153,11 +184,14 @@ AIRPORT_GATES = {
         'B10': {'lat': 40.4955, 'lng': -80.2410, 'terminal': 'Airside'},
         'B15': {'lat': 40.4957, 'lng': -80.2405, 'terminal': 'Airside'},
         'B20': {'lat': 40.4960, 'lng': -80.2400, 'terminal': 'Airside'},
-        'B22': {'lat': 40.4958, 'lng': -80.2413, 'terminal': 'Airside'},
         'B25': {'lat': 40.4962, 'lng': -80.2395, 'terminal': 'Airside'},
         'C1': {'lat': 40.4945, 'lng': -80.2430, 'terminal': 'Airside'},
         'C5': {'lat': 40.4947, 'lng': -80.2425, 'terminal': 'Airside'},
         'C10': {'lat': 40.4950, 'lng': -80.2420, 'terminal': 'Airside'},
+    },
+    'LRD': {
+        # Laredo International Airport
+        'B22': {'lat': 27.5306, 'lng': -99.4803, 'terminal': 'Main'},
     },
 }
 
@@ -223,6 +257,12 @@ AIRPORT_GEOFENCES = {
         'radius_km': 3,
         'name': 'Pittsburgh International Airport',
     },
+    'LRD': {
+        'lat': 27.5306,
+        'lng': -99.4803,
+        'radius_km': 2,
+        'name': 'Laredo International Airport',
+    },
 }
 
 # Terminal locations within airports (for general navigation)
@@ -243,6 +283,9 @@ AIRPORT_TERMINALS = {
     'PIT': {
         'Airside': {'lat': 40.4955, 'lng': -80.2415, 'name': 'Airside Terminal'},
         'Landside': {'lat': 40.4920, 'lng': -80.2370, 'name': 'Landside Terminal'},
+    },
+    'LRD': {
+        'Main': {'lat': 27.5306, 'lng': -99.4803, 'name': 'Main Terminal'},
     },
 }
 

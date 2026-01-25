@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Deploying AA Voice Concierge..."
+echo "🚀 Deploying Elder Strolls..."
 
 # Colors for output
 GREEN='\033[0;32m'

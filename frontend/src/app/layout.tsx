@@ -1,13 +1,19 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import 'mapbox-gl/dist/mapbox-gl.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'AA Voice Concierge',
-  description: 'Voice-first flight assistance for American Airlines passengers',
+  title: 'Elder Strolls',
+  description: 'Voice-first travel assistance for elderly passengers',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', type: 'image/x-icon' },
+    ],
+    apple: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({
@@ -16,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-white text-aa-dark min-h-screen`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.className} bg-white text-aa-dark min-h-screen`} suppressHydrationWarning>
         {children}
       </body>
     </html>

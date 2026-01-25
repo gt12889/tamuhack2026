@@ -127,7 +127,7 @@ export default function AboutPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white overflow-hidden">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Header */}
       <header className="bg-aa-blue text-white py-4 px-6 sticky top-0 z-50 shadow-lg">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -136,7 +136,7 @@ export default function AboutPage() {
               <Plane className="w-8 h-8 text-aa-blue" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">AA Voice Concierge</h1>
+              <h1 className="text-xl font-bold">Elder Strolls</h1>
               <p className="text-sm opacity-90">TAMUHack 2026</p>
             </div>
           </Link>
@@ -157,7 +157,6 @@ export default function AboutPage() {
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-gradient-to-br from-aa-blue/5 via-white to-aa-red/5" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-aa-blue/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-aa-red/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -173,14 +172,14 @@ export default function AboutPage() {
             className="inline-flex items-center gap-2 bg-gradient-to-r from-aa-red to-red-600 text-white px-5 py-2.5 rounded-full text-sm font-bold mb-8 shadow-lg"
           >
             <Plane className="w-4 h-4" />
-            American Airlines Track
+            TAMUHack 2026
             <Star className="w-4 h-4 fill-current" />
           </motion.div>
 
           {/* Main Title */}
           <h1 className="text-5xl md:text-7xl font-black text-gray-900 mb-6 leading-tight">
             Voice Concierge for
-            <span className="block bg-gradient-to-r from-aa-blue to-blue-600 bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-aa-blue to-blue-600 bg-clip-text text-transparent pb-2">
               Elderly Travelers
             </span>
           </h1>
@@ -516,8 +515,8 @@ export default function AboutPage() {
                 <Plane className="w-6 h-6" />
               </div>
               <div>
-                <span className="font-bold text-lg">AA Voice Concierge</span>
-                <p className="text-sm text-gray-400">TAMUHack 2026 - American Airlines Track</p>
+                <span className="font-bold text-lg">Elder Strolls</span>
+                <p className="text-sm text-gray-400">TAMUHack 2026</p>
               </div>
             </div>
 

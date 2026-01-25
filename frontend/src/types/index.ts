@@ -1,4 +1,4 @@
-// Core data types for AA Voice Concierge
+// Core data types for Elder Strolls
 
 export interface Passenger {
   id: string;
@@ -73,49 +73,6 @@ export interface SuggestedAction {
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
 
-// Retell AI Types
-export interface RetellAgent {
-  agent_id: string;
-  agent_name: string;
-  voice_id: string;
-  language: string;
-  voice_speed: number;
-  voice_temperature: number;
-  created_at?: string;
-}
-
-export interface RetellWebCall {
-  call_id: string;
-  agent_id: string;
-  access_token: string;
-  call_type: 'web_call';
-  call_status: 'registered' | 'ongoing' | 'ended' | 'error';
-  metadata?: Record<string, unknown>;
-}
-
-export interface RetellPhoneCall {
-  call_id: string;
-  agent_id: string;
-  to_number: string;
-  from_number?: string;
-  call_type: 'phone_call';
-  call_status: 'registered' | 'ongoing' | 'ended' | 'error';
-  direction: 'outbound' | 'inbound';
-  start_time?: string;
-  end_time?: string;
-  transcript?: Array<{
-    role: 'agent' | 'user';
-    content: string;
-    timestamp: number;
-  }>;
-}
-
-export interface RetellStatus {
-  configured: boolean;
-  service: string;
-  default_agent_id?: string;
-}
-
 // ElevenLabs Conversational AI Types
 export interface ElevenLabsStatus {
   configured: boolean;
@@ -146,7 +103,9 @@ export type FamilyActionType =
   | 'cancel_flight'
   | 'select_seat'
   | 'add_bags'
-  | 'request_wheelchair';
+  | 'request_wheelchair'
+  | 'accept_rebooking'
+  | 'acknowledge_disruption';
 
 export interface FamilyAction {
   id: string;
@@ -277,4 +236,154 @@ export interface DFWWaypoint {
   instruction: string;
   landmarks: string[];
   estimatedTimeFromStart: number;
+}
+
+// IROP (Irregular Operations) Types
+export type DisruptionType = 'delay' | 'cancellation' | 'missed_connection' | 'crew_unavailable' | 'aircraft_issue';
+export type ConnectionRiskLevel = 'low' | 'medium' | 'high';
+
+export interface RebookingOption {
+  option_id: string;
+  flight_number: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  arrival_time: string;
+  gate?: string;
+  seat?: string;
+  connection_risk?: ConnectionRiskLevel;
+  is_auto_offered: boolean;
+  acceptance_deadline?: string;
+}
+
+export interface ConnectionRisk {
+  connection_flight_number: string;
+  origin: string;
+  destination: string;
+  connection_time_minutes: number;
+  minimum_connection_time: number;
+  risk_level: ConnectionRiskLevel;
+  reason: string;
+}
+
+export interface FlightDisruption {
+  id: string;
+  flight_id: string;
+  flight_number: string;
+  disruption_type: DisruptionType;
+  severity: ConnectionRiskLevel;
+  original_departure_time: string;
+  new_estimated_departure_time?: string;
+  delay_minutes?: number;
+  message: string;
+  rebooking_options: RebookingOption[];
+  auto_rebooked_option?: RebookingOption;
+  connection_risks: ConnectionRisk[];
+  acknowledged: boolean;
+  acknowledged_at?: string;
+  created_at: string;
+}
+
+export interface IROPStatus {
+  has_disruption: boolean;
+  disruption?: FlightDisruption;
+  affected_flights: string[];
+  connection_at_risk: boolean;
+  auto_rebooking_available: boolean;
+  requires_action: boolean;
+}
+
+// Agent Handoff Types
+export type HandoffStatus = 'pending' | 'agent_joined' | 'in_progress' | 'resolved' | 'abandoned';
+export type SentimentScore = 'calm' | 'neutral' | 'frustrated' | 'urgent' | 'angry';
+export type HandoffReason =
+  | 'customer_request'
+  | 'complex_issue'
+  | 'frustration_detected'
+  | 'authorization_required'
+  | 'technical_issue'
+  | 'policy_exception';
+
+export interface HandoffTranscriptMessage {
+  id: string;
+  role: 'user' | 'ai' | 'agent';
+  content: string;
+  timestamp: string;
+}
+
+export interface HandoffMetadata {
+  confirmation_code?: string;
+  flight_number?: string;
+  flight_id?: string;
+  passenger_name?: string;
+  passenger_email?: string;
+  passenger_phone?: string;
+  aadvantage_number?: string;
+  issue_type?: string;
+  [key: string]: unknown;
+}
+
+export interface HandoffDossier {
+  handoff_id: string;
+  session_id: string;
+  status: HandoffStatus;
+  priority: 'normal' | 'high' | 'urgent';
+
+  // Conversation Summary
+  conversation_summary: string;
+  ai_actions_taken: string[];
+
+  // Sentiment
+  sentiment_score: SentimentScore;
+  sentiment_reason?: string;
+
+  // Structured Metadata
+  metadata: HandoffMetadata;
+  reservation?: Reservation;
+
+  // Full Transcript
+  transcript: HandoffTranscriptMessage[];
+
+  // Handoff Details
+  handoff_reason: HandoffReason;
+  handoff_reason_detail?: string;
+
+  // Agent Assist
+  suggested_first_response?: string;
+  suggested_actions?: string[];
+
+  // Timestamps
+  created_at: string;
+  agent_joined_at?: string;
+  resolved_at?: string;
+
+  // Customer bridge message (what AI told customer)
+  bridge_message?: string;
+}
+
+export interface CreateHandoffRequest {
+  session_id: string;
+  reason: HandoffReason;
+  reason_detail?: string;
+  transcript: HandoffTranscriptMessage[];
+  metadata?: HandoffMetadata;
+}
+
+export interface CreateHandoffResponse {
+  handoff_id: string;
+  agent_url: string;
+  bridge_message: string;
+  status: HandoffStatus;
+}
+
+export interface AgentMessage {
+  handoff_id: string;
+  message: string;
+  is_internal_note?: boolean;
+}
+
+export interface HandoffUpdate {
+  handoff_id: string;
+  status?: HandoffStatus;
+  resolution_notes?: string;
 }

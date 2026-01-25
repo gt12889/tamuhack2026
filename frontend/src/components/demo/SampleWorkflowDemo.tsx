@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, RotateCcw, Volume2, Globe } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, Globe, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TripSummaryCard } from '@/components/TripSummaryCard';
 import { FlightCard } from '@/components/FlightCard';
@@ -12,7 +12,7 @@ const DEMO_STEPS_EN = [
   {
     id: 1,
     speaker: 'agent',
-    text: "Hi! I'm your American Airlines assistant. I'm here to help with your trip. What do you need today?",
+    text: "Hi! I'm your Elder Strolls assistant. I'm here to help with your trip. What do you need today?",
     delay: 2000,
   },
   {
@@ -72,7 +72,7 @@ const DEMO_STEPS_ES = [
   {
     id: 1,
     speaker: 'agent',
-    text: "¡Hola! Soy su asistente de American Airlines. Estoy aquí para ayudarle con su viaje. ¿En qué puedo servirle hoy?",
+    text: "¡Hola! Soy su asistente de Elder Strolls. Estoy aquí para ayudarle con su viaje. ¿En qué puedo servirle hoy?",
     delay: 2500,
   },
   {
@@ -174,6 +174,7 @@ export function SampleWorkflowDemo({ className }: SampleWorkflowDemoProps) {
   const [showReservation, setShowReservation] = useState(false);
   const [showFlightOptions, setShowFlightOptions] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
   const [language, setLanguage] = useState<'en' | 'es'>('en');
 
   const demoSteps = language === 'es' ? DEMO_STEPS_ES : DEMO_STEPS_EN;
@@ -187,6 +188,7 @@ export function SampleWorkflowDemo({ className }: SampleWorkflowDemoProps) {
     setShowReservation(false);
     setShowFlightOptions(false);
     setShowConfirmation(false);
+    setIsComplete(false);
   }, []);
 
   // Toggle language
@@ -198,8 +200,9 @@ export function SampleWorkflowDemo({ className }: SampleWorkflowDemoProps) {
   // Play next step
   useEffect(() => {
     if (!isPlaying || currentStep >= demoSteps.length) {
-      if (currentStep >= demoSteps.length) {
+      if (currentStep >= demoSteps.length && isPlaying) {
         setIsPlaying(false);
+        setIsComplete(true);
       }
       return;
     }
@@ -210,7 +213,10 @@ export function SampleWorkflowDemo({ className }: SampleWorkflowDemoProps) {
 
       if (step.showReservation) setShowReservation(true);
       if (step.showFlightOptions) setShowFlightOptions(true);
-      if (step.showConfirmation) setShowConfirmation(true);
+      if (step.showConfirmation) {
+        setShowConfirmation(true);
+        setIsComplete(true);
+      }
 
       setCurrentStep(prev => prev + 1);
     }, step.delay);
@@ -231,15 +237,41 @@ export function SampleWorkflowDemo({ className }: SampleWorkflowDemoProps) {
   return (
     <div className={`bg-white rounded-2xl shadow-lg overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="bg-gradient-to-r from-aa-blue to-blue-700 text-white p-4">
+      <motion.div
+        className={`text-white p-4 transition-colors duration-500 ${
+          isComplete
+            ? 'bg-gradient-to-r from-green-600 to-green-700'
+            : 'bg-gradient-to-r from-aa-blue to-blue-700'
+        }`}
+        animate={{
+          background: isComplete
+            ? 'linear-gradient(to right, #16a34a, #15803d)'
+            : 'linear-gradient(to right, #0078d2, #1d4ed8)',
+        }}
+      >
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-lg">
-              {language === 'es' ? 'Demo de Cambio de Vuelo' : 'Flight Change Demo'}
-            </h3>
-            <p className="text-sm opacity-90">
-              {language === 'es' ? 'Flujo de trabajo completo' : 'Complete workflow walkthrough'}
-            </p>
+          <div className="flex items-center gap-3">
+            {isComplete && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              >
+                <CheckCircle2 className="w-8 h-8" />
+              </motion.div>
+            )}
+            <div>
+              <h3 className="font-bold text-lg">
+                {isComplete
+                  ? (language === 'es' ? '¡Cambio Completado!' : 'Change Complete!')
+                  : (language === 'es' ? 'Demo de Cambio de Vuelo' : 'Flight Change Demo')}
+              </h3>
+              <p className="text-sm opacity-90">
+                {isComplete
+                  ? (language === 'es' ? 'El vuelo ha sido cambiado exitosamente' : 'Flight successfully changed')
+                  : (language === 'es' ? 'Flujo de trabajo completo' : 'Complete workflow walkthrough')}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Language toggle */}
@@ -293,13 +325,13 @@ export function SampleWorkflowDemo({ className }: SampleWorkflowDemoProps) {
         {/* Progress bar */}
         <div className="mt-3 bg-white/20 rounded-full h-2">
           <motion.div
-            className="bg-white rounded-full h-2"
+            className={`rounded-full h-2 ${isComplete ? 'bg-white' : 'bg-white'}`}
             initial={{ width: 0 }}
             animate={{ width: `${(currentStep / demoSteps.length) * 100}%` }}
             transition={{ duration: 0.3 }}
           />
         </div>
-      </div>
+      </motion.div>
 
       {/* Content */}
       <div className="p-4 h-[500px] overflow-y-auto">

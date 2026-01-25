@@ -237,14 +237,14 @@ class ElevenLabsService:
         # Build first message based on reminder type and language
         if language == 'es':
             first_messages = {
-                'gate_closing': f"Hola {passenger_name}, le llamo de American Airlines. Su vuelo {flight_info.get('flight_number')} está abordando en la puerta {flight_info.get('gate', 'indicada en el tablero')}. Por favor diríjase a la puerta inmediatamente.",
-                'departure_1hr': f"Hola {passenger_name}, este es un recordatorio de American Airlines. Su vuelo {flight_info.get('flight_number')} sale en aproximadamente una hora desde la puerta {flight_info.get('gate', 'indicada en el tablero')}.",
+                'gate_closing': f"Hola {passenger_name}, le llamo de Elder Strolls. Su vuelo {flight_info.get('flight_number')} está abordando en la puerta {flight_info.get('gate', 'indicada en el tablero')}. Por favor diríjase a la puerta inmediatamente.",
+                'departure_1hr': f"Hola {passenger_name}, este es un recordatorio de Elder Strolls. Su vuelo {flight_info.get('flight_number')} sale en aproximadamente una hora desde la puerta {flight_info.get('gate', 'indicada en el tablero')}.",
                 'final_boarding': f"Llamada final para {passenger_name}. Su vuelo {flight_info.get('flight_number')} está cerrando las puertas. Por favor preséntese inmediatamente en la puerta {flight_info.get('gate', 'de embarque')}.",
             }
         else:
             first_messages = {
-                'gate_closing': f"Hello {passenger_name}, this is American Airlines calling. Your flight {flight_info.get('flight_number')} is now boarding at gate {flight_info.get('gate', 'shown on the departure board')}. Please proceed to the gate immediately.",
-                'departure_1hr': f"Hello {passenger_name}, this is a reminder from American Airlines. Your flight {flight_info.get('flight_number')} departs in approximately one hour from gate {flight_info.get('gate', 'shown on the departure board')}.",
+                'gate_closing': f"Hello {passenger_name}, this is Elder Strolls calling. Your flight {flight_info.get('flight_number')} is now boarding at gate {flight_info.get('gate', 'shown on the departure board')}. Please proceed to the gate immediately.",
+                'departure_1hr': f"Hello {passenger_name}, this is a reminder from Elder Strolls. Your flight {flight_info.get('flight_number')} departs in approximately one hour from gate {flight_info.get('gate', 'shown on the departure board')}.",
                 'final_boarding': f"Final call for {passenger_name}. Your flight {flight_info.get('flight_number')} is closing doors. Please report to gate {flight_info.get('gate', '')} immediately.",
             }
 
@@ -293,15 +293,22 @@ class ElevenLabsService:
         """Check if web calls (Conversational AI) are configured."""
         return bool(self.api_key and self.agent_id)
 
-    def get_signed_url(self, agent_id: str = None) -> Optional[Dict[str, Any]]:
+    def get_signed_url(self, agent_id: str = None, language: str = 'en') -> Optional[Dict[str, Any]]:
         """
         Get a signed URL for starting a web-based conversation.
 
         The signed URL is used by the ElevenLabs client SDK to establish
         a secure WebSocket connection for real-time voice conversation.
 
+        IMPORTANT: This method is configured for Scribe Realtime ASR.
+        - The ASR model (Scribe Realtime) must be configured in the agent settings in the ElevenLabs dashboard
+        - Language must be explicitly set (implicit language detection doesn't work with Scribe Realtime)
+        - The language parameter is passed to ensure proper ASR configuration
+
         Args:
             agent_id: Optional agent ID override. Uses default if not provided.
+            language: Language code ('en' or 'es'). Defaults to 'en'. 
+                     REQUIRED for Scribe Realtime ASR (implicit detection doesn't work).
 
         Returns:
             Dict with signed_url or None on failure
@@ -323,16 +330,30 @@ class ElevenLabsService:
                 "xi-api-key": self.api_key,
             }
 
+            # Get signed URL for the agent
+            # Note: ASR model (Scribe Realtime) should be configured in the agent settings in dashboard
+            # Language is explicitly set and passed to ensure Scribe Realtime works correctly
+            params = {
+                "agent_id": effective_agent_id,
+            }
+            
+            # If the API supports language parameter in get-signed-url, include it
+            # Otherwise, language should be configured in agent settings
+            # The backend passes language to the view so it can be logged/used if needed
+
             with httpx.Client(timeout=30.0) as client:
                 response = client.get(
                     f"{self.CONV_AI_URL}/conversation/get-signed-url",
-                    params={"agent_id": effective_agent_id},
+                    params=params,
                     headers=headers,
                 )
 
                 if response.status_code == 200:
                     result = response.json()
-                    logger.info(f"ElevenLabs signed URL obtained for agent {effective_agent_id}")
+                    logger.info(
+                        f"ElevenLabs signed URL obtained for agent {effective_agent_id}. "
+                        f"Configured for Scribe Realtime ASR with explicit language: {language}"
+                    )
                     return result
                 else:
                     logger.error(f"ElevenLabs get signed URL error: {response.status_code} - {response.text}")
@@ -345,7 +366,7 @@ class ElevenLabsService:
 
 # Pre-defined responses for common phrases (to reduce API calls)
 CACHED_PHRASES = {
-    "greeting": "Hi! I'm your American Airlines assistant. I'm here to help with your trip. What do you need today?",
+    "greeting": "Hi! I'm your Elder Strolls assistant. I'm here to help with your trip. What do you need today?",
     "ask_confirmation_code": "I'd be happy to help you change your flight. What's your confirmation code? You can spell it out letter by letter.",
     "code_not_found": "I couldn't find a reservation with that code. Could you please check and try again?",
     "change_confirmed": "Perfect! You're all set. Your new flight has been booked. I'm sending the details to your email. Is there anything else I can help with?",

@@ -44,6 +44,16 @@ const actionDetails: Record<FamilyActionType, {
     description: 'Are you sure you want to request wheelchair assistance?',
     confirmText: 'Request Assistance',
   },
+  accept_rebooking: {
+    title: 'Accept Rebooking',
+    description: 'Are you sure you want to accept this rebooking offer?',
+    confirmText: 'Accept Rebooking',
+  },
+  acknowledge_disruption: {
+    title: 'Acknowledge Disruption',
+    description: 'Are you sure you want to acknowledge this flight disruption?',
+    confirmText: 'Acknowledge',
+  },
 };
 
 export default function ActionConfirmModal({

@@ -15,7 +15,7 @@ class ResendService:
 
     def __init__(self):
         self.api_key = os.getenv('RESEND_API_KEY', '')
-        self.from_email = os.getenv('RESEND_FROM_EMAIL', 'AA Voice Concierge <noreply@yourdomain.com>')
+        self.from_email = os.getenv('RESEND_FROM_EMAIL', 'Elder Strolls <noreply@yourdomain.com>')
         
         if self.api_key:
             resend.api_key = self.api_key
@@ -231,13 +231,13 @@ class ResendService:
                 </div>
                 
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                    Thank you for choosing American Airlines. Have a great flight!
+                    Thank you for choosing Elder Strolls. Have a great flight!
                 </p>
                 
                 <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
                 
                 <p style="color: #999; font-size: 12px; text-align: center;">
-                    This email was sent by AA Voice Concierge.<br>
+                    This email was sent by Elder Strolls.<br>
                     For assistance, please contact our support team.
                 </p>
             </div>
@@ -330,13 +330,13 @@ class ResendService:
                 </div>
                 
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                    Gracias por elegir American Airlines. ¡Que tenga un excelente vuelo!
+                    Gracias por elegir Elder Strolls. ¡Que tenga un excelente vuelo!
                 </p>
                 
                 <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
                 
                 <p style="color: #999; font-size: 12px; text-align: center;">
-                    Este correo fue enviado por AA Voice Concierge.<br>
+                    Este correo fue enviado por Elder Strolls.<br>
                     Para asistencia, contacte a nuestro equipo de soporte.
                 </p>
             </div>
@@ -412,13 +412,13 @@ class ResendService:
                 </div>
                 
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                    Thank you for choosing American Airlines. We look forward to seeing you on board!
+                    Thank you for choosing Elder Strolls. We look forward to seeing you on board!
                 </p>
                 
                 <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
                 
                 <p style="color: #999; font-size: 12px; text-align: center;">
-                    This email was sent by AA Voice Concierge.<br>
+                    This email was sent by Elder Strolls.<br>
                     For assistance, please contact our support team.
                 </p>
             </div>
@@ -492,13 +492,13 @@ class ResendService:
                 </div>
                 
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                    Gracias por elegir American Airlines. ¡Esperamos verle a bordo!
+                    Gracias por elegir Elder Strolls. ¡Esperamos verle a bordo!
                 </p>
                 
                 <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
                 
                 <p style="color: #999; font-size: 12px; text-align: center;">
-                    Este correo fue enviado por AA Voice Concierge.<br>
+                    Este correo fue enviado por Elder Strolls.<br>
                     Para asistencia, contacte a nuestro equipo de soporte.
                 </p>
             </div>

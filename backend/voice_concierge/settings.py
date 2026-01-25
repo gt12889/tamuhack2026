@@ -1,6 +1,6 @@
 """
 Django settings for voice_concierge project.
-AA Voice Concierge - TAMUHack 2026
+Elder Strolls - TAMUHack 2026
 """
 
 import os
@@ -15,7 +15,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-secret-key-change-in-production
 
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') + ['.trycloudflare.com', '.loca.lt', '.ngrok.io', '.ngrok-free.app']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -131,7 +131,7 @@ ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', '')
 RETELL_API_KEY = os.getenv('RETELL_API_KEY', '')
 RETELL_REMINDER_AGENT_ID = os.getenv('RETELL_REMINDER_AGENT_ID', '')
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
-RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'AA Voice Concierge <noreply@yourdomain.com>')
+RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'Elder Strolls <noreply@yourdomain.com>')
 
 # ElevenLabs configuration
 ELEVENLABS_VOICE_ID = os.getenv('ELEVENLABS_VOICE_ID', 'EXAVITQu4vr4xnSDxMaL')  # Rachel voice
