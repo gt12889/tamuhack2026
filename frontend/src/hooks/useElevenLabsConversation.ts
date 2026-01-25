@@ -32,7 +32,7 @@ interface UseElevenLabsConversationOptions {
   sessionId?: string;
   onConnect?: () => void;
   onDisconnect?: () => void;
-  onMessage?: (message: { role: 'agent' | 'user'; content: string }) => void;
+  onMessage?: (message: { role: 'agent' | 'user'; content: string; isFinal?: boolean }) => void;
   onModeChange?: (mode: { mode: 'speaking' | 'listening' }) => void;
   onError?: (error: string) => void;
   onUserSpeech?: (transcript: string) => void;
@@ -223,7 +223,7 @@ export function useElevenLabsConversation({
           conversationRef.current = null;
           if (onDisconnect) onDisconnect();
         },
-        onMessage: (payload: any) => {
+        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; transcript?: string; content?: string; speech?: string; type?: string; speaker?: string; isFinal?: boolean }) => {
           // Log the full payload structure to debug
           console.log('[ElevenLabs] Raw message received:', JSON.stringify(payload, null, 2));
           console.log('[ElevenLabs] Payload keys:', Object.keys(payload));
@@ -254,8 +254,15 @@ export function useElevenLabsConversation({
               role = 'agent';
             }
 
+            // Determine if message is final
+            const isFinal = typeof payload.isFinal === 'boolean'
+              ? payload.isFinal
+              : payload.type
+              ? !/partial|interim|delta/i.test(payload.type)
+              : true;
+
             if (content && content.trim()) {
-              console.log('[ElevenLabs] Calling onMessage with:', { role, content, payloadType: payload.type, payloadRole: payload.role });
+              console.log('[ElevenLabs] Calling onMessage with:', { role, content, isFinal, payloadType: payload.type, payloadRole: payload.role });
               
               // Call specific callbacks if provided
               if (role === 'user' && onUserSpeech) {
@@ -267,7 +274,7 @@ export function useElevenLabsConversation({
               }
               
               // Always call the general onMessage callback
-              onMessage({ role, content });
+              onMessage({ role, content, isFinal });
             } else {
               console.warn('[ElevenLabs] Message payload has no content:', payload);
             }

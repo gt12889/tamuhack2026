@@ -47,13 +47,15 @@ export function LiveDemo({
   const [handoffLinkCopied, setHandoffLinkCopied] = useState(false);
 
   const handleTranscript = useCallback((role: 'agent' | 'user', text: string, isFinal: boolean) => {
-    setCurrentSpeaker(role);
-
     setMessages((prev) => {
-      // Find existing non-final message from same role
-      const lastIndex = prev.findIndex(
-        (m) => m.role === role && !m.isFinal
-      );
+      // Find existing non-final message from same role (most recent)
+      let lastIndex = -1;
+      for (let i = prev.length - 1; i >= 0; i -= 1) {
+        if (prev[i].role === role && !prev[i].isFinal) {
+          lastIndex = i;
+          break;
+        }
+      }
 
       if (lastIndex !== -1) {
         // Update existing message
@@ -78,10 +80,6 @@ export function LiveDemo({
         ];
       }
     });
-
-    if (isFinal) {
-      setCurrentSpeaker(null);
-    }
   }, []);
 
   const handleCallStart = useCallback(() => {
@@ -161,9 +159,13 @@ export function LiveDemo({
   }, [handoffId, getAgentUrl]);
 
   // Handle ElevenLabs message callback
-  const handleMessage = useCallback((message: { role: 'agent' | 'user'; content: string }) => {
-    handleTranscript(message.role, message.content, true);
+  const handleMessage = useCallback((message: { role: 'agent' | 'user'; content: string; isFinal?: boolean }) => {
+    handleTranscript(message.role, message.content, message.isFinal ?? true);
   }, [handleTranscript]);
+
+  const handleModeChange = useCallback((mode: { mode: 'speaking' | 'listening' }) => {
+    setCurrentSpeaker(mode.mode === 'speaking' ? 'agent' : 'user');
+  }, []);
 
   const {
     isConfigured,
@@ -189,6 +191,7 @@ export function LiveDemo({
     },
     onModeChange: (mode) => {
       console.log('[LiveDemo] Mode changed:', mode);
+      handleModeChange(mode);
       if (mode.mode === 'listening') {
         setCurrentSpeaker('user');
       } else if (mode.mode === 'speaking') {

@@ -9,6 +9,7 @@ import { CallToAction } from './CallToAction';
 import { HowItWorks } from './HowItWorks';
 import { FeatureList } from './FeatureList';
 import { FamilyHelp } from './FamilyHelp';
+import { DomeGallery } from '@/components/ui/dome-gallery';
 
 interface LandingPageProps {
   phoneNumber?: string;
@@ -75,6 +76,8 @@ export function LandingPage({
             </motion.div>
           </motion.div>
         </motion.section>
+
+        <DomeGallery />
 
         {/* How It Works Section */}
         <section className="px-4 bg-white">
