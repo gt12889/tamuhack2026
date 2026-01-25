@@ -46,7 +46,7 @@ const DEMO_RESERVATION: Reservation = {
 
 export default function TravelDashboard() {
   const params = useLocalSearchParams();
-  const linkId = params.linkId as string;
+  const code = params.code as string;
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [reservation, setReservation] = useState<Reservation | null>(null);
@@ -58,7 +58,7 @@ export default function TravelDashboard() {
 
   const fetchSession = useCallback(async () => {
     try {
-      const data = await getHelperSession(linkId);
+      const data = await getHelperSession(code);
       setMessages(data.messages as Message[]);
       setReservation(data.reservation);
       // Auto-disable demo mode when real data arrives
@@ -71,7 +71,7 @@ export default function TravelDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [linkId]);
+  }, [code]);
 
   useEffect(() => {
     fetchSession();
@@ -87,7 +87,7 @@ export default function TravelDashboard() {
 
     setSending(true);
     try {
-      await sendHelperSuggestion(linkId, suggestion);
+      await sendHelperSuggestion(code, suggestion);
       setSuggestion('');
       await fetchSession();
     } catch (err) {
@@ -97,15 +97,15 @@ export default function TravelDashboard() {
     }
   };
 
-   if ( loading){
+   if ( loading && reservation != null){
       return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.header}>Travel Dashboard</Text>
 
-        <PassengerCard reservation={DEMO_RESERVATION} />
+        <PassengerCard reservation={reservation} />
             
-        {DEMO_RESERVATION.flights.map((flight:any) => (
+        {reservation?.flights.map((flight:any) => (
             <FlightStatusCard key={flight.id} flight={flight} />
         ))}
             

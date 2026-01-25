@@ -10,12 +10,13 @@ import type {
   RetellStatus,
 } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://cost-wizard-traveller-concerning.trycloudflare.com/api/';
 
 const api = axios.create({
   baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
+    
   },
 });
 

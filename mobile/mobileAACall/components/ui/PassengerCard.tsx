@@ -8,7 +8,8 @@ interface HelperDashboardProps {
   reservation: Reservation;
 }
 
-export default function PassengerCard({reservation}:HelperDashboardProps) {
+export default function PassengerCard({reservation}:HelperDashboardProps ) {
+
   return (
     <View style={styles.card}>
       <Text style={styles.title}>{reservation.passenger.first_name} {reservation.passenger.last_name}</Text>
