@@ -115,3 +115,130 @@ export interface RetellStatus {
   service: string;
   default_agent_id?: string;
 }
+
+// Family Helper Action Types
+export type FamilyActionType =
+  | 'change_flight'
+  | 'cancel_flight'
+  | 'select_seat'
+  | 'add_bags'
+  | 'request_wheelchair';
+
+export interface FamilyAction {
+  id: string;
+  action_type: FamilyActionType;
+  display_name: string;
+  action_data: Record<string, unknown>;
+  status: 'executed' | 'failed';
+  family_notes: string;
+  result_message: string;
+  created_at: string;
+}
+
+export interface AvailableAction {
+  action_type: FamilyActionType;
+  display_name: string;
+  description: string;
+  icon: string;
+  enabled: boolean;
+}
+
+export interface HelperSessionResponse {
+  session: Session;
+  reservation: Reservation | null;
+  messages: Message[];
+  available_actions: AvailableAction[];
+  action_history: FamilyAction[];
+  helper_link_mode: 'session' | 'persistent';
+  helper_link_expires_at: string;
+}
+
+export interface FlightOption {
+  id: string;
+  flight_number: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  arrival_time: string;
+  duration?: string;
+  gate?: string;
+  status?: string;
+}
+
+export interface SeatInfo {
+  id: string;
+  row: number;
+  column: string;
+  type: 'window' | 'aisle' | 'middle';
+  available: boolean;
+  is_current: boolean;
+  is_exit_row: boolean;
+  is_extra_legroom: boolean;
+  price_difference: number;
+}
+
+export interface SeatMapResponse {
+  flight_number: string;
+  current_seat: string | null;
+  seats: SeatInfo[];
+  cabin_config: string;
+  total_rows: number;
+}
+
+export interface ActionResult {
+  success: boolean;
+  action_id?: string;
+  message?: string;
+  error?: string;
+}
+
+// Location Tracking Types
+
+export type AlertStatus = 'safe' | 'warning' | 'urgent' | 'arrived';
+
+export interface LocationData {
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
+  timestamp: string;
+}
+
+export interface GateLocation {
+  lat: number;
+  lng: number;
+  gate: string;
+  terminal: string;
+  approximate?: boolean;
+}
+
+export interface LocationMetrics {
+  distance_meters: number | null;
+  walking_time_minutes: number | null;
+  time_to_departure_minutes: number | null;
+  alert_status: AlertStatus | null;
+}
+
+export interface LocationAlert {
+  id: string;
+  type: string;
+  message: string;
+  created_at: string;
+}
+
+export interface HelperLocationResponse {
+  passenger_location: LocationData | null;
+  gate_location: GateLocation | null;
+  metrics: LocationMetrics | null;
+  directions: string;
+  message: string;
+  alert: LocationAlert | null;
+}
+
+export interface LocationUpdateResponse {
+  stored: boolean;
+  location_id: string | null;
+  metrics: LocationMetrics | null;
+  alert_status: AlertStatus | null;
+  directions: string;
+  alert_triggered: boolean;
+}
