@@ -15,6 +15,10 @@ import type {
   HelperLocationResponse,
   LocationUpdateResponse,
   IROPStatus,
+  HandoffDossier,
+  CreateHandoffRequest,
+  CreateHandoffResponse,
+  HandoffStatus,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -395,6 +399,78 @@ export async function helperAcknowledgeDisruption(
     disruption_id: disruptionId,
     notes: notes || '',
   });
+  return response.data;
+}
+
+// Agent Handoff API
+export async function createHandoff(
+  request: CreateHandoffRequest
+): Promise<CreateHandoffResponse> {
+  const response = await api.post('/api/handoff/create', request);
+  return response.data;
+}
+
+export async function getHandoff(handoffId: string): Promise<HandoffDossier> {
+  const response = await api.get(`/api/handoff/${handoffId}`);
+  return response.data;
+}
+
+export async function getActiveHandoffs(): Promise<{
+  handoffs: HandoffDossier[];
+  total_pending: number;
+}> {
+  const response = await api.get('/api/handoff/active');
+  return response.data;
+}
+
+export async function agentJoinHandoff(handoffId: string): Promise<{
+  success: boolean;
+  handoff: HandoffDossier;
+}> {
+  const response = await api.post(`/api/handoff/${handoffId}/join`);
+  return response.data;
+}
+
+export async function agentSendMessage(
+  handoffId: string,
+  message: string,
+  isInternalNote: boolean = false
+): Promise<{
+  success: boolean;
+  message_id: string;
+}> {
+  const response = await api.post(`/api/handoff/${handoffId}/message`, {
+    message,
+    is_internal_note: isInternalNote,
+  });
+  return response.data;
+}
+
+export async function updateHandoffStatus(
+  handoffId: string,
+  status: HandoffStatus,
+  resolutionNotes?: string
+): Promise<{
+  success: boolean;
+  handoff: HandoffDossier;
+}> {
+  const response = await api.post(`/api/handoff/${handoffId}/status`, {
+    status,
+    resolution_notes: resolutionNotes,
+  });
+  return response.data;
+}
+
+export async function getHandoffMessages(handoffId: string): Promise<{
+  messages: Array<{
+    id: string;
+    role: 'user' | 'ai' | 'agent';
+    content: string;
+    timestamp: string;
+    is_internal_note?: boolean;
+  }>;
+}> {
+  const response = await api.get(`/api/handoff/${handoffId}/messages`);
   return response.data;
 }
 

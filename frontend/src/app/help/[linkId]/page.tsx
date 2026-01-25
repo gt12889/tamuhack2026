@@ -29,7 +29,7 @@ function generateDFWDemoLocation(progress: number, departureTime: Date): HelperL
   const { current, next, segmentProgress } = getWaypointByProgress(clampedProgress);
   const position = interpolatePosition(current, next, segmentProgress);
 
-  // Calculate distance to gate
+  // Calculate distance to gate (for display)
   const distanceMeters = calculateDistance(
     position.lat,
     position.lng,
@@ -37,8 +37,11 @@ function generateDFWDemoLocation(progress: number, departureTime: Date): HelperL
     DFW_GATE_LOCATION.lng
   );
 
-  // Estimate walking time (elderly pace ~50m/min)
-  const walkingTimeMinutes = Math.ceil(distanceMeters / 50);
+  // For demo: use progress-based walking time (total journey is ~10 mins for demo purposes)
+  // This gives more realistic times instead of raw distance calculation
+  const TOTAL_JOURNEY_MINUTES = 10;
+  const remainingProgress = 1 - clampedProgress;
+  const walkingTimeMinutes = Math.max(0, Math.ceil(remainingProgress * TOTAL_JOURNEY_MINUTES));
 
   // Time to departure
   const timeToDepartureMinutes = Math.max(0, Math.floor((departureTime.getTime() - Date.now()) / 60000));

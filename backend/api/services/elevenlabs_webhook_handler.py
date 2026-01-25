@@ -54,6 +54,7 @@ class ElevenLabsWebhookHandler:
             'create_booking': self._fn_create_booking,
             'get_flight_options': self._fn_get_flight_options,
             'get_reservation_status': self._fn_get_reservation_status,
+            'get_directions': self._fn_get_directions,
         }
 
         handler = function_handlers.get(tool_name)
@@ -432,6 +433,124 @@ class ElevenLabsWebhookHandler:
 
         return result
 
+    def _fn_get_directions(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get directions to nearby airport amenities (restrooms, food, water, etc.)
+
+        Args:
+            destination_type: Type of place (restroom, food, water, charging, medical, info)
+            current_location: Optional current location description (e.g., "Gate B20", "security")
+            terminal: Optional terminal (A, B, C, D, E)
+
+        Returns:
+            Directions to the nearest matching amenity
+        """
+        destination_type = args.get('destination_type', '').lower().strip()
+        current_location = args.get('current_location', '').lower().strip()
+        terminal = args.get('terminal', '').upper().strip()
+
+        # DFW Airport POI data
+        pois = {
+            'restroom': [
+                {'name': 'Restroom near Gate A12', 'terminal': 'A', 'near_gate': 'A12', 'landmark': 'just past security on the right'},
+                {'name': 'Restroom near Gate A25', 'terminal': 'A', 'near_gate': 'A25', 'landmark': 'by Starbucks'},
+                {'name': 'Restroom near Skylink B', 'terminal': 'B', 'near_gate': 'B15', 'landmark': 'at the bottom of Skylink escalators'},
+                {'name': 'Restroom near Gate B20', 'terminal': 'B', 'near_gate': 'B20', 'landmark': 'between Gates B19 and B21'},
+                {'name': 'Restroom near Gate B22', 'terminal': 'B', 'near_gate': 'B22', 'landmark': 'just past the gate on your left'},
+            ],
+            'food': [
+                {'name': 'Starbucks', 'terminal': 'A', 'near_gate': 'A22', 'landmark': 'coffee and snacks', 'hours': '5 AM to 9 PM'},
+                {'name': "McDonald's", 'terminal': 'A', 'near_gate': 'A15', 'landmark': 'fast food', 'hours': '6 AM to 10 PM'},
+                {'name': 'Whataburger', 'terminal': 'B', 'near_gate': 'B17', 'landmark': 'Texas-style burgers', 'hours': '6 AM to 10 PM'},
+                {'name': 'Starbucks', 'terminal': 'B', 'near_gate': 'B21', 'landmark': 'coffee and snacks near Gate B21', 'hours': '5 AM to 9 PM'},
+            ],
+            'water': [
+                {'name': 'Water Fountain', 'terminal': 'A', 'near_gate': 'A10', 'landmark': 'bottle refill station post-security'},
+                {'name': 'Water Fountain', 'terminal': 'B', 'near_gate': 'B20', 'landmark': 'near the restrooms'},
+            ],
+            'charging': [
+                {'name': 'Charging Station', 'terminal': 'A', 'near_gate': 'A26', 'landmark': 'free USB and outlets'},
+                {'name': 'Charging Station', 'terminal': 'B', 'near_gate': 'B22', 'landmark': 'at the gate seating area'},
+            ],
+            'medical': [
+                {'name': 'First Aid Station', 'terminal': 'A', 'near_gate': 'A8', 'landmark': 'staffed 24/7'},
+            ],
+            'info': [
+                {'name': 'Information Desk', 'terminal': 'A', 'near_gate': 'A10', 'landmark': 'airport assistance'},
+                {'name': 'Information Desk', 'terminal': 'B', 'near_gate': 'B15', 'landmark': 'near Skylink exit'},
+            ],
+        }
+
+        # Normalize destination type
+        type_aliases = {
+            'bathroom': 'restroom',
+            'toilet': 'restroom',
+            'restrooms': 'restroom',
+            'restaurant': 'food',
+            'eat': 'food',
+            'coffee': 'food',
+            'drink': 'water',
+            'water fountain': 'water',
+            'charge': 'charging',
+            'charger': 'charging',
+            'phone charger': 'charging',
+            'help': 'info',
+            'information': 'info',
+            'first aid': 'medical',
+            'nurse': 'medical',
+            'doctor': 'medical',
+        }
+
+        normalized_type = type_aliases.get(destination_type, destination_type)
+
+        if normalized_type not in pois:
+            return {
+                'success': False,
+                'error': f"I can help you find restrooms, food, water fountains, charging stations, medical assistance, or information desks. What are you looking for?",
+                'available_types': list(pois.keys()),
+            }
+
+        options = pois[normalized_type]
+
+        # Filter by terminal if specified
+        if terminal:
+            options = [p for p in options if p['terminal'] == terminal]
+
+        if not options:
+            return {
+                'success': False,
+                'error': f"I couldn't find a {normalized_type} in Terminal {terminal}. Let me check other terminals.",
+            }
+
+        # Pick the most relevant option based on current location
+        selected = options[0]
+
+        # If user mentioned a gate, try to find nearest
+        if current_location:
+            for opt in options:
+                if opt.get('near_gate', '').lower() in current_location:
+                    selected = opt
+                    break
+                if opt['terminal'].lower() in current_location:
+                    selected = opt
+
+        # Build directions
+        directions = f"The nearest {normalized_type} is {selected['name']} in Terminal {selected['terminal']}, near Gate {selected['near_gate']}. "
+        directions += f"Look for it {selected['landmark']}."
+
+        if selected.get('hours'):
+            directions += f" It's open from {selected['hours']}."
+
+        return {
+            'success': True,
+            'destination_type': normalized_type,
+            'name': selected['name'],
+            'terminal': selected['terminal'],
+            'near_gate': selected['near_gate'],
+            'directions': directions,
+            'landmark': selected['landmark'],
+        }
+
 
 # Singleton instance
 elevenlabs_webhook_handler = ElevenLabsWebhookHandler()
@@ -547,6 +666,28 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
                 }
             },
             "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "get_directions",
+        "description": "Get directions to nearby airport amenities like restrooms, food, water fountains, charging stations, medical assistance, or information desks. Use this when the passenger asks where to find something in the airport.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "destination_type": {
+                    "type": "string",
+                    "description": "Type of place to find: 'restroom', 'food', 'water', 'charging', 'medical', or 'info'"
+                },
+                "current_location": {
+                    "type": "string",
+                    "description": "The passenger's current location if known (e.g., 'Gate B20', 'security', 'Terminal A')"
+                },
+                "terminal": {
+                    "type": "string",
+                    "description": "The terminal to search in (A, B, C, D, or E)"
+                }
+            },
+            "required": ["destination_type"]
         }
     }
 ]

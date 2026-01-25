@@ -3,8 +3,17 @@
 import { useRef, useEffect, useState } from 'react';
 import Map, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
 import type { MapRef } from 'react-map-gl/mapbox';
-import type { LocationData, GateLocation, LocationMetrics, LocationAlert, AlertStatus } from '@/types';
+import type { LocationData, GateLocation, LocationMetrics, LocationAlert, AlertStatus, DFWWaypoint } from '@/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+interface POIMarker {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  type: 'waypoint' | 'security' | 'restroom' | 'food' | 'info' | 'skylink';
+  isActive?: boolean;
+}
 
 interface MapboxLocationMapProps {
   passengerLocation: LocationData | null;
@@ -15,6 +24,9 @@ interface MapboxLocationMapProps {
   alert: LocationAlert | null;
   onRefresh?: () => void;
   loading?: boolean;
+  waypoints?: DFWWaypoint[];
+  currentWaypointId?: string;
+  showPOIs?: boolean;
 }
 
 // Alert status colors
@@ -25,6 +37,16 @@ const ALERT_COLORS: Record<AlertStatus, string> = {
   arrived: '#3b82f6',   // blue
 };
 
+// Waypoint type to icon/color mapping
+const WAYPOINT_STYLES: Record<string, { color: string; icon: string }> = {
+  security: { color: '#f59e0b', icon: '🛡️' },
+  skylink: { color: '#8b5cf6', icon: '🚆' },
+  restroom: { color: '#06b6d4', icon: '🚻' },
+  food: { color: '#f97316', icon: '🍔' },
+  info: { color: '#3b82f6', icon: 'ℹ️' },
+  waypoint: { color: '#9ca3af', icon: '📍' },
+};
+
 export function MapboxLocationMap({
   passengerLocation,
   gateLocation,
@@ -33,6 +55,9 @@ export function MapboxLocationMap({
   alert,
   onRefresh,
   loading,
+  waypoints,
+  currentWaypointId,
+  showPOIs = false,
 }: MapboxLocationMapProps) {
   const mapRef = useRef<MapRef>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -196,6 +221,57 @@ export function MapboxLocationMap({
               </div>
             </Marker>
           )}
+
+          {/* Journey Waypoints (key landmarks) */}
+          {waypoints && waypoints
+            .filter(wp =>
+              wp.id === 'security' ||
+              wp.id === 'skylink_a' ||
+              wp.id === 'skylink_b' ||
+              wp.id === currentWaypointId
+            )
+            .map(wp => {
+              const isActive = wp.id === currentWaypointId;
+              const wpType = wp.id.includes('security') ? 'security'
+                : wp.id.includes('skylink') ? 'skylink'
+                : 'waypoint';
+              const style = WAYPOINT_STYLES[wpType];
+
+              return (
+                <Marker
+                  key={wp.id}
+                  longitude={wp.lng}
+                  latitude={wp.lat}
+                  anchor="center"
+                >
+                  <div className="relative flex flex-col items-center">
+                    {isActive && (
+                      <div
+                        className="absolute inset-0 w-8 h-8 -m-2 rounded-full animate-ping opacity-40"
+                        style={{ backgroundColor: style.color }}
+                      />
+                    )}
+                    <div
+                      className={`w-6 h-6 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-xs ${isActive ? 'ring-2 ring-offset-1' : ''}`}
+                      style={{
+                        backgroundColor: style.color,
+                        ringColor: style.color,
+                      }}
+                    >
+                      {style.icon}
+                    </div>
+                    {isActive && (
+                      <div
+                        className="mt-1 px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap"
+                        style={{ backgroundColor: style.color }}
+                      >
+                        {wp.name}
+                      </div>
+                    )}
+                  </div>
+                </Marker>
+              );
+            })}
         </Map>
       </div>
 

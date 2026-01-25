@@ -223,6 +223,242 @@ export const DFW_DEMO_RESERVATION = {
   created_at: new Date().toISOString(),
 };
 
+// Points of Interest at DFW Airport (bathrooms, food, services)
+export interface DFWPointOfInterest {
+  id: string;
+  name: string;
+  type: 'restroom' | 'food' | 'water' | 'charging' | 'medical' | 'info' | 'lounge';
+  lat: number;
+  lng: number;
+  terminal: string;
+  nearGate?: string;
+  description: string;
+  hours?: string;
+}
+
+export const DFW_POINTS_OF_INTEREST: DFWPointOfInterest[] = [
+  // Terminal A - Restrooms
+  {
+    id: 'restroom-a-security',
+    name: 'Restroom (Post-Security)',
+    type: 'restroom',
+    lat: 32.8990,
+    lng: -97.0465,
+    terminal: 'A',
+    nearGate: 'A12',
+    description: 'Restroom located just past security checkpoint on the right.',
+  },
+  {
+    id: 'restroom-a-south',
+    name: 'Restroom (A Concourse South)',
+    type: 'restroom',
+    lat: 32.8970,
+    lng: -97.0452,
+    terminal: 'A',
+    nearGate: 'A25',
+    description: 'Restroom near Gate A25, by Starbucks.',
+  },
+  // Terminal B - Restrooms
+  {
+    id: 'restroom-b-skylink',
+    name: 'Restroom (Near Skylink)',
+    type: 'restroom',
+    lat: 32.8910,
+    lng: -97.0418,
+    terminal: 'B',
+    nearGate: 'B15',
+    description: 'Restroom at the bottom of Skylink escalators.',
+  },
+  {
+    id: 'restroom-b-gate20',
+    name: 'Restroom (Gate B20 Area)',
+    type: 'restroom',
+    lat: 32.8893,
+    lng: -97.0403,
+    terminal: 'B',
+    nearGate: 'B20',
+    description: 'Restroom between Gates B19 and B21.',
+  },
+  // Terminal A - Food
+  {
+    id: 'food-starbucks-a',
+    name: 'Starbucks',
+    type: 'food',
+    lat: 32.8973,
+    lng: -97.0454,
+    terminal: 'A',
+    nearGate: 'A22',
+    description: 'Coffee and light snacks. Near Gate A22.',
+    hours: '5:00 AM - 9:00 PM',
+  },
+  {
+    id: 'food-mcdonalds-a',
+    name: "McDonald's",
+    type: 'food',
+    lat: 32.8985,
+    lng: -97.0460,
+    terminal: 'A',
+    nearGate: 'A15',
+    description: 'Fast food. Near Gate A15.',
+    hours: '6:00 AM - 10:00 PM',
+  },
+  // Terminal B - Food
+  {
+    id: 'food-whataburger-b',
+    name: 'Whataburger',
+    type: 'food',
+    lat: 32.8900,
+    lng: -97.0410,
+    terminal: 'B',
+    nearGate: 'B17',
+    description: 'Texas-style burgers. Near Gate B17.',
+    hours: '6:00 AM - 10:00 PM',
+  },
+  {
+    id: 'food-starbucks-b',
+    name: 'Starbucks',
+    type: 'food',
+    lat: 32.8890,
+    lng: -97.0400,
+    terminal: 'B',
+    nearGate: 'B21',
+    description: 'Coffee and light snacks. Near Gate B21.',
+    hours: '5:00 AM - 9:00 PM',
+  },
+  // Water Fountains
+  {
+    id: 'water-a-security',
+    name: 'Water Fountain',
+    type: 'water',
+    lat: 32.8992,
+    lng: -97.0467,
+    terminal: 'A',
+    nearGate: 'A10',
+    description: 'Water fountain and bottle refill station post-security.',
+  },
+  {
+    id: 'water-b-gate20',
+    name: 'Water Fountain',
+    type: 'water',
+    lat: 32.8894,
+    lng: -97.0404,
+    terminal: 'B',
+    nearGate: 'B20',
+    description: 'Water fountain near Gate B20 restrooms.',
+  },
+  // Charging Stations
+  {
+    id: 'charging-a-south',
+    name: 'Charging Station',
+    type: 'charging',
+    lat: 32.8968,
+    lng: -97.0450,
+    terminal: 'A',
+    nearGate: 'A26',
+    description: 'Free device charging station with USB and outlets.',
+  },
+  {
+    id: 'charging-b-gate22',
+    name: 'Charging Station',
+    type: 'charging',
+    lat: 32.8884,
+    lng: -97.0394,
+    terminal: 'B',
+    nearGate: 'B22',
+    description: 'Charging stations at Gate B22 seating area.',
+  },
+  // Medical / First Aid
+  {
+    id: 'medical-a',
+    name: 'First Aid Station',
+    type: 'medical',
+    lat: 32.8995,
+    lng: -97.0470,
+    terminal: 'A',
+    nearGate: 'A8',
+    description: 'Medical assistance and first aid. Staffed 24/7.',
+  },
+  // Information Desks
+  {
+    id: 'info-a-security',
+    name: 'Information Desk',
+    type: 'info',
+    lat: 32.8988,
+    lng: -97.0462,
+    terminal: 'A',
+    nearGate: 'A10',
+    description: 'Airport information and assistance desk.',
+  },
+  {
+    id: 'info-b-skylink',
+    name: 'Information Desk',
+    type: 'info',
+    lat: 32.8912,
+    lng: -97.0419,
+    terminal: 'B',
+    nearGate: 'B15',
+    description: 'Airport information desk near Skylink exit.',
+  },
+];
+
+// Get nearby POIs from a location
+export function getNearbyPOIs(
+  lat: number,
+  lng: number,
+  type?: DFWPointOfInterest['type'],
+  maxDistance: number = 500 // meters
+): Array<DFWPointOfInterest & { distance: number }> {
+  return DFW_POINTS_OF_INTEREST
+    .filter(poi => !type || poi.type === type)
+    .map(poi => ({
+      ...poi,
+      distance: calculateDistance(lat, lng, poi.lat, poi.lng),
+    }))
+    .filter(poi => poi.distance <= maxDistance)
+    .sort((a, b) => a.distance - b.distance);
+}
+
+// Get directions to nearest POI of a type
+export function getDirectionsToPOI(
+  currentLat: number,
+  currentLng: number,
+  poiType: DFWPointOfInterest['type']
+): { poi: DFWPointOfInterest; distance: number; directions: string } | null {
+  const nearby = getNearbyPOIs(currentLat, currentLng, poiType, 1000);
+  if (nearby.length === 0) return null;
+
+  const nearest = nearby[0];
+  const distanceMeters = Math.round(nearest.distance);
+  const walkingTime = Math.ceil(distanceMeters / 80); // ~80m/min normal pace
+
+  // Determine relative direction
+  const latDiff = nearest.lat - currentLat;
+  const lngDiff = nearest.lng - currentLng;
+  let direction = '';
+
+  if (Math.abs(latDiff) > Math.abs(lngDiff)) {
+    direction = latDiff > 0 ? 'ahead' : 'behind you';
+  } else {
+    direction = lngDiff > 0 ? 'on your right' : 'on your left';
+  }
+
+  const typeNames: Record<string, string> = {
+    restroom: 'restroom',
+    food: 'food option',
+    water: 'water fountain',
+    charging: 'charging station',
+    medical: 'first aid station',
+    info: 'information desk',
+    lounge: 'lounge',
+  };
+
+  return {
+    poi: nearest,
+    distance: distanceMeters,
+    directions: `The nearest ${typeNames[nearest.type]} is ${nearest.name}, about ${distanceMeters} meters ${direction}. ${nearest.description} It's approximately a ${walkingTime} minute walk.`,
+  };
+}
+
 // Calculate distance between two coordinates (Haversine formula)
 export function calculateDistance(
   lat1: number,

@@ -335,3 +335,98 @@ export interface IROPStatus {
   auto_rebooking_available: boolean;
   requires_action: boolean;
 }
+
+// Agent Handoff Types
+export type HandoffStatus = 'pending' | 'agent_joined' | 'in_progress' | 'resolved' | 'abandoned';
+export type SentimentScore = 'calm' | 'neutral' | 'frustrated' | 'urgent' | 'angry';
+export type HandoffReason =
+  | 'customer_request'
+  | 'complex_issue'
+  | 'frustration_detected'
+  | 'authorization_required'
+  | 'technical_issue'
+  | 'policy_exception';
+
+export interface HandoffTranscriptMessage {
+  id: string;
+  role: 'user' | 'ai' | 'agent';
+  content: string;
+  timestamp: string;
+}
+
+export interface HandoffMetadata {
+  confirmation_code?: string;
+  flight_number?: string;
+  flight_id?: string;
+  passenger_name?: string;
+  passenger_email?: string;
+  passenger_phone?: string;
+  aadvantage_number?: string;
+  issue_type?: string;
+  [key: string]: unknown;
+}
+
+export interface HandoffDossier {
+  handoff_id: string;
+  session_id: string;
+  status: HandoffStatus;
+  priority: 'normal' | 'high' | 'urgent';
+
+  // Conversation Summary
+  conversation_summary: string;
+  ai_actions_taken: string[];
+
+  // Sentiment
+  sentiment_score: SentimentScore;
+  sentiment_reason?: string;
+
+  // Structured Metadata
+  metadata: HandoffMetadata;
+  reservation?: Reservation;
+
+  // Full Transcript
+  transcript: HandoffTranscriptMessage[];
+
+  // Handoff Details
+  handoff_reason: HandoffReason;
+  handoff_reason_detail?: string;
+
+  // Agent Assist
+  suggested_first_response?: string;
+  suggested_actions?: string[];
+
+  // Timestamps
+  created_at: string;
+  agent_joined_at?: string;
+  resolved_at?: string;
+
+  // Customer bridge message (what AI told customer)
+  bridge_message?: string;
+}
+
+export interface CreateHandoffRequest {
+  session_id: string;
+  reason: HandoffReason;
+  reason_detail?: string;
+  transcript: HandoffTranscriptMessage[];
+  metadata?: HandoffMetadata;
+}
+
+export interface CreateHandoffResponse {
+  handoff_id: string;
+  agent_url: string;
+  bridge_message: string;
+  status: HandoffStatus;
+}
+
+export interface AgentMessage {
+  handoff_id: string;
+  message: string;
+  is_internal_note?: boolean;
+}
+
+export interface HandoffUpdate {
+  handoff_id: string;
+  status?: HandoffStatus;
+  resolution_notes?: string;
+}

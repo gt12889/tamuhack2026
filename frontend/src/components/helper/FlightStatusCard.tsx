@@ -149,7 +149,7 @@ export function FlightStatusCard({ flight }: FlightStatusCardProps) {
         </div>
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border}`}>
           {statusConfig.icon}
-          {flight.status.charAt(0).toUpperCase() + flight.status.slice(1)}
+          {(flight.status || 'scheduled').charAt(0).toUpperCase() + (flight.status || 'scheduled').slice(1)}
         </span>
       </div>
 

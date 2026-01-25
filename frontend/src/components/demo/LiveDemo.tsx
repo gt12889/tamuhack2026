@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Monitor, Phone, Users, Copy, Check, ExternalLink, PlayCircle } from 'lucide-react';
+import { Monitor, Phone, Users, Copy, Check, ExternalLink, PlayCircle, Headphones, AlertTriangle } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CallToAction } from '@/components/landing/CallToAction';
@@ -12,6 +12,7 @@ import { useElevenLabsConversation } from '@/hooks/useElevenLabsConversation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { startConversation, createHelperLink } from '@/lib/api';
+import { generateDemoHandoffId, getOrCreateDemoHandoff } from '@/lib/handoffDemoData';
 
 interface TranscriptMessage {
   id: string;
@@ -44,6 +45,11 @@ export function LiveDemo({
 
   // Sample workflow demo state
   const [showSampleDemo, setShowSampleDemo] = useState(false);
+
+  // Agent handoff state
+  const [handoffId, setHandoffId] = useState<string | null>(null);
+  const [isCreatingHandoff, setIsCreatingHandoff] = useState(false);
+  const [handoffLinkCopied, setHandoffLinkCopied] = useState(false);
 
   const handleTranscript = useCallback((role: 'agent' | 'user', text: string, isFinal: boolean) => {
     setCurrentSpeaker(role);
@@ -128,6 +134,36 @@ export function LiveDemo({
       setTimeout(() => setLinkCopied(false), 2000);
     }
   }, [helperLink, getHelperUrl]);
+
+  // Create agent handoff
+  const handleCreateHandoff = useCallback(() => {
+    setIsCreatingHandoff(true);
+    try {
+      const newHandoffId = generateDemoHandoffId();
+      // Pre-populate the demo handoff data
+      getOrCreateDemoHandoff(newHandoffId);
+      setHandoffId(newHandoffId);
+    } catch (err) {
+      console.error('Failed to create handoff:', err);
+    } finally {
+      setIsCreatingHandoff(false);
+    }
+  }, []);
+
+  // Get full agent handoff URL
+  const getAgentUrl = useCallback(() => {
+    if (!handoffId) return '';
+    return `${window.location.origin}/agent/${handoffId}`;
+  }, [handoffId]);
+
+  // Copy agent handoff link
+  const handleCopyAgentLink = useCallback(() => {
+    if (handoffId) {
+      navigator.clipboard.writeText(getAgentUrl());
+      setHandoffLinkCopied(true);
+      setTimeout(() => setHandoffLinkCopied(false), 2000);
+    }
+  }, [handoffId, getAgentUrl]);
 
   // Handle ElevenLabs message callback
   const handleMessage = useCallback((message: { role: 'agent' | 'user'; content: string }) => {
@@ -335,6 +371,81 @@ export function LiveDemo({
               <p className="text-xs opacity-75 mt-2">
                 Link expires at {new Date(helperLinkExpiry).toLocaleTimeString()}
               </p>
+            )}
+          </motion.div>
+          )}
+
+          {/* Agent Handoff Panel - Only in Live Mode */}
+          {!showSampleDemo && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-4 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl p-4"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 rounded-full p-2">
+                  <Headphones className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold flex items-center gap-2">
+                    Agent Handoff Demo
+                    <span className="bg-yellow-400 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-semibold">
+                      NEW
+                    </span>
+                  </h3>
+                  <p className="text-sm opacity-90">Simulate escalation to human agent with full context</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {!handoffId ? (
+                  <Button
+                    onClick={handleCreateHandoff}
+                    disabled={isCreatingHandoff}
+                    className="bg-white text-orange-700 hover:bg-gray-100"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    {isCreatingHandoff ? 'Creating...' : 'Simulate Handoff'}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="bg-white/10 rounded-lg px-3 py-2 text-sm font-mono max-w-xs truncate">
+                      {getAgentUrl()}
+                    </div>
+                    <Button
+                      onClick={handleCopyAgentLink}
+                      size="icon"
+                      className="bg-white/20 hover:bg-white/30"
+                      title="Copy agent link"
+                    >
+                      {handoffLinkCopied ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => window.open(getAgentUrl(), '_blank')}
+                      size="icon"
+                      className="bg-white/20 hover:bg-white/30"
+                      title="Open agent console"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {handoffId && (
+              <div className="mt-3 bg-white/10 rounded-lg p-3">
+                <p className="text-sm">
+                  <strong>Demo Scenario:</strong> Customer Margaret needs emergency flight change with fee waiver.
+                  Agent console shows full context, sentiment analysis, and suggested response.
+                </p>
+              </div>
             )}
           </motion.div>
           )}
