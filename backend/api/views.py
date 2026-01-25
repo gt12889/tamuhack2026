@@ -112,26 +112,22 @@ def start_conversation(request):
         'audio_url': audio_url,
     })
 
-
-
-import re
-
-def verify_identity(session, transcript, target_intent):
+def verify_identity(session, transcript, target_intent, entities=None):
     """
-    Verifies identity based on the security level required by the intent.
+    Verifies identity using Gemini service extraction capabilities.
     
     Args:
         session: The current session object
         transcript: The user's spoken text
-        target_intent: What the user is trying to do ('change_flight' or 'confirm_booking')
-    
-    Returns:
-        (bool, str): (Success status, Reply message)
+        target_intent: 'change_flight' or 'confirm_booking'
+        entities: Dict of entities extracted by Gemini (optional)
     """
+    if entities is None:
+        entities = {}
+        
     transcript_lower = transcript.strip().lower()
     
     # CASE 1: Changing a Flight (High Security: Name + Code)
-    # We verify against the CURRENT loaded reservation
     if target_intent == 'change_flight':
         if not session.reservation or not session.reservation.passenger:
              return False, "I can't verify you because I don't have a reservation loaded. Please provide your confirmation code first."
@@ -141,45 +137,59 @@ def verify_identity(session, transcript, target_intent):
         truth_last = passenger.last_name.lower()
         truth_code = session.reservation.confirmation_code.lower()
 
-        # Extract Confirmation Code (6 chars)
-        code_match = re.search(r'\b[a-zA-Z0-9]{6}\b', transcript_lower)
-        input_code = code_match.group(0) if code_match else ""
+        # 1. Extract Code (Use GeminiService's robust method)
+        # This handles "D as in Delta", "D-E-M-O", etc.
+        input_code = gemini_service.extract_confirmation_code(transcript)
+        
+        # Fallback: Check if Gemini extracted it as an entity
+        if not input_code and entities.get('confirmation_code'):
+            input_code = entities.get('confirmation_code')
 
-        # Check credentials
-        has_first = truth_first in transcript_lower
-        has_last = truth_last in transcript_lower
-        has_code = input_code == truth_code
+        # 2. Extract Names (Prioritize Gemini Entities, Fallback to Substring)
+        input_first = entities.get('first_name', '').lower()
+        input_last = entities.get('last_name', '').lower()
+
+        # Check First Name
+        has_first = (input_first == truth_first) or (truth_first in transcript_lower)
+        
+        # Check Last Name
+        has_last = (input_last == truth_last) or (truth_last in transcript_lower)
+
+        # Check Code
+        has_code = input_code and (input_code.lower() == truth_code)
 
         if has_first and has_last and has_code:
             return True, "Identity verified. Proceeding with your change."
         
-        # Build specific error message
+        # Detailed error handling
         missing = []
         if not (has_first and has_last): missing.append("full name")
         if not has_code: missing.append("confirmation code")
         return False, f"I couldn't verify that. Please clearly state your {' and '.join(missing)}."
 
     # CASE 2: Booking a New Flight (Medium Security: Name Only)
-    # We verify that this person exists in our Passenger DB
     elif target_intent == 'confirm_booking':
-        # We look for names in the transcript and check if they exist in the DB
-        # This prevents random users from booking flights without an account
-        from .models import Passenger
+        # Check if we have entities from Gemini
+        input_first = entities.get('first_name', '').lower()
+        input_last = entities.get('last_name', '').lower()
         
-        # Note: In a real app, you might use 'entities' from Gemini here. 
-        # For now, we simple-match against the session passenger if linked, 
-        # or try to find the name mentioned in the transcript.
-        
-        # If we already linked a passenger (e.g. from a previous lookup)
+        # If we have a reservation context, verify against it
         if session.reservation and session.reservation.passenger:
             p = session.reservation.passenger
-            if p.first_name.lower() in transcript_lower and p.last_name.lower() in transcript_lower:
+            truth_first = p.first_name.lower()
+            truth_last = p.last_name.lower()
+            
+            has_first = (input_first == truth_first) or (truth_first in transcript_lower)
+            has_last = (input_last == truth_last) or (truth_last in transcript_lower)
+            
+            if has_first and has_last:
                 return True, "Identity confirmed."
         
-        # If we haven't linked a passenger, this is a basic check
-        # (You could expand this to search the Passenger DB)
-        if "my name is" in transcript_lower or (len(transcript.split()) >= 2):
-            # Weak check for demo purposes if no prior context
+        # If no reservation context, just ensure names were provided/extracted
+        # (This prevents confirming empty/garbage input)
+        elif input_first and input_last:
+            return True, "Identity confirmed."
+        elif "my name is" in transcript_lower:
             return True, "Identity confirmed."
             
         return False, "Before I confirm this booking, I need your First and Last name."
