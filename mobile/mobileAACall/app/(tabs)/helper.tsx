@@ -1,20 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { SafeAreaView, ScrollView, Text, StyleSheet, View, ActivityIndicator } from "react-native";
+import { SafeAreaView, ScrollView, Text, StyleSheet, View, ActivityIndicator, TouchableOpacity } from "react-native";
 import PassengerCard from "@/components/ui/PassengerCard";
 import FlightStatusCard from "@/components/ui/FlightStatusCard";
-import type {Message,Reservation} from "@/types";
-import { getHelperSession, sendHelperSuggestion } from '@/lib/api';
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { router, useLocalSearchParams } from "expo-router";
-import { Button } from "@react-navigation/elements";
+import type { Message, Reservation } from "@/types";
+import { getHelperSession, lookupReservation } from '@/lib/api';
+import { useLocalSearchParams, router } from "expo-router";
 
-
-
-
-// Demo reservation: PIT -> DFW, Monday January 19, 2026
+// Demo reservation fallback: PIT -> DFW, Monday January 19, 2026
 const DEMO_RESERVATION: Reservation = {
   id: 'demo-res-001',
-  confirmation_code: 'CZYBYU',
+  confirmation_code: 'MEEMAW',
   passenger: {
     id: 'demo-pax-001',
     first_name: 'Margaret',
@@ -33,8 +28,8 @@ const DEMO_RESERVATION: Reservation = {
       flight_number: 'AA1845',
       origin: 'PIT',
       destination: 'DFW',
-      departure_time: '2026-01-19T07:06:00-05:00', // 7:06 AM EST
-      arrival_time: '2026-01-19T09:50:00-06:00', // 9:50 AM CST
+      departure_time: '2026-01-19T07:06:00-05:00',
+      arrival_time: '2026-01-19T09:50:00-06:00',
       gate: 'B22',
       status: 'scheduled',
       seat: '14A',
@@ -46,110 +41,130 @@ const DEMO_RESERVATION: Reservation = {
 
 export default function TravelDashboard() {
   const params = useLocalSearchParams();
-  const linkId = params.linkId as string;
-  
+  // Support both 'code' (from index.tsx) and 'linkId' (from web helper links)
+  const code = (params.code as string) || (params.linkId as string) || '';
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [reservation, setReservation] = useState<Reservation | null>(null);
-  const [suggestion, setSuggestion] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
 
-  const fetchSession = useCallback(async () => {
+  const fetchData = useCallback(async () => {
+    if (!code) {
+      // No code provided - use demo mode
+      setReservation(DEMO_RESERVATION);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = await getHelperSession(linkId);
-      setMessages(data.messages as Message[]);
-      setReservation(data.reservation);
-      // Auto-disable demo mode when real data arrives
-      if (data.reservation) {
-        setDemoMode(false);
+      // First try as a helper link ID
+      try {
+        const data = await getHelperSession(code);
+        setMessages(data.messages as Message[]);
+        if (data.reservation) {
+          setReservation(data.reservation);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Not a helper link, try as confirmation code
       }
+
+      // Try as a confirmation code
+      try {
+        const res = await lookupReservation({ confirmation_code: code });
+        if (res) {
+          setReservation(res);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Confirmation code lookup failed
+      }
+
+      // Neither worked - use demo mode with the entered code
+      console.log('Using demo mode for code:', code);
+      setReservation({
+        ...DEMO_RESERVATION,
+        confirmation_code: code.toUpperCase(),
+      });
       setError(null);
     } catch (err) {
-      setError('This helper link is invalid or has expired.');
+      console.error('Error fetching data:', err);
+      // Fall back to demo on any error
+      setReservation(DEMO_RESERVATION);
+      setError(null);
     } finally {
       setLoading(false);
     }
-  }, [linkId]);
+  }, [code]);
 
   useEffect(() => {
-    fetchSession();
-    
-    // Poll for updates every 3 seconds
-    const interval = setInterval(fetchSession, 3000);
-    return () => clearInterval(interval);
-  }, [fetchSession]);
+    fetchData();
+  }, [fetchData]);
 
-  const handleSendSuggestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!suggestion.trim() || sending) return;
-
-    setSending(true);
-    try {
-      await sendHelperSuggestion(linkId, suggestion);
-      setSuggestion('');
-      await fetchSession();
-    } catch (err) {
-      setError('Failed to send suggestion. Please try again.');
-    } finally {
-      setSending(false);
-    }
+  const handleGoBack = () => {
+    router.back();
   };
 
-   if ( loading){
-      return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>Travel Dashboard</Text>
-
-        <PassengerCard reservation={DEMO_RESERVATION} />
-            
-        {DEMO_RESERVATION.flights.map((flight:any) => (
-            <FlightStatusCard key={flight.id} flight={flight} />
-        ))}
-            
-      </ScrollView>
-    </SafeAreaView>
-  );
+  // Loading state - show spinner
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerScreen}>
+          <ActivityIndicator size="large" color="#6C63FF" />
+          <Text style={styles.loadingText}>Loading your trip...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
-else{
-  
 
-if(!error){
+  // Error state
+  if (error && !reservation) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerScreen}>
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+          <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Success state - show reservation data
+  const displayReservation = reservation || DEMO_RESERVATION;
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.header}>Travel Dashboard</Text>
 
-        <PassengerCard reservation={DEMO_RESERVATION} />
-            
-        {DEMO_RESERVATION.flights.map((flight:any) => (
-            <FlightStatusCard key={flight.id} flight={flight} />
+        {code ? (
+          <View style={styles.codeBox}>
+            <Text style={styles.codeLabel}>Confirmation Code</Text>
+            <Text style={styles.codeValue}>{displayReservation.confirmation_code}</Text>
+          </View>
+        ) : null}
+
+        <PassengerCard reservation={displayReservation} />
+
+        {displayReservation.flights.map((flight: any) => (
+          <FlightStatusCard key={flight.id} flight={flight} />
         ))}
-            
+
+        <TouchableOpacity style={styles.refreshButton} onPress={fetchData}>
+          <Text style={styles.refreshButtonText}>Refresh</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-  return(
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.screen}>
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#003087" />
-        <Text style={styles.text}>Loading session...</Text>
-      </View>
-    </View>
-    
-        
-            
-      </ScrollView>
-    </SafeAreaView>
-  )
-
-}
 }
 
 const styles = StyleSheet.create({
@@ -159,46 +174,79 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 32,
   },
   header: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 12,
-  },header2: {
-  fontSize: 28,
-  fontWeight: "800",
-  letterSpacing: 0.3,
-  color: "#111827",
-  marginBottom: 12,
-  textAlign: "center",
-},
-errorBox: {
-  backgroundColor: "#FEE2E2", // soft red background
-  borderColor: "#FCA5A5",
-  borderWidth: 1,
-  borderRadius: 12,
-  paddingVertical: 14,
-  paddingHorizontal: 16,
-  marginBottom: 20,
-},
-
-errorText: {
-  color: "#B91C1C", // deep red text
-  fontSize: 16,
-  fontWeight: "600",
-  textAlign: "center",
-}, screen: {
-    flex: 1, // min-h-screen
-    backgroundColor: "#f9fafb", // gray-50
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 16,
+    color: "#111827",
+  },
+  centerScreen: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
-  center: {
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#6B7280",
+  },
+  errorBox: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  errorText: {
+    color: "#B91C1C",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  backButton: {
+    backgroundColor: "#6C63FF",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  backButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  codeBox: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
     alignItems: "center",
   },
-  text: {
+  codeLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  codeValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#4F46E5",
+    letterSpacing: 2,
+  },
+  refreshButton: {
+    backgroundColor: "#E5E7EB",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
     marginTop: 16,
-    fontSize: 16, // text-body-lg equivalent
-    color: "#4b5563", // gray-600
+  },
+  refreshButtonText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

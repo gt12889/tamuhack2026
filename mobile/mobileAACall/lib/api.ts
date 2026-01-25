@@ -1,4 +1,5 @@
 import axios from 'axios';
+import Constants from 'expo-constants';
 import type {
   ConversationResponse,
   Reservation,
@@ -10,14 +11,23 @@ import type {
   RetellStatus,
 } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// For React Native/Expo, use EXPO_PUBLIC_API_URL or fall back to localhost
+// Note: localhost won't work on physical devices - use your computer's IP or deployed URL
+const API_BASE =
+  Constants.expoConfig?.extra?.apiUrl ||
+  process.env.EXPO_PUBLIC_API_URL ||
+  'http://10.0.2.2:8000'; // Android emulator localhost, change to your IP for physical device
 
 const api = axios.create({
   baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 second timeout to prevent hanging
 });
+
+// Log the API base URL for debugging
+console.log('[API] Base URL:', API_BASE);
 
 // Conversation API
 export async function startConversation(sessionId?: string): Promise<{
