@@ -18,6 +18,7 @@ import {
   calculateDistance,
   getWaypointByProgress,
   interpolatePosition,
+  getDirectionsToPOI,
 } from '@/lib/dfwDemoData';
 import {
   createHelperDemoHandoff,
@@ -275,56 +276,99 @@ export default function HelperPage() {
     ? generateDFWDemoLocation(demoProgress, new Date(scenarioReservation.flights[0].departure_time), passengerDisplayName, scenarioReservation.flights[0]?.gate || 'B22')
     : locationData;
 
-  // Generate contextual response based on suggestion content
+  // Generate contextual response based on suggestion content - uses REAL location data
   const generateDemoResponse = useCallback((suggestionText: string): { passengerResponse: string; agentResponse?: string } => {
     const lowerSuggestion = suggestionText.toLowerCase();
     const name = passengerDisplayName;
+    const currentLat = effectiveLocationData?.passenger_location?.lat || 32.9010;
+    const currentLng = effectiveLocationData?.passenger_location?.lng || -97.0408;
 
     // Gate/directions related
     if (lowerSuggestion.includes('gate') || lowerSuggestion.includes('direction') || lowerSuggestion.includes('where')) {
+      const distanceToGate = effectiveLocationData?.metrics?.distance_meters;
+      const walkTime = effectiveLocationData?.metrics?.walking_time_minutes;
       return {
         passengerResponse: `Oh, thank you dear! I was just asking about that.`,
-        agentResponse: `I can help with that! ${name}, your gate is ${scenarioReservation.flights[0]?.gate || 'B22'}. Follow the signs for Terminal B.`,
+        agentResponse: `I can help with that! ${name}, your gate is ${scenarioReservation.flights[0]?.gate || 'B22'}. ${distanceToGate ? `It's about ${distanceToGate} meters away, roughly ${walkTime} minutes walk.` : 'Follow the signs for Terminal B.'}`,
       };
     }
 
     // Time related
     if (lowerSuggestion.includes('time') || lowerSuggestion.includes('hurry') || lowerSuggestion.includes('late') || lowerSuggestion.includes('rush')) {
+      const timeLeft = effectiveLocationData?.metrics?.time_to_departure_minutes;
+      const walkTime = effectiveLocationData?.metrics?.walking_time_minutes;
       return {
         passengerResponse: `You're right, I should keep moving. I don't want to miss my flight!`,
-        agentResponse: `${name}, you have ${effectiveLocationData?.metrics?.time_to_departure_minutes || 'plenty of'} minutes until departure. You're doing great!`,
+        agentResponse: timeLeft && walkTime
+          ? `${name}, you have ${timeLeft} minutes until departure and about ${walkTime} minutes of walking left. ${timeLeft - walkTime > 15 ? "You're doing great - plenty of time!" : "Keep a steady pace and you'll make it!"}`
+          : `${name}, you have plenty of time. You're doing great!`,
       };
     }
 
     // Rest/sit related
     if (lowerSuggestion.includes('rest') || lowerSuggestion.includes('sit') || lowerSuggestion.includes('break') || lowerSuggestion.includes('tired')) {
+      const timeLeft = effectiveLocationData?.metrics?.time_to_departure_minutes;
       return {
         passengerResponse: `That's a good idea, my feet are getting a bit tired.`,
-        agentResponse: `There are seats available nearby, ${name}. Take a short rest if you need.`,
+        agentResponse: timeLeft && timeLeft > 30
+          ? `There are seats at the nearby gates, ${name}. With ${timeLeft} minutes until departure, you have time for a short rest.`
+          : `${name}, there are seats nearby, but with limited time I'd suggest resting at your gate - almost there!`,
       };
     }
 
     // Help/assistance related
     if (lowerSuggestion.includes('help') || lowerSuggestion.includes('assist') || lowerSuggestion.includes('wheelchair') || lowerSuggestion.includes('staff')) {
+      const infoDesk = getDirectionsToPOI(currentLat, currentLng, 'info');
       return {
         passengerResponse: `Oh, should I ask for help? That might be a good idea.`,
-        agentResponse: `${name}, I can arrange for airport assistance if you'd like. Just say the word!`,
+        agentResponse: infoDesk
+          ? `${name}, ${infoDesk.poi.name} is ${Math.round(infoDesk.distance)} meters away near ${infoDesk.poi.nearGate}. Or I can request a wheelchair - just say the word!`
+          : `${name}, I can arrange for airport assistance if you'd like. Just say the word!`,
       };
     }
 
-    // Food/drink related
-    if (lowerSuggestion.includes('food') || lowerSuggestion.includes('eat') || lowerSuggestion.includes('drink') || lowerSuggestion.includes('water') || lowerSuggestion.includes('coffee')) {
+    // Food/drink/coffee related
+    if (lowerSuggestion.includes('food') || lowerSuggestion.includes('eat') || lowerSuggestion.includes('drink') || lowerSuggestion.includes('water') || lowerSuggestion.includes('coffee') || lowerSuggestion.includes('hungry') || lowerSuggestion.includes('snack')) {
+      const foodPOI = getDirectionsToPOI(currentLat, currentLng, 'food');
+      const waterPOI = getDirectionsToPOI(currentLat, currentLng, 'water');
+      const timeLeft = effectiveLocationData?.metrics?.time_to_departure_minutes;
+
+      if (lowerSuggestion.includes('water')) {
+        return {
+          passengerResponse: `Good idea, I should stay hydrated.`,
+          agentResponse: waterPOI
+            ? `${name}, there's a ${waterPOI.poi.name} ${Math.round(waterPOI.distance)} meters away near ${waterPOI.poi.nearGate}. ${waterPOI.poi.description}`
+            : `${name}, there's a water fountain coming up near your gate.`,
+        };
+      }
+
       return {
         passengerResponse: `Hmm, a little snack does sound nice. Is there time?`,
-        agentResponse: `There's a café nearby, ${name}. You have time for a quick stop if you'd like.`,
+        agentResponse: foodPOI
+          ? `${name}, ${foodPOI.poi.name} is ${Math.round(foodPOI.distance)} meters away near ${foodPOI.poi.nearGate}. ${timeLeft && timeLeft > 30 ? `With ${timeLeft} minutes left, you have time for a quick stop!` : "But you might want to wait until you're at the gate."}`
+          : `${name}, there are food options near your gate. You'll pass them on the way!`,
       };
     }
 
     // Bathroom related
     if (lowerSuggestion.includes('bathroom') || lowerSuggestion.includes('restroom') || lowerSuggestion.includes('toilet')) {
+      const restroomPOI = getDirectionsToPOI(currentLat, currentLng, 'restroom');
       return {
         passengerResponse: `Good thinking! I should stop before the flight.`,
-        agentResponse: `${name}, there's a restroom coming up on your right.`,
+        agentResponse: restroomPOI
+          ? `${name}, the nearest restroom is ${Math.round(restroomPOI.distance)} meters away - ${restroomPOI.poi.description}`
+          : `${name}, there's a restroom coming up near your gate.`,
+      };
+    }
+
+    // Charging/phone related
+    if (lowerSuggestion.includes('charge') || lowerSuggestion.includes('phone') || lowerSuggestion.includes('battery')) {
+      const chargingPOI = getDirectionsToPOI(currentLat, currentLng, 'charging');
+      return {
+        passengerResponse: `Oh yes, my phone battery is getting low.`,
+        agentResponse: chargingPOI
+          ? `${name}, there's a ${chargingPOI.poi.name} ${Math.round(chargingPOI.distance)} meters away near ${chargingPOI.poi.nearGate}. There are also charging stations at your gate!`
+          : `${name}, there are charging stations at Gate ${scenarioReservation.flights[0]?.gate || 'B22'} - almost there!`,
       };
     }
 
