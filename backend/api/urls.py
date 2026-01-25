@@ -59,4 +59,9 @@ urlpatterns = [
     path('retell/webhook', views.retell_webhook, name='retell_webhook'),
     path('retell/function', views.retell_function_call, name='retell_function_call'),
     path('retell/functions', views.retell_function_definitions, name='retell_function_definitions'),
+
+    # Email endpoints (Resend)
+    path('email/status', views.email_status, name='email_status'),
+    path('email/booking-confirmation', views.send_booking_confirmation_email, name='send_booking_confirmation_email'),
+    path('email/flight-change', views.send_flight_change_email, name='send_flight_change_email'),
 ]
