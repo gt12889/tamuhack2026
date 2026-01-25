@@ -964,6 +964,151 @@ def helper_get_seats(request, link_id):
     })
 
 
+# ==================== IROP (Irregular Operations) Endpoints ====================
+
+@api_view(['GET'])
+def get_irop_status(request, link_id):
+    """
+    Get IROP (Irregular Operations) status for the reservation.
+
+    Returns disruption info, rebooking options, and connection risks.
+    """
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    if not session.reservation:
+        return Response({
+            'has_disruption': False,
+            'disruption': None,
+            'affected_flights': [],
+            'connection_at_risk': False,
+            'auto_rebooking_available': False,
+            'requires_action': False,
+        })
+
+    # Get IROP status from mock data
+    from .mock_data import get_irop_status as get_mock_irop_status
+    irop_status = get_mock_irop_status(session.reservation.confirmation_code)
+
+    return Response(irop_status)
+
+
+@api_view(['POST'])
+def helper_accept_rebooking(request, link_id):
+    """
+    Accept an auto-rebooking offer on behalf of the passenger.
+
+    This queues a confirmation request to the passenger via voice assistant.
+
+    Request body:
+        rebooking_option_id: ID of the rebooking option to accept
+        notes: Optional notes from the family helper
+    """
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    rebooking_option_id = request.data.get('rebooking_option_id')
+    notes = request.data.get('notes', '')
+
+    if not rebooking_option_id:
+        return Response(
+            {'error': 'rebooking_option_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not session.reservation:
+        return Response(
+            {'error': 'No reservation found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get IROP status to validate the rebooking option
+    from .mock_data import get_irop_status as get_mock_irop_status
+    irop_status = get_mock_irop_status(session.reservation.confirmation_code)
+
+    if not irop_status.get('has_disruption'):
+        return Response(
+            {'error': 'No disruption found for this reservation'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Find the selected rebooking option
+    disruption = irop_status['disruption']
+    selected_option = None
+    for opt in disruption.get('rebooking_options', []):
+        if opt['option_id'] == rebooking_option_id:
+            selected_option = opt
+            break
+
+    if not selected_option:
+        return Response(
+            {'error': 'Invalid rebooking option'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Create a family action record
+    result = family_action_service.execute_accept_rebooking(
+        session=session,
+        rebooking_option=selected_option,
+        notes=notes,
+    )
+
+    if result.get('success'):
+        # Add a message to the conversation for the passenger
+        Message.objects.create(
+            session=session,
+            role='family',
+            content=f"Your family helper has selected a rebooking option for you: Flight {selected_option['flight_number']} departing at {selected_option['departure_time']}. Please confirm if you'd like to accept this rebooking.",
+        )
+
+        return Response(result)
+
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def helper_acknowledge_disruption(request, link_id):
+    """
+    Acknowledge a flight disruption notification.
+
+    Request body:
+        disruption_id: ID of the disruption to acknowledge
+        notes: Optional notes from the family helper
+    """
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    disruption_id = request.data.get('disruption_id')
+    notes = request.data.get('notes', '')
+
+    if not disruption_id:
+        return Response(
+            {'error': 'disruption_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not session.reservation:
+        return Response(
+            {'error': 'No reservation found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Create a family action record
+    result = family_action_service.execute_acknowledge_disruption(
+        session=session,
+        disruption_id=disruption_id,
+        notes=notes,
+    )
+
+    if result.get('success'):
+        return Response(result)
+
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(['GET'])
 def health_check(request):
     """Health check endpoint for deployment monitoring."""

@@ -52,7 +52,12 @@ urlpatterns = [
     path('helper/<str:link_id>/actions/request-wheelchair', views.helper_request_wheelchair, name='helper_request_wheelchair'),
     path('helper/<str:link_id>/flights', views.helper_get_flights, name='helper_get_flights'),
     path('helper/<str:link_id>/seats', views.helper_get_seats, name='helper_get_seats'),
-    
+
+    # IROP (Irregular Operations) endpoints
+    path('helper/<str:link_id>/irop-status', views.get_irop_status, name='get_irop_status'),
+    path('helper/<str:link_id>/actions/accept-rebooking', views.helper_accept_rebooking, name='helper_accept_rebooking'),
+    path('helper/<str:link_id>/actions/acknowledge-disruption', views.helper_acknowledge_disruption, name='helper_acknowledge_disruption'),
+
     # Health check
     path('health/', views.health_check, name='health_check'),
 

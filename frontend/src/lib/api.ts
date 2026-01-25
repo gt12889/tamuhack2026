@@ -14,6 +14,7 @@ import type {
   ActionResult,
   HelperLocationResponse,
   LocationUpdateResponse,
+  IROPStatus,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -364,6 +365,36 @@ export async function getLocationAlerts(
 
 export async function acknowledgeAlert(alertId: string): Promise<{ success: boolean }> {
   const response = await api.post(`/api/location/alerts/${alertId}/acknowledge`);
+  return response.data;
+}
+
+// IROP (Irregular Operations) API
+export async function getIROPStatus(linkId: string): Promise<IROPStatus> {
+  const response = await api.get(`/api/helper/${linkId}/irop-status`);
+  return response.data;
+}
+
+export async function helperAcceptRebooking(
+  linkId: string,
+  rebookingOptionId: string,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/accept-rebooking`, {
+    rebooking_option_id: rebookingOptionId,
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+export async function helperAcknowledgeDisruption(
+  linkId: string,
+  disruptionId: string,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/acknowledge-disruption`, {
+    disruption_id: disruptionId,
+    notes: notes || '',
+  });
   return response.data;
 }
 

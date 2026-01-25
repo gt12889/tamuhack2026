@@ -44,6 +44,16 @@ ACTION_TYPES = {
         'description': 'Request wheelchair assistance',
         'icon': 'accessibility',
     },
+    'accept_rebooking': {
+        'display_name': 'Accept Rebooking',
+        'description': 'Accept an automatic rebooking offer from AA',
+        'icon': 'check-circle',
+    },
+    'acknowledge_disruption': {
+        'display_name': 'Acknowledge Disruption',
+        'description': 'Acknowledge a flight disruption notification',
+        'icon': 'alert-circle',
+    },
 }
 
 
@@ -441,6 +451,172 @@ class FamilyActionService:
             'message': action.result_message,
             'assistance_type': assistance_type,
         }
+
+    @transaction.atomic
+    def execute_accept_rebooking(
+        self,
+        session: Session,
+        rebooking_option: Dict[str, Any],
+        notes: str = ''
+    ) -> Dict[str, Any]:
+        """
+        Execute an accept rebooking action for IROP scenarios.
+
+        Args:
+            session: The session with the reservation
+            rebooking_option: The rebooking option details from AA auto-recovery
+            notes: Optional notes from family member
+
+        Returns:
+            Result dict with success status and message
+        """
+        if not session.reservation:
+            return self._create_failed_action(
+                session, 'accept_rebooking',
+                {'rebooking_option': rebooking_option},
+                notes,
+                'No reservation found'
+            )
+
+        reservation = session.reservation
+
+        # Store the original flight info for reference
+        original_flights = []
+        for segment in reservation.flight_segments.all():
+            original_flights.append({
+                'flight_number': segment.flight.flight_number,
+                'origin': segment.flight.origin,
+                'destination': segment.flight.destination,
+                'departure_time': segment.flight.departure_time.isoformat(),
+                'arrival_time': segment.flight.arrival_time.isoformat() if segment.flight.arrival_time else '',
+            })
+
+        # Update reservation status to reflect acceptance
+        reservation.status = 'changed'
+        reservation.save()
+
+        # Store rebooking acceptance in context
+        if not session.context:
+            session.context = {}
+
+        session.context['irop_rebooking_accepted'] = {
+            'option_id': rebooking_option.get('option_id'),
+            'flight_number': rebooking_option.get('flight_number'),
+            'accepted_at': timezone.now().isoformat(),
+        }
+        session.save()
+
+        # Create action record
+        action = FamilyAction.objects.create(
+            session=session,
+            action_type='accept_rebooking',
+            action_data={
+                'original_flights': original_flights,
+                'accepted_option': rebooking_option,
+            },
+            status='executed',
+            family_notes=notes,
+            result_message=f"Accepted rebooking to flight {rebooking_option.get('flight_number', 'N/A')} departing at {rebooking_option.get('departure_time', 'N/A')}",
+        )
+
+        # Send notification email
+        self._send_rebooking_notification(reservation, original_flights, rebooking_option)
+
+        return {
+            'success': True,
+            'action_id': str(action.id),
+            'message': action.result_message,
+            'original_flights': original_flights,
+            'new_flight': rebooking_option,
+        }
+
+    @transaction.atomic
+    def execute_acknowledge_disruption(
+        self,
+        session: Session,
+        disruption_id: str,
+        disruption_details: Optional[Dict[str, Any]] = None,
+        notes: str = ''
+    ) -> Dict[str, Any]:
+        """
+        Execute an acknowledge disruption action.
+
+        Args:
+            session: The session with the reservation
+            disruption_id: ID of the disruption being acknowledged
+            disruption_details: Optional details about the disruption
+            notes: Optional notes from family member
+
+        Returns:
+            Result dict with success status and message
+        """
+        if not session.reservation:
+            return self._create_failed_action(
+                session, 'acknowledge_disruption',
+                {'disruption_id': disruption_id},
+                notes,
+                'No reservation found'
+            )
+
+        # Store acknowledgment in context
+        if not session.context:
+            session.context = {}
+
+        if 'acknowledged_disruptions' not in session.context:
+            session.context['acknowledged_disruptions'] = []
+
+        session.context['acknowledged_disruptions'].append({
+            'disruption_id': disruption_id,
+            'acknowledged_at': timezone.now().isoformat(),
+        })
+        session.save()
+
+        # Create action record
+        action = FamilyAction.objects.create(
+            session=session,
+            action_type='acknowledge_disruption',
+            action_data={
+                'disruption_id': disruption_id,
+                'disruption_details': disruption_details or {},
+            },
+            status='executed',
+            family_notes=notes,
+            result_message=f"Disruption notification acknowledged",
+        )
+
+        return {
+            'success': True,
+            'action_id': str(action.id),
+            'message': action.result_message,
+            'disruption_id': disruption_id,
+        }
+
+    def _send_rebooking_notification(
+        self,
+        reservation: Reservation,
+        original_flights: List[Dict[str, Any]],
+        new_flight: Dict[str, Any]
+    ) -> None:
+        """Send email notification about rebooking acceptance."""
+        if not reservation.passenger or not reservation.passenger.email:
+            return
+
+        try:
+            passenger = reservation.passenger
+            passenger_name = f"{passenger.first_name} {passenger.last_name}"
+
+            # Use the flight change confirmation for rebooking as well
+            original_flight = original_flights[0] if original_flights else {}
+            resend_service.send_flight_change_confirmation(
+                to_email=passenger.email,
+                passenger_name=passenger_name,
+                confirmation_code=reservation.confirmation_code,
+                original_flight=original_flight,
+                new_flight=new_flight,
+                language=passenger.language_preference or 'en'
+            )
+        except Exception as e:
+            logger.error(f"Failed to send rebooking notification email: {e}")
 
     def _create_failed_action(
         self,

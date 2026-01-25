@@ -146,7 +146,9 @@ export type FamilyActionType =
   | 'cancel_flight'
   | 'select_seat'
   | 'add_bags'
-  | 'request_wheelchair';
+  | 'request_wheelchair'
+  | 'accept_rebooking'
+  | 'acknowledge_disruption';
 
 export interface FamilyAction {
   id: string;
@@ -277,4 +279,59 @@ export interface DFWWaypoint {
   instruction: string;
   landmarks: string[];
   estimatedTimeFromStart: number;
+}
+
+// IROP (Irregular Operations) Types
+export type DisruptionType = 'delay' | 'cancellation' | 'missed_connection' | 'crew_unavailable' | 'aircraft_issue';
+export type ConnectionRiskLevel = 'low' | 'medium' | 'high';
+
+export interface RebookingOption {
+  option_id: string;
+  flight_number: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  arrival_time: string;
+  gate?: string;
+  seat?: string;
+  connection_risk?: ConnectionRiskLevel;
+  is_auto_offered: boolean;
+  acceptance_deadline?: string;
+}
+
+export interface ConnectionRisk {
+  connection_flight_number: string;
+  origin: string;
+  destination: string;
+  connection_time_minutes: number;
+  minimum_connection_time: number;
+  risk_level: ConnectionRiskLevel;
+  reason: string;
+}
+
+export interface FlightDisruption {
+  id: string;
+  flight_id: string;
+  flight_number: string;
+  disruption_type: DisruptionType;
+  severity: ConnectionRiskLevel;
+  original_departure_time: string;
+  new_estimated_departure_time?: string;
+  delay_minutes?: number;
+  message: string;
+  rebooking_options: RebookingOption[];
+  auto_rebooked_option?: RebookingOption;
+  connection_risks: ConnectionRisk[];
+  acknowledged: boolean;
+  acknowledged_at?: string;
+  created_at: string;
+}
+
+export interface IROPStatus {
+  has_disruption: boolean;
+  disruption?: FlightDisruption;
+  affected_flights: string[];
+  connection_at_risk: boolean;
+  auto_rebooking_available: boolean;
+  requires_action: boolean;
 }

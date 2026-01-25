@@ -2,8 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { getHelperSession, sendHelperSuggestion, getHelperLocation } from '@/lib/api';
-import { HelperDashboard, MapboxLocationMap } from '@/components/helper';
+import {
+  getHelperSession,
+  sendHelperSuggestion,
+  getHelperLocation,
+  getIROPStatus,
+  helperAcceptRebooking,
+  helperAcknowledgeDisruption,
+} from '@/lib/api';
+import { HelperDashboard, MapboxLocationMap, DisruptionAlert } from '@/components/helper';
 import {
   DFW_DEMO_RESERVATION,
   DFW_GATE_LOCATION,
@@ -12,7 +19,7 @@ import {
   getWaypointByProgress,
   interpolatePosition,
 } from '@/lib/dfwDemoData';
-import type { Message, Reservation, HelperLocationResponse, AlertStatus } from '@/types';
+import type { Message, Reservation, HelperLocationResponse, AlertStatus, IROPStatus } from '@/types';
 
 // Generate DFW demo location data with waypoint-based movement
 function generateDFWDemoLocation(progress: number, departureTime: Date): HelperLocationResponse {
@@ -75,7 +82,7 @@ function generateDFWDemoLocation(progress: number, departureTime: Date): HelperL
 
 export default function HelperPage() {
   const params = useParams();
-  const linkId = params.code as string;
+  const linkId = params.linkId as string;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [reservation, setReservation] = useState<Reservation | null>(null);
@@ -86,6 +93,8 @@ export default function HelperPage() {
   const [demoMode, setDemoMode] = useState(false);
   const [locationData, setLocationData] = useState<HelperLocationResponse | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [iropStatus, setIropStatus] = useState<IROPStatus | null>(null);
+  const [iropLoading, setIropLoading] = useState(false);
 
   // Demo location simulation state
   const [demoProgress, setDemoProgress] = useState(0);
@@ -93,6 +102,10 @@ export default function HelperPage() {
   const DEMO_JOURNEY_DURATION_MS = 120000; // 2 minutes to complete the journey in demo
 
   const fetchSession = useCallback(async () => {
+    if (!linkId) {
+      setLoading(false);
+      return;
+    }
     try {
       const data = await getHelperSession(linkId);
       setMessages(data.messages as Message[]);
@@ -110,6 +123,7 @@ export default function HelperPage() {
   }, [linkId]);
 
   const fetchLocation = useCallback(async () => {
+    if (!linkId) return;
     try {
       setLocationLoading(true);
       const data = await getHelperLocation(linkId);
@@ -122,20 +136,67 @@ export default function HelperPage() {
     }
   }, [linkId]);
 
+  const fetchIROPStatus = useCallback(async () => {
+    if (!linkId) return;
+    try {
+      const data = await getIROPStatus(linkId);
+      setIropStatus(data);
+    } catch (err) {
+      // IROP status is optional, don't show error
+      console.log('IROP status not available');
+    }
+  }, [linkId]);
+
+  const handleAcceptRebooking = async (optionId: string) => {
+    if (!linkId) return;
+    try {
+      setIropLoading(true);
+      await helperAcceptRebooking(linkId, optionId);
+      // Refresh session and IROP status after accepting
+      await fetchSession();
+      await fetchIROPStatus();
+    } catch (err) {
+      console.error('Failed to accept rebooking:', err);
+      setError('Failed to accept rebooking. Please try again.');
+    } finally {
+      setIropLoading(false);
+    }
+  };
+
+  const handleAcknowledgeDisruption = async (disruptionId: string) => {
+    if (!linkId) return;
+    try {
+      setIropLoading(true);
+      await helperAcknowledgeDisruption(linkId, disruptionId);
+      // Refresh IROP status after acknowledging
+      await fetchIROPStatus();
+    } catch (err) {
+      console.error('Failed to acknowledge disruption:', err);
+      setError('Failed to acknowledge disruption. Please try again.');
+    } finally {
+      setIropLoading(false);
+    }
+  };
+
   useEffect(() => {
+    if (!linkId) return;
+
     fetchSession();
-    console.log(params)
+    fetchIROPStatus();
 
     // Poll for updates every 3 seconds
     const sessionInterval = setInterval(fetchSession, 3000);
     // Poll location every 5 seconds
     const locationInterval = setInterval(fetchLocation, 5000);
+    // Poll IROP status every 10 seconds
+    const iropInterval = setInterval(fetchIROPStatus, 10000);
 
     return () => {
       clearInterval(sessionInterval);
       clearInterval(locationInterval);
+      clearInterval(iropInterval);
     };
-  }, [fetchSession, fetchLocation]);
+  }, [linkId, fetchSession, fetchLocation, fetchIROPStatus]);
 
   // Demo location simulation effect
   useEffect(() => {
@@ -302,6 +363,16 @@ export default function HelperPage() {
         {(reservation || demoMode) ? (
           <>
             <HelperDashboard reservation={reservation || DFW_DEMO_RESERVATION} />
+
+            {/* IROP Disruption Alert */}
+            {iropStatus && iropStatus.has_disruption && (
+              <DisruptionAlert
+                iropStatus={iropStatus}
+                onAcceptRebooking={handleAcceptRebooking}
+                onAcknowledgeDisruption={handleAcknowledgeDisruption}
+                loading={iropLoading}
+              />
+            )}
 
             {/* Location Tracking Map */}
             <MapboxLocationMap
