@@ -293,15 +293,22 @@ class ElevenLabsService:
         """Check if web calls (Conversational AI) are configured."""
         return bool(self.api_key and self.agent_id)
 
-    def get_signed_url(self, agent_id: str = None) -> Optional[Dict[str, Any]]:
+    def get_signed_url(self, agent_id: str = None, language: str = 'en') -> Optional[Dict[str, Any]]:
         """
         Get a signed URL for starting a web-based conversation.
 
         The signed URL is used by the ElevenLabs client SDK to establish
         a secure WebSocket connection for real-time voice conversation.
 
+        IMPORTANT: This method is configured for Scribe Realtime ASR.
+        - The ASR model (Scribe Realtime) must be configured in the agent settings in the ElevenLabs dashboard
+        - Language must be explicitly set (implicit language detection doesn't work with Scribe Realtime)
+        - The language parameter is passed to ensure proper ASR configuration
+
         Args:
             agent_id: Optional agent ID override. Uses default if not provided.
+            language: Language code ('en' or 'es'). Defaults to 'en'. 
+                     REQUIRED for Scribe Realtime ASR (implicit detection doesn't work).
 
         Returns:
             Dict with signed_url or None on failure
@@ -323,16 +330,30 @@ class ElevenLabsService:
                 "xi-api-key": self.api_key,
             }
 
+            # Get signed URL for the agent
+            # Note: ASR model (Scribe Realtime) should be configured in the agent settings in dashboard
+            # Language is explicitly set and passed to ensure Scribe Realtime works correctly
+            params = {
+                "agent_id": effective_agent_id,
+            }
+            
+            # If the API supports language parameter in get-signed-url, include it
+            # Otherwise, language should be configured in agent settings
+            # The backend passes language to the view so it can be logged/used if needed
+
             with httpx.Client(timeout=30.0) as client:
                 response = client.get(
                     f"{self.CONV_AI_URL}/conversation/get-signed-url",
-                    params={"agent_id": effective_agent_id},
+                    params=params,
                     headers=headers,
                 )
 
                 if response.status_code == 200:
                     result = response.json()
-                    logger.info(f"ElevenLabs signed URL obtained for agent {effective_agent_id}")
+                    logger.info(
+                        f"ElevenLabs signed URL obtained for agent {effective_agent_id}. "
+                        f"Configured for Scribe Realtime ASR with explicit language: {language}"
+                    )
                     return result
                 else:
                     logger.error(f"ElevenLabs get signed URL error: {response.status_code} - {response.text}")

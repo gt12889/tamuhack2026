@@ -37,8 +37,15 @@ print(prompt)
 3. In the "General Prompt" field, paste the prompt from Step 1
 4. Configure the following settings:
    - **Voice**: Use a clear, friendly voice (Rachel recommended for English)
-   - **Language**: English (with Spanish detection capability)
+   - **ASR Model**: **Scribe Realtime** (required for better user speech recognition)
+   - **Language**: **English** (explicitly set - implicit language detection doesn't work with Scribe Realtime)
    - **Response Style**: Conversational, patient, elderly-friendly
+   - **User Transcript Forwarding**: **Enable** (if available in agent settings - this allows user speech to appear in the live transcript)
+
+**Important**: 
+- When using Scribe Realtime ASR, you must explicitly set the language. The backend will pass the language parameter when creating web calls.
+- Make sure the agent is configured to use Scribe Realtime in the ElevenLabs dashboard.
+- **For Live Transcript**: If your agent settings have an option to "Forward User Transcripts" or "Enable User Speech Transcription", make sure it's enabled. This allows user speech to appear in the `onMessage` callback during web calls.
 
 ## Step 3: Configure Server Tools
 
@@ -79,7 +86,7 @@ The agent prompt includes:
 ### American Airlines Information
 - Company history and hub airports
 - Key policies (check-in, baggage, seating, changes, cancellations)
-- Common services (wheelchair assistance, unaccompanied minors, special meals)
+- Common services (wheelchadeir assistance, unaccompanied minors, special meals)
 - AAdvantage program basics
 
 ### Airport Knowledge
@@ -113,3 +120,4 @@ After configuration, test the agent by:
    - "What's the confirmation code format?"
 
 The agent should use the knowledge base to provide accurate, helpful answers.
+critic

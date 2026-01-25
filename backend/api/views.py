@@ -2104,21 +2104,82 @@ def elevenlabs_convai_status(request):
     })
 
 
+@api_view(['GET'])
+def elevenlabs_get_conversation(request, conversation_id):
+    """
+    Get conversation details and transcript from ElevenLabs.
+    
+    This endpoint fetches the full conversation transcript after a call ends.
+    """
+    result = elevenlabs_service.get_conversation(conversation_id)
+    
+    if result:
+        # Extract messages/transcript from the response
+        # The format may vary, so we'll handle different structures
+        messages = []
+        
+        # Check various possible fields for transcript data
+        if 'transcript' in result:
+            transcript_data = result['transcript']
+            if isinstance(transcript_data, list):
+                messages = transcript_data
+            elif isinstance(transcript_data, dict) and 'messages' in transcript_data:
+                messages = transcript_data['messages']
+        elif 'messages' in result:
+            messages = result['messages']
+        elif 'history' in result:
+            messages = result['history']
+        
+        # Normalize message format
+        normalized_messages = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                normalized_messages.append({
+                    'role': msg.get('role', msg.get('speaker', 'agent')),
+                    'content': msg.get('content', msg.get('text', msg.get('message', ''))),
+                    'timestamp': msg.get('timestamp', msg.get('time')),
+                })
+        
+        return Response({
+            'conversation_id': conversation_id,
+            'messages': normalized_messages,
+            'duration_ms': result.get('duration_ms'),
+            'status': result.get('status', 'completed'),
+        }, status=status.HTTP_200_OK)
+    
+    return Response(
+        {'error': 'Conversation not found or failed to retrieve'},
+        status=status.HTTP_404_NOT_FOUND
+    )
+
+
 @api_view(['POST'])
 def elevenlabs_create_web_call(request):
     """
     Create a web call for browser-based real-time voice interaction.
 
     Returns signed_url for establishing a WebSocket connection with ElevenLabs.
+    Uses Scribe Realtime ASR with explicit language setting.
 
     Request body (optional):
         agent_id: Override the default agent ID
         session_id: Session ID for context
+        language: Language code ('en' or 'es'). Defaults to 'en'. Required for Scribe Realtime ASR.
     """
     agent_id = request.data.get('agent_id')
     session_id = request.data.get('session_id')
+    language = request.data.get('language', 'en')  # Default to English, required for Scribe Realtime
 
-    result = elevenlabs_service.get_signed_url(agent_id=agent_id)
+    # Get language from session context if available
+    if session_id:
+        try:
+            session = Session.objects.get(id=session_id)
+            if session.context and session.context.get('detected_language'):
+                language = session.context.get('detected_language')
+        except Session.DoesNotExist:
+            pass
+
+    result = elevenlabs_service.get_signed_url(agent_id=agent_id, language=language)
 
     if result:
         response_data = {

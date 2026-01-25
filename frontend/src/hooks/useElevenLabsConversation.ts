@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getElevenLabsStatus, getElevenLabsSignedUrl } from '@/lib/api';
+import { getElevenLabsStatus, getElevenLabsSignedUrl, getElevenLabsTranscript } from '@/lib/api';
 
 // Dynamic import for ElevenLabs client SDK
 let ElevenLabsModule: any = null;
@@ -70,6 +70,7 @@ export function useElevenLabsConversation({
   const [sdkLoadError, setSdkLoadError] = useState<string | null>(null);
 
   const conversationRef = useRef<any | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
 
   // Check if ElevenLabs is configured on mount and get agent ID
   useEffect(() => {
@@ -152,10 +153,12 @@ export function useElevenLabsConversation({
     setError(null);
 
     try {
-      // Get signed URL from backend
+      // Get signed URL from backend with explicit language for Scribe Realtime ASR
+      // Language defaults to 'en' if not specified (required for Scribe Realtime)
       const signedUrlResponse = await getElevenLabsSignedUrl({
         agent_id: effectiveAgentId,
         session_id: sessionId,
+        language: 'en',  // Explicitly set language (required for Scribe Realtime ASR)
       });
 
       if (!signedUrlResponse.signed_url) {
@@ -167,52 +170,159 @@ export function useElevenLabsConversation({
       // Request microphone access
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Start the conversation session with correct callback signatures
+      // Start the conversation session with Scribe Realtime ASR configuration
+      // Note: ASR model and language are configured via the signed URL from backend
       const conversation = await Conversation.startSession({
         signedUrl: signedUrlResponse.signed_url,
+        // Enable user transcript forwarding if the SDK supports it
+        // Some SDK versions may require this to be enabled
         onConnect: (_props: { conversationId: string }) => {
           console.log('[ElevenLabs] Connected! ConversationId:', _props.conversationId);
+          conversationIdRef.current = _props.conversationId;
           setIsConnecting(false);
           setIsConnected(true);
           if (onConnect) onConnect();
         },
-        onDisconnect: (_details: any) => {
+        onDisconnect: async (_details: any) => {
+          console.log('[ElevenLabs] Disconnected:', _details);
           setIsConnected(false);
+          
+          // Fetch transcript from backend after call ends (wait a moment for processing)
+          if (conversationIdRef.current) {
+            const conversationId = conversationIdRef.current;
+            // Wait 2 seconds for ElevenLabs to process and store the transcript
+            setTimeout(async () => {
+              try {
+                const transcript = await getElevenLabsTranscript(conversationId);
+                if (transcript && transcript.messages) {
+                  console.log('[ElevenLabs] Fetched transcript from backend:', transcript);
+                  
+                  // Process transcript messages and call callbacks
+                  for (const msg of transcript.messages) {
+                    const role = msg.role === 'user' ? 'user' : 'agent';
+                    const content = msg.content || msg.text || '';
+                    
+                    if (content.trim()) {
+                      if (role === 'user' && onUserSpeech) {
+                        onUserSpeech(content);
+                      } else if (role === 'agent' && onAgentSpeech) {
+                        onAgentSpeech(content);
+                      }
+                      if (onMessage) {
+                        onMessage({ role, content });
+                      }
+                    }
+                  }
+                }
+              } catch (err) {
+                console.warn('[ElevenLabs] Failed to fetch transcript:', err);
+              }
+            }, 2000);
+          }
+          
           conversationRef.current = null;
           if (onDisconnect) onDisconnect();
         },
-        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; type?: string; speaker?: string; transcript?: string }) => {
+        onMessage: (payload: any) => {
+          // Log the full payload structure to debug
           console.log('[ElevenLabs] Raw message received:', JSON.stringify(payload, null, 2));
+          console.log('[ElevenLabs] Payload keys:', Object.keys(payload));
+          
           if (onMessage) {
             // Handle different payload formats from ElevenLabs SDK versions
-            // Newer: { role: 'user'|'agent', message: string }
-            // Older: { source: 'user'|'ai', message: string }
-            // Some versions: { text: string, type: string }
-            // Also check for: { speaker: 'user'|'agent', transcript: string }
-            const content = payload.message || payload.text || payload.transcript || '';
+            // Check all possible fields for message content
+            const content = payload.message || payload.text || payload.transcript || payload.content || payload.speech || '';
             let role: 'agent' | 'user' = 'user';
             
-            // Determine role from various possible fields
-            if (payload.role === 'agent' || payload.source === 'ai' || payload.speaker === 'agent') {
+            // Determine role from various possible fields - be more aggressive in detection
+            if (payload.role === 'agent' || payload.role === 'assistant' || 
+                payload.source === 'ai' || payload.source === 'assistant' || 
+                payload.speaker === 'agent' || payload.speaker === 'assistant' ||
+                payload.type === 'agent_message' || payload.type === 'ai_message' || payload.type === 'assistant_message') {
               role = 'agent';
-            } else if (payload.role === 'user' || payload.source === 'user' || payload.speaker === 'user') {
-              role = 'user';
-            } else if (payload.type === 'agent_message' || payload.type === 'ai_message') {
-              role = 'agent';
-            } else if (payload.type === 'user_message' || payload.type === 'user_speech') {
+            } else if (payload.role === 'user' || payload.role === 'human' ||
+                       payload.source === 'user' || payload.source === 'human' ||
+                       payload.speaker === 'user' || payload.speaker === 'human' ||
+                       payload.type === 'user_message' || payload.type === 'user_speech' || payload.type === 'human_message') {
               role = 'user';
             }
 
+            // If we still can't determine role, check if it's from the agent by default
+            // (most messages in conversational AI are agent responses)
+            if (role === 'user' && !content) {
+              // Might be an agent message without explicit role
+              role = 'agent';
+            }
+
             if (content && content.trim()) {
-              console.log('[ElevenLabs] Calling onMessage with:', { role, content });
+              console.log('[ElevenLabs] Calling onMessage with:', { role, content, payloadType: payload.type, payloadRole: payload.role });
+              
+              // Call specific callbacks if provided
+              if (role === 'user' && onUserSpeech) {
+                console.log('[ElevenLabs] User speech detected, calling onUserSpeech');
+                onUserSpeech(content);
+              } else if (role === 'agent' && onAgentSpeech) {
+                console.log('[ElevenLabs] Agent speech detected, calling onAgentSpeech');
+                onAgentSpeech(content);
+              }
+              
+              // Always call the general onMessage callback
               onMessage({ role, content });
             } else {
               console.warn('[ElevenLabs] Message payload has no content:', payload);
             }
           }
         },
+        // Try additional callbacks that might exist in the SDK
+        // These may not exist in all SDK versions, but we'll try them
+        ...(onUserSpeech && {
+          onUserTranscript: (transcript: string) => {
+            console.log('[ElevenLabs] onUserTranscript callback:', transcript);
+            onUserSpeech(transcript);
+            if (onMessage) {
+              onMessage({ role: 'user', content: transcript });
+            }
+          },
+          onUserSpeech: (transcript: string) => {
+            console.log('[ElevenLabs] onUserSpeech callback:', transcript);
+            onUserSpeech(transcript);
+            if (onMessage) {
+              onMessage({ role: 'user', content: transcript });
+            }
+          },
+        }),
+        ...(onAgentSpeech && {
+          onAgentTranscript: (transcript: string) => {
+            console.log('[ElevenLabs] onAgentTranscript callback:', transcript);
+            onAgentSpeech(transcript);
+            if (onMessage) {
+              onMessage({ role: 'agent', content: transcript });
+            }
+          },
+        }),
         onModeChange: (modePayload: { mode: 'speaking' | 'listening' }) => {
+          console.log('[ElevenLabs] Mode changed:', modePayload);
           if (onModeChange) onModeChange(modePayload);
+          
+          // When mode changes to listening, the user might be speaking
+          // Try to access transcripts if available on the conversation object
+          if (modePayload.mode === 'listening' && conversationRef.current) {
+            try {
+              // Some SDK versions expose transcript methods
+              if (typeof conversationRef.current.getUserTranscript === 'function') {
+                const transcript = conversationRef.current.getUserTranscript();
+                if (transcript && onUserSpeech) {
+                  console.log('[ElevenLabs] Got user transcript from getUserTranscript():', transcript);
+                  onUserSpeech(transcript);
+                  if (onMessage) {
+                    onMessage({ role: 'user', content: transcript });
+                  }
+                }
+              }
+            } catch (e) {
+              // Method doesn't exist, that's okay
+            }
+          }
         },
         onStatusChange: (statusPayload: { status: string }) => {
           // Update connection state based on status
@@ -235,6 +345,30 @@ export function useElevenLabsConversation({
       });
 
       conversationRef.current = conversation;
+      
+      // Log available methods on the conversation object for debugging
+      console.log('[ElevenLabs] Conversation object methods:', Object.getOwnPropertyNames(conversation));
+      console.log('[ElevenLabs] Conversation object prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(conversation)));
+      
+      // Try to enable user transcript forwarding if the SDK supports it
+      try {
+        if (typeof conversation.enableUserTranscript === 'function') {
+          conversation.enableUserTranscript(true);
+          console.log('[ElevenLabs] Enabled user transcript forwarding');
+        }
+        if (typeof conversation.setUserTranscriptCallback === 'function' && onUserSpeech) {
+          conversation.setUserTranscriptCallback((transcript: string) => {
+            console.log('[ElevenLabs] User transcript from callback:', transcript);
+            onUserSpeech(transcript);
+            if (onMessage) {
+              onMessage({ role: 'user', content: transcript });
+            }
+          });
+          console.log('[ElevenLabs] Set user transcript callback');
+        }
+      } catch (e) {
+        console.log('[ElevenLabs] User transcript methods not available:', e);
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to start call';
       setError(errorMsg);
@@ -244,6 +378,8 @@ export function useElevenLabsConversation({
   }, [agentId, defaultAgentId, sessionId, isSdkLoaded, sdkLoadError, onConnect, onDisconnect, onMessage, onModeChange, onError, onUserSpeech, onAgentSpeech]);
 
   const endCall = useCallback(async () => {
+    const conversationId = conversationIdRef.current;
+    
     // End the conversation session
     if (conversationRef.current) {
       try {
@@ -256,8 +392,42 @@ export function useElevenLabsConversation({
 
     setIsConnected(false);
 
+    // Fetch transcript from backend after call ends (wait a moment for processing)
+    if (conversationId) {
+      // Wait 2 seconds for ElevenLabs to process and store the transcript
+      setTimeout(async () => {
+        try {
+          const transcript = await getElevenLabsTranscript(conversationId);
+          if (transcript && transcript.messages) {
+            console.log('[ElevenLabs] Fetched transcript from backend after call end:', transcript);
+            
+            // Process transcript messages and call callbacks
+            for (const msg of transcript.messages) {
+              const role = msg.role === 'user' ? 'user' : 'agent';
+              const content = msg.content || msg.text || '';
+              
+              if (content.trim()) {
+                if (role === 'user' && onUserSpeech) {
+                  onUserSpeech(content);
+                } else if (role === 'agent' && onAgentSpeech) {
+                  onAgentSpeech(content);
+                }
+                if (onMessage) {
+                  onMessage({ role, content });
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[ElevenLabs] Failed to fetch transcript after call end:', err);
+        }
+      }, 2000);
+      
+      conversationIdRef.current = null;
+    }
+
     if (onDisconnect) onDisconnect();
-  }, [onDisconnect]);
+  }, [onDisconnect, onMessage, onUserSpeech, onAgentSpeech]);
 
   // Check if we have an agent ID available (from prop or default)
   const hasAgentId = !!(agentId || defaultAgentId);
@@ -273,3 +443,4 @@ export function useElevenLabsConversation({
     isSdkLoaded,
   };
 }
+

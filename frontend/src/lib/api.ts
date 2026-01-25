@@ -17,6 +17,7 @@ import type {
   HandoffStatus,
 } from '@/types';
 
+// Default to port 8000, but allow override via environment variable
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
@@ -238,6 +239,7 @@ export async function getElevenLabsStatus(): Promise<{
 export async function getElevenLabsSignedUrl(params: {
   agent_id?: string;
   session_id?: string;
+  language?: string;
 }): Promise<{
   signed_url: string;
   agent_id: string;
@@ -246,6 +248,21 @@ export async function getElevenLabsSignedUrl(params: {
   confirmation_code?: string;
 }> {
   const response = await api.post('/api/elevenlabs/convai/web-call', params);
+  return response.data;
+}
+
+export async function getElevenLabsTranscript(conversationId: string): Promise<{
+  conversation_id: string;
+  messages: Array<{
+    role: 'user' | 'agent' | 'assistant';
+    content: string;
+    text?: string;
+    timestamp?: string;
+  }>;
+  duration_ms?: number;
+  status?: string;
+}> {
+  const response = await api.get(`/api/elevenlabs/convai/conversation/${conversationId}`);
   return response.data;
 }
 

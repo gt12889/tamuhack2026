@@ -96,6 +96,7 @@ urlpatterns = [
     # ElevenLabs Conversational AI endpoints
     path('elevenlabs/convai/status', views.elevenlabs_convai_status, name='elevenlabs_convai_status'),
     path('elevenlabs/convai/web-call', views.elevenlabs_create_web_call, name='elevenlabs_create_web_call'),
+    path('elevenlabs/convai/conversation/<str:conversation_id>', views.elevenlabs_get_conversation, name='elevenlabs_get_conversation'),
     path('elevenlabs/convai/webhook', views.elevenlabs_server_tool, name='elevenlabs_server_tool'),
     path('elevenlabs/convai/tools', views.elevenlabs_server_tool_definitions, name='elevenlabs_server_tool_definitions'),
 ]
