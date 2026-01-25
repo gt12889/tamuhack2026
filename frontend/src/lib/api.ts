@@ -8,6 +8,12 @@ import type {
   RetellWebCall,
   RetellPhoneCall,
   RetellStatus,
+  HelperSessionResponse,
+  FlightOption,
+  SeatMapResponse,
+  ActionResult,
+  HelperLocationResponse,
+  LocationUpdateResponse,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -102,11 +108,7 @@ export async function createHelperLink(sessionId: string): Promise<{
   return response.data;
 }
 
-export async function getHelperSession(linkId: string): Promise<{
-  session: Session;
-  reservation: Reservation | null;
-  messages: Array<{ role: string; content: string; timestamp: string }>;
-}> {
+export async function getHelperSession(linkId: string): Promise<HelperSessionResponse> {
   const response = await api.get(`/api/helper/${linkId}`);
   return response.data;
 }
@@ -116,6 +118,109 @@ export async function sendHelperSuggestion(
   message: string
 ): Promise<{ success: boolean }> {
   const response = await api.post(`/api/helper/${linkId}/suggest`, { message });
+  return response.data;
+}
+
+// Family Helper Action API
+export async function getHelperActions(linkId: string): Promise<{
+  available_actions: Array<{
+    action_type: string;
+    display_name: string;
+    description: string;
+    icon: string;
+    enabled: boolean;
+  }>;
+  action_history: Array<{
+    id: string;
+    action_type: string;
+    display_name: string;
+    status: string;
+    result_message: string;
+    created_at: string;
+  }>;
+}> {
+  const response = await api.get(`/api/helper/${linkId}/actions`);
+  return response.data;
+}
+
+export async function helperChangeFlight(
+  linkId: string,
+  newFlightId: string,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/change-flight`, {
+    new_flight_id: newFlightId,
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+export async function helperCancelFlight(
+  linkId: string,
+  reason?: string,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/cancel-flight`, {
+    reason: reason || '',
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+export async function helperSelectSeat(
+  linkId: string,
+  seat: string,
+  flightSegmentId?: string,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/select-seat`, {
+    seat,
+    flight_segment_id: flightSegmentId,
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+export async function helperAddBags(
+  linkId: string,
+  bagCount: number,
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/add-bags`, {
+    bag_count: bagCount,
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+export async function helperRequestWheelchair(
+  linkId: string,
+  assistanceType: 'wheelchair' | 'wheelchair_ramp' | 'escort' = 'wheelchair',
+  notes?: string
+): Promise<ActionResult> {
+  const response = await api.post(`/api/helper/${linkId}/actions/request-wheelchair`, {
+    assistance_type: assistanceType,
+    notes: notes || '',
+  });
+  return response.data;
+}
+
+export async function getHelperFlights(linkId: string): Promise<{
+  current_flight: {
+    flight_number: string;
+    origin: string;
+    destination: string;
+    departure_time: string;
+    arrival_time: string | null;
+  };
+  alternative_flights: FlightOption[];
+}> {
+  const response = await api.get(`/api/helper/${linkId}/flights`);
+  return response.data;
+}
+
+export async function getHelperSeats(linkId: string): Promise<SeatMapResponse> {
+  const response = await api.get(`/api/helper/${linkId}/seats`);
   return response.data;
 }
 
@@ -168,6 +273,73 @@ export async function getRetellCall(callId: string): Promise<RetellPhoneCall | R
 
 export async function endRetellCall(callId: string): Promise<{ success: boolean }> {
   const response = await api.post(`/api/retell/calls/${callId}/end`);
+  return response.data;
+}
+
+// Location Tracking API
+export async function updateLocation(
+  sessionId: string,
+  latitude: number,
+  longitude: number,
+  accuracy?: number
+): Promise<LocationUpdateResponse> {
+  const response = await api.post('/api/location/update', {
+    session_id: sessionId,
+    latitude,
+    longitude,
+    accuracy,
+  });
+  return response.data;
+}
+
+export async function getHelperLocation(linkId: string): Promise<HelperLocationResponse> {
+  const response = await api.get(`/api/helper/${linkId}/location`);
+  return response.data;
+}
+
+export async function triggerLocationAlert(
+  sessionId: string,
+  alertType: 'running_late' | 'urgent' | 'manual'
+): Promise<{ success: boolean; alert_id?: string; message?: string }> {
+  const response = await api.post('/api/location/alert', {
+    session_id: sessionId,
+    alert_type: alertType,
+  });
+  return response.data;
+}
+
+export async function getLocationHistory(
+  sessionId: string
+): Promise<{
+  locations: Array<{
+    id: string;
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+    timestamp: string;
+  }>;
+}> {
+  const response = await api.get(`/api/location/${sessionId}/history`);
+  return response.data;
+}
+
+export async function getLocationAlerts(
+  sessionId: string
+): Promise<{
+  alerts: Array<{
+    id: string;
+    alert_type: string;
+    message: string;
+    acknowledged: boolean;
+    created_at: string;
+  }>;
+}> {
+  const response = await api.get(`/api/location/${sessionId}/alerts`);
+  return response.data;
+}
+
+export async function acknowledgeAlert(alertId: string): Promise<{ success: boolean }> {
+  const response = await api.post(`/api/location/alerts/${alertId}/acknowledge`);
   return response.data;
 }
 

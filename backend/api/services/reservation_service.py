@@ -7,6 +7,8 @@ import logging
 from typing import Optional, List, Dict, Any
 from django.db.models import Q
 
+# --- ADDED: Import the email service ---
+from .resend_service import resend_service
 from ..models import Passenger, Flight, Reservation, FlightSegment
 
 logger = logging.getLogger(__name__)
@@ -15,43 +17,26 @@ logger = logging.getLogger(__name__)
 class ReservationService:
     """Service for managing reservations in the database."""
 
+    # ... (lookup_reservation, get_reservation_by_id, search_reservations methods remain unchanged) ...
+
     def lookup_reservation(
         self,
         confirmation_code: Optional[str] = None,
         last_name: Optional[str] = None,
         email: Optional[str] = None
     ) -> Optional[Reservation]:
-        """
-        Look up a reservation by confirmation code, last name, or email.
-
-        Args:
-            confirmation_code: 6-character confirmation code
-            last_name: Passenger's last name
-            email: Passenger's email
-
-        Returns:
-            Reservation object or None if not found
-        """
+        # ... (implementation unchanged) ...
         try:
             queryset = Reservation.objects.select_related('passenger').prefetch_related(
                 'flight_segments__flight'
             )
-
             if confirmation_code:
                 return queryset.get(confirmation_code=confirmation_code.upper())
-
             if last_name:
-                return queryset.filter(
-                    passenger__last_name__iexact=last_name
-                ).first()
-
+                return queryset.filter(passenger__last_name__iexact=last_name).first()
             if email:
-                return queryset.filter(
-                    passenger__email__iexact=email
-                ).first()
-
+                return queryset.filter(passenger__email__iexact=email).first()
             return None
-
         except Reservation.DoesNotExist:
             return None
         except Exception as e:
@@ -59,15 +44,7 @@ class ReservationService:
             return None
 
     def get_reservation_by_id(self, reservation_id: str) -> Optional[Reservation]:
-        """
-        Get a reservation by its UUID.
-
-        Args:
-            reservation_id: UUID of the reservation
-
-        Returns:
-            Reservation object or None if not found
-        """
+        # ... (implementation unchanged) ...
         try:
             return Reservation.objects.select_related('passenger').prefetch_related(
                 'flight_segments__flight'
@@ -78,21 +55,8 @@ class ReservationService:
             logger.error(f"Error getting reservation by ID: {e}")
             return None
 
-    def search_reservations(
-        self,
-        query: str,
-        limit: int = 10
-    ) -> List[Reservation]:
-        """
-        Search reservations by confirmation code, passenger name, or email.
-
-        Args:
-            query: Search query string
-            limit: Maximum number of results
-
-        Returns:
-            List of matching Reservation objects
-        """
+    def search_reservations(self, query: str, limit: int = 10) -> List[Reservation]:
+        # ... (implementation unchanged) ...
         try:
             queryset = Reservation.objects.select_related('passenger').prefetch_related(
                 'flight_segments__flight'
@@ -102,7 +66,6 @@ class ReservationService:
                 Q(passenger__last_name__icontains=query) |
                 Q(passenger__email__icontains=query)
             )[:limit]
-
             return list(queryset)
         except Exception as e:
             logger.error(f"Error searching reservations: {e}")
@@ -116,14 +79,6 @@ class ReservationService:
     ) -> Optional[Reservation]:
         """
         Create a new reservation with passenger and flight segments.
-
-        Args:
-            confirmation_code: 6-character confirmation code
-            passenger_data: Dict with passenger info (first_name, last_name, email, etc.)
-            flight_segments: List of dicts with flight and seat info
-
-        Returns:
-            Created Reservation object or None if failed
         """
         from dateutil.parser import parse as parse_datetime
 
@@ -147,6 +102,8 @@ class ReservationService:
                 passenger=passenger,
                 status='confirmed',
             )
+
+            email_flight_details = []
 
             # Create flight segments
             for i, segment_data in enumerate(flight_segments):
@@ -182,28 +139,39 @@ class ReservationService:
                     segment_order=i,
                 )
 
+                # Collect data for email
+                email_flight_details.append({
+                    'flight_number': flight.flight_number,
+                    'origin': flight.origin,
+                    'destination': flight.destination,
+                    'departure_time': flight.departure_time.isoformat(),
+                    'arrival_time': flight.arrival_time.isoformat() if flight.arrival_time else '',
+                    'gate': flight.gate or 'TBD',
+                    'seat': segment_data.get('seat', 'Not assigned'),
+                })
+
             logger.info(f"Created reservation {confirmation_code} for {passenger.email}")
+
+            # --- ADDED: Send Booking Confirmation Email ---
+            try:
+                resend_service.send_booking_confirmation(
+                    to_email=passenger.email,
+                    passenger_name=f"{passenger.first_name} {passenger.last_name}",
+                    confirmation_code=reservation.confirmation_code,
+                    flight_details=email_flight_details,
+                    language=passenger.language_preference or 'en'
+                )
+            except Exception as e:
+                logger.error(f"Failed to send booking email: {e}")
+
             return reservation
 
         except Exception as e:
             logger.error(f"Error creating reservation: {e}")
             return None
 
-    def update_reservation_status(
-        self,
-        reservation_id: str,
-        new_status: str
-    ) -> Optional[Reservation]:
-        """
-        Update reservation status.
-
-        Args:
-            reservation_id: UUID of the reservation
-            new_status: New status ('confirmed', 'changed', 'cancelled')
-
-        Returns:
-            Updated Reservation object or None if failed
-        """
+    def update_reservation_status(self, reservation_id: str, new_status: str) -> Optional[Reservation]:
+        # ... (implementation unchanged) ...
         try:
             reservation = Reservation.objects.get(id=reservation_id)
             reservation.status = new_status
@@ -224,15 +192,6 @@ class ReservationService:
     ) -> Optional[Reservation]:
         """
         Change a flight segment to a new flight.
-
-        Args:
-            reservation_id: UUID of the reservation
-            segment_order: Which segment to change (0-based)
-            new_flight_data: New flight information
-            new_seat: New seat assignment (optional)
-
-        Returns:
-            Updated Reservation object or None if failed
         """
         from dateutil.parser import parse as parse_datetime
 
@@ -246,6 +205,15 @@ class ReservationService:
             if not segment:
                 logger.error(f"Segment {segment_order} not found for reservation {reservation_id}")
                 return None
+
+            # --- ADDED: Capture Original Flight Data ---
+            original_flight_data = {
+                'flight_number': segment.flight.flight_number,
+                'origin': segment.flight.origin,
+                'destination': segment.flight.destination,
+                'departure_time': segment.flight.departure_time.isoformat(),
+                'seat': segment.seat
+            }
 
             # Parse datetime strings if needed
             departure_time = new_flight_data.get('departure_time')
@@ -280,6 +248,21 @@ class ReservationService:
             reservation.save()
 
             logger.info(f"Changed flight for reservation {reservation.confirmation_code}")
+
+            # --- ADDED: Send Flight Change Confirmation Email ---
+            if reservation.passenger.email:
+                try:
+                    resend_service.send_flight_change_confirmation(
+                        to_email=reservation.passenger.email,
+                        passenger_name=f"{reservation.passenger.first_name} {reservation.passenger.last_name}",
+                        confirmation_code=reservation.confirmation_code,
+                        original_flight=original_flight_data,
+                        new_flight=new_flight_data,
+                        language=reservation.passenger.language_preference or 'en'
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send flight change email: {e}")
+
             return reservation
 
         except Reservation.DoesNotExist:
@@ -288,19 +271,8 @@ class ReservationService:
             logger.error(f"Error changing flight: {e}")
             return None
 
-    def get_passenger_reservations(
-        self,
-        passenger_email: str
-    ) -> List[Reservation]:
-        """
-        Get all reservations for a passenger by email.
-
-        Args:
-            passenger_email: Passenger's email address
-
-        Returns:
-            List of Reservation objects
-        """
+    def get_passenger_reservations(self, passenger_email: str) -> List[Reservation]:
+        # ... (implementation unchanged) ...
         try:
             return list(
                 Reservation.objects.select_related('passenger').prefetch_related(

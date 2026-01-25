@@ -30,26 +30,26 @@ const DEMO_STEPS_EN = [
   {
     id: 4,
     speaker: 'user',
-    text: "It's D-E-M-O-1-2-3",
+    text: "It's C-Z-Y-B-Y-U",
     delay: 2000,
   },
   {
     id: 5,
     speaker: 'agent',
-    text: "Got it! I found your reservation. You're flying from Dallas to Chicago on Friday at 2:00 PM. What would you like to change?",
+    text: "Got it! I found your reservation. You're flying from Pittsburgh to Dallas on Monday, January 19th at 7:06 AM. What would you like to change?",
     delay: 3500,
     showReservation: true,
   },
   {
     id: 6,
     speaker: 'user',
-    text: "I'd like to move it to Saturday instead.",
+    text: "I'd like to move it to Tuesday instead.",
     delay: 2000,
   },
   {
     id: 7,
     speaker: 'agent',
-    text: "I found a flight on Saturday at 2:00 PM. Same route, Dallas to Chicago. Would you like me to book that for you?",
+    text: "I found a flight on Tuesday at 7:06 AM. Same route, Pittsburgh to Dallas. Would you like me to book that for you?",
     delay: 3000,
     showFlightOptions: true,
   },
@@ -90,26 +90,26 @@ const DEMO_STEPS_ES = [
   {
     id: 4,
     speaker: 'user',
-    text: "Es D-E-M-O-1-2-3",
+    text: "Es C-Z-Y-B-Y-U",
     delay: 2000,
   },
   {
     id: 5,
     speaker: 'agent',
-    text: "¡Perfecto! Encontré su reservación. Usted vuela de Dallas a Chicago el viernes a las 2:00 PM. ¿Qué le gustaría cambiar?",
+    text: "¡Perfecto! Encontré su reservación. Usted vuela de Pittsburgh a Dallas el lunes 19 de enero a las 7:06 AM. ¿Qué le gustaría cambiar?",
     delay: 4000,
     showReservation: true,
   },
   {
     id: 6,
     speaker: 'user',
-    text: "Me gustaría cambiarlo al sábado.",
+    text: "Me gustaría cambiarlo al martes.",
     delay: 2000,
   },
   {
     id: 7,
     speaker: 'agent',
-    text: "Encontré un vuelo el sábado a las 2:00 PM. Misma ruta, Dallas a Chicago. ¿Quiere que lo reserve?",
+    text: "Encontré un vuelo el martes a las 7:06 AM. Misma ruta, Pittsburgh a Dallas. ¿Quiere que lo reserve?",
     delay: 3500,
     showFlightOptions: true,
   },
@@ -128,9 +128,9 @@ const DEMO_STEPS_ES = [
   },
 ];
 
-// Mock data
+// Mock data - Flight PIT -> DFW, Monday January 19, 2026
 const MOCK_RESERVATION = {
-  confirmation_code: 'DEMO123',
+  confirmation_code: 'CZYBYU',
   passenger: {
     first_name: 'Margaret',
     last_name: 'Johnson',
@@ -138,11 +138,11 @@ const MOCK_RESERVATION = {
   },
   flights: [{
     id: '1',
-    flight_number: 'AA1234',
-    origin: 'DFW',
-    destination: 'ORD',
-    departure_time: 'Friday, Jan 24 at 2:00 PM',
-    arrival_time: 'Friday, Jan 24 at 5:30 PM',
+    flight_number: 'AA1845',
+    origin: 'PIT',
+    destination: 'DFW',
+    departure_time: 'Monday, Jan 19 at 7:06 AM',
+    arrival_time: 'Monday, Jan 19 at 9:50 AM',
     seat: '14A',
     status: 'scheduled' as const,
   }],
@@ -150,18 +150,18 @@ const MOCK_RESERVATION = {
 
 const MOCK_NEW_FLIGHT = {
   id: '2',
-  flight_number: 'AA1234',
-  origin: 'DFW',
-  destination: 'ORD',
-  departure_time: 'Saturday, Jan 25 at 2:00 PM',
-  arrival_time: 'Saturday, Jan 25 at 5:30 PM',
+  flight_number: 'AA1845',
+  origin: 'PIT',
+  destination: 'DFW',
+  departure_time: 'Tuesday, Jan 20 at 7:06 AM',
+  arrival_time: 'Tuesday, Jan 20 at 9:50 AM',
   seat: '14A',
   status: 'scheduled' as const,
 };
 
-const TRIP_SUMMARY_EN = "Here's your trip summary! ✈️ You're now flying from Dallas to Chicago on Saturday, January 25th at 2:00 PM. Your seat is 14A, a window seat. Your confirmation code is D-E-M-O-1-2-3. Have a wonderful trip!";
+const TRIP_SUMMARY_EN = "Here's your trip summary! ✈️ You're now flying from Pittsburgh to Dallas on Tuesday, January 20th at 7:06 AM. Your seat is 14A, a window seat. Your confirmation code is C-Z-Y-B-Y-U. Have a wonderful trip!";
 
-const TRIP_SUMMARY_ES = "¡Aquí está el resumen de su viaje! ✈️ Ahora usted vuela de Dallas a Chicago el sábado 25 de enero a las 2:00 PM. Su asiento es el 14A, junto a la ventana. Su código de confirmación es D-E-M-O-1-2-3. ¡Que tenga un excelente viaje!";
+const TRIP_SUMMARY_ES = "¡Aquí está el resumen de su viaje! ✈️ Ahora usted vuela de Pittsburgh a Dallas el martes 20 de enero a las 7:06 AM. Su asiento es el 14A, junto a la ventana. Su código de confirmación es C-Z-Y-B-Y-U. ¡Que tenga un excelente viaje!";
 
 interface SampleWorkflowDemoProps {
   className?: string;
@@ -394,17 +394,17 @@ export function SampleWorkflowDemo({ className }: SampleWorkflowDemoProps) {
             >
               <TripSummaryCard
                 summary={language === 'es' ? TRIP_SUMMARY_ES : TRIP_SUMMARY_EN}
-                summaryShort={language === 'es' ? 'Vuelo DFW → ORD, Código: DEMO123' : 'Flight DFW → ORD, Code: DEMO123'}
-                confirmationCode="DEMO123"
-                origin="Dallas (DFW)"
-                destination="Chicago (ORD)"
-                departureTime="Saturday, Jan 25 at 2:00 PM"
+                summaryShort={language === 'es' ? 'Vuelo PIT → DFW, Código: CZYBYU' : 'Flight PIT → DFW, Code: CZYBYU'}
+                confirmationCode="CZYBYU"
+                origin="Pittsburgh (PIT)"
+                destination="Dallas (DFW)"
+                departureTime="Tuesday, Jan 20 at 7:06 AM"
                 seat="14A"
                 language={language}
                 isChange={true}
                 changes={language === 'es'
-                  ? ['Fecha: Viernes → Sábado']
-                  : ['Date: Friday → Saturday']}
+                  ? ['Fecha: Lunes → Martes']
+                  : ['Date: Monday → Tuesday']}
               />
             </motion.div>
           )}

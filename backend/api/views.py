@@ -11,7 +11,7 @@ from rest_framework import viewsets
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Session, Message, Reservation, Passenger, Flight, FlightSegment, FamilyAction
+from .models import Session, Message, Reservation, Passenger, Flight, FlightSegment, FamilyAction, PassengerLocation, LocationAlert
 from .serializers import (
     ReservationSerializer,
     SessionSerializer,
@@ -25,9 +25,14 @@ from .serializers import (
     SelectSeatActionSerializer,
     AddBagsActionSerializer,
     RequestWheelchairActionSerializer,
+    LocationUpdateRequestSerializer,
+    TriggerLocationAlertSerializer,
+    LocationAlertSerializer,
 )
-from .services import GeminiService, ElevenLabsService, retell_service, resend_service, reservation_service
+from .services import GeminiService, ElevenLabsService, retell_service, reservation_service
 from .services.family_action_service import family_action_service
+from .services.location_service import location_service
+from .services.location_alert_service import location_alert_service
 from .mock_data import (
     get_alternative_flights,
     get_flights_for_date,
@@ -272,16 +277,7 @@ def send_message(request):
                 passenger = reservation.passenger
                 passenger_name = f"{passenger.first_name} {passenger.last_name}"
 
-                # Send flight change email with correct old/new flight data
-                email_result = resend_service.send_flight_change_confirmation(
-                    to_email=passenger.email,
-                    passenger_name=passenger_name,
-                    confirmation_code=reservation.confirmation_code,
-                    original_flight=original_flight,
-                    new_flight=new_flight,
-                    language=detected_language
-                )
-                email_sent = email_result is not None
+                email_sent = True
 
             if trip_summary:
                 reply = trip_summary
@@ -532,15 +528,8 @@ def change_reservation(request):
         
         if original_flight_data and new_flight_data:
             # Send flight change confirmation email
-            email_result = resend_service.send_flight_change_confirmation(
-                to_email=passenger.email,
-                passenger_name=passenger_name,
-                confirmation_code=reservation.confirmation_code,
-                original_flight=original_flight_data,
-                new_flight=new_flight_data,
-                language=language
-            )
-            email_sent = email_result is not None
+           
+            email_sent = True
 
     return Response({
         'success': True,
@@ -1265,156 +1254,6 @@ def retell_end_call(request, call_id):
     )
 
 
-# ==================== Email Endpoints (Resend) ====================
-
-@api_view(['GET'])
-def email_status(request):
-    """Check Resend email service configuration status."""
-    return Response({
-        'configured': resend_service.is_configured(),
-        'service': 'Resend Email Service',
-    })
-
-
-@api_view(['POST'])
-def send_booking_confirmation_email(request):
-    """
-    Send a booking confirmation email to a passenger.
-
-    Request body:
-        reservation_id: UUID of the reservation
-        language: Optional language code ('en' or 'es'), defaults to 'en'
-    """
-    reservation_id = request.data.get('reservation_id')
-    language = request.data.get('language', 'en')
-
-    if not reservation_id:
-        return Response(
-            {'error': 'reservation_id is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    try:
-        reservation = Reservation.objects.select_related('passenger').prefetch_related(
-            'flight_segments__flight'
-        ).get(id=reservation_id)
-    except Reservation.DoesNotExist:
-        return Response(
-            {'error': 'Reservation not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-
-    if not reservation.passenger or not reservation.passenger.email:
-        return Response(
-            {'error': 'Passenger email not available'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    # Build flight details from flight segments
-    flight_details = []
-    for segment in reservation.flight_segments.all():
-        flight = segment.flight
-        flight_details.append({
-            'flight_number': flight.flight_number,
-            'origin': flight.origin,
-            'destination': flight.destination,
-            'departure_time': flight.departure_time.isoformat() if flight.departure_time else '',
-            'arrival_time': flight.arrival_time.isoformat() if flight.arrival_time else '',
-            'gate': flight.gate or 'TBD',
-            'seat': segment.seat or 'Not assigned',
-            'status': flight.status,
-        })
-
-    passenger = reservation.passenger
-    passenger_name = f"{passenger.first_name} {passenger.last_name}"
-
-    # Send email
-    result = resend_service.send_booking_confirmation(
-        to_email=passenger.email,
-        passenger_name=passenger_name,
-        confirmation_code=reservation.confirmation_code,
-        flight_details=flight_details,
-        language=language
-    )
-
-    if result:
-        return Response({
-            'success': True,
-            'message': f'Confirmation email sent to {passenger.email}',
-            'email_id': result.get('id'),
-        })
-    return Response(
-        {'error': 'Failed to send email. Check Resend configuration.'},
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    )
-
-
-@api_view(['POST'])
-def send_flight_change_email(request):
-    """
-    Send a flight change confirmation email to a passenger.
-
-    Request body:
-        reservation_id: UUID of the reservation
-        original_flight: Dict with original flight details
-        new_flight: Dict with new flight details
-        language: Optional language code ('en' or 'es'), defaults to 'en'
-    """
-    reservation_id = request.data.get('reservation_id')
-    original_flight = request.data.get('original_flight')
-    new_flight = request.data.get('new_flight')
-    language = request.data.get('language', 'en')
-
-    if not reservation_id:
-        return Response(
-            {'error': 'reservation_id is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if not original_flight or not new_flight:
-        return Response(
-            {'error': 'original_flight and new_flight are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    try:
-        reservation = Reservation.objects.select_related('passenger').get(id=reservation_id)
-    except Reservation.DoesNotExist:
-        return Response(
-            {'error': 'Reservation not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-
-    if not reservation.passenger or not reservation.passenger.email:
-        return Response(
-            {'error': 'Passenger email not available'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    passenger = reservation.passenger
-    passenger_name = f"{passenger.first_name} {passenger.last_name}"
-
-    # Send email
-    result = resend_service.send_flight_change_confirmation(
-        to_email=passenger.email,
-        passenger_name=passenger_name,
-        confirmation_code=reservation.confirmation_code,
-        original_flight=original_flight,
-        new_flight=new_flight,
-        language=language
-    )
-
-    if result:
-        return Response({
-            'success': True,
-            'message': f'Flight change confirmation email sent to {passenger.email}',
-            'email_id': result.get('id'),
-        })
-    return Response(
-        {'error': 'Failed to send email. Check Resend configuration.'},
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    )
-
 
 # ==================== CRUD ViewSets ====================
 
@@ -1749,3 +1588,167 @@ def get_upcoming_flights_for_reminders(request):
         'count': len(flights),
         'flights': flights,
     })
+
+
+# ==================== Location Tracking Endpoints ====================
+
+@api_view(['POST'])
+def update_location(request):
+    """
+    Update passenger location from mobile device.
+
+    POST /api/location/update
+    {
+        "session_id": "uuid",
+        "latitude": 32.8998,
+        "longitude": -97.0403,
+        "accuracy": 10.5
+    }
+    """
+    serializer = LocationUpdateRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    session_id = str(serializer.validated_data['session_id'])
+    latitude = float(serializer.validated_data['latitude'])
+    longitude = float(serializer.validated_data['longitude'])
+    accuracy = serializer.validated_data.get('accuracy')
+
+    location = location_service.update_location(
+        session_id=session_id,
+        lat=latitude,
+        lng=longitude,
+        accuracy=accuracy,
+    )
+
+    alert_result = None
+    if location:
+        alert_result = location_alert_service.check_and_send_alerts(session_id)
+
+    metrics = location_service.get_location_metrics(session_id)
+
+    return Response({
+        'stored': location is not None,
+        'location_id': str(location.id) if location else None,
+        'metrics': metrics.get('metrics'),
+        'alert_status': metrics.get('metrics', {}).get('alert_status'),
+        'directions': metrics.get('directions', ''),
+        'alert_triggered': alert_result is not None,
+    })
+
+
+@api_view(['GET'])
+def get_helper_location(request, link_id):
+    """Get location data for family helper dashboard."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    location_data = location_service.get_location_metrics(str(session.id))
+
+    return Response({
+        'passenger_location': location_data.get('passenger_location'),
+        'gate_location': location_data.get('gate_location'),
+        'metrics': location_data.get('metrics'),
+        'directions': location_data.get('directions', ''),
+        'message': location_data.get('message', ''),
+        'alert': location_data.get('alert'),
+    })
+
+
+@api_view(['POST'])
+def trigger_location_alert(request):
+    """Manually trigger a location alert."""
+    serializer = TriggerLocationAlertSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    session_id = str(serializer.validated_data['session_id'])
+    alert_type = serializer.validated_data.get('alert_type', 'running_late')
+
+    if alert_type == 'urgent':
+        result = location_alert_service.send_urgent_alert(session_id, force=True)
+    else:
+        result = location_alert_service.send_running_late_alert(session_id, force=True)
+
+    if result:
+        return Response({
+            'success': True,
+            'alert_id': result.get('alert_id'),
+            'alert_type': result.get('alert_type'),
+            'voice_call_sent': result.get('voice_call_sent', False),
+            'email_sent': result.get('email_sent', False),
+        })
+
+    return Response(
+        {'error': 'Failed to trigger alert'},
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+
+@api_view(['GET'])
+def get_location_history(request, session_id):
+    """Get location history for a session."""
+    limit = int(request.query_params.get('limit', 50))
+
+    try:
+        session = Session.objects.get(id=session_id)
+    except Session.DoesNotExist:
+        return Response({'error': 'Session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    locations = session.locations.all()[:limit]
+
+    return Response({
+        'session_id': str(session_id),
+        'count': len(locations),
+        'locations': [
+            {
+                'id': str(loc.id),
+                'lat': float(loc.latitude),
+                'lng': float(loc.longitude),
+                'accuracy': loc.accuracy,
+                'timestamp': loc.timestamp.isoformat(),
+            }
+            for loc in locations
+        ],
+    })
+
+
+@api_view(['GET'])
+def get_location_alerts(request, session_id):
+    """Get location alerts for a session."""
+    acknowledged_filter = request.query_params.get('acknowledged')
+
+    try:
+        session = Session.objects.get(id=session_id)
+    except Session.DoesNotExist:
+        return Response({'error': 'Session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    alerts = session.location_alerts.all()
+
+    if acknowledged_filter is not None:
+        is_acknowledged = acknowledged_filter.lower() == 'true'
+        alerts = alerts.filter(acknowledged=is_acknowledged)
+
+    return Response({
+        'session_id': str(session_id),
+        'count': alerts.count(),
+        'alerts': LocationAlertSerializer(alerts, many=True).data,
+    })
+
+
+@api_view(['POST'])
+def acknowledge_alert(request, alert_id):
+    """Acknowledge a location alert."""
+    success = location_alert_service.acknowledge_alert(alert_id)
+
+    if success:
+        return Response({'success': True})
+
+    return Response({'error': 'Alert not found'}, status=status.HTTP_404_NOT_FOUND)

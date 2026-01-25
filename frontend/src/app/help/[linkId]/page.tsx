@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { getHelperSession, sendHelperSuggestion } from '@/lib/api';
-import { HelperDashboard } from '@/components/helper';
-import type { Message, Reservation } from '@/types';
+import { getHelperSession, sendHelperSuggestion, getHelperLocation } from '@/lib/api';
+import { HelperDashboard, LocationMap } from '@/components/helper';
+import type { Message, Reservation, HelperLocationResponse, AlertStatus } from '@/types';
 
 // Demo reservation data for testing the dashboard
+// Flight: PIT -> DFW, Monday January 19, 2026
 const DEMO_RESERVATION: Reservation = {
   id: 'demo-res-001',
-  confirmation_code: 'DEMO123',
+  confirmation_code: 'CZYBYU',
   passenger: {
     id: 'demo-pax-001',
     first_name: 'Margaret',
@@ -25,19 +26,111 @@ const DEMO_RESERVATION: Reservation = {
   flights: [
     {
       id: 'demo-flight-001',
-      flight_number: 'AA1234',
-      origin: 'DFW',
-      destination: 'ORD',
-      departure_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-      arrival_time: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(), // 5 hours from now
+      flight_number: 'AA1845',
+      origin: 'PIT',
+      destination: 'DFW',
+      departure_time: '2026-01-19T07:06:00-05:00', // 7:06 AM EST
+      arrival_time: '2026-01-19T09:50:00-06:00', // 9:50 AM CST
       gate: 'B22',
       status: 'scheduled',
       seat: '14A',
     },
   ],
   status: 'confirmed',
-  created_at: new Date().toISOString(),
+  created_at: '2026-01-15T10:00:00Z',
 };
+
+// Demo gate location (PIT Airport, Gate B22)
+const DEMO_GATE_LOCATION = {
+  lat: 40.4958,
+  lng: -80.2413,
+  gate: 'B22',
+  terminal: 'Airside',
+};
+
+// Demo starting location (PIT Airport entrance - about 600m from gate)
+const DEMO_START_LOCATION = {
+  lat: 40.4920,
+  lng: -80.2370,
+};
+
+// Calculate distance between two points in meters (Haversine formula)
+function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000; // Earth's radius in meters
+  const toRad = (deg: number) => deg * (Math.PI / 180);
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Generate demo location data with simulated movement
+function generateDemoLocation(progress: number, departureTime: Date): HelperLocationResponse {
+  // Progress goes from 0 (start) to 1 (arrived at gate)
+  const clampedProgress = Math.min(Math.max(progress, 0), 1);
+
+  // Interpolate position between start and gate
+  const currentLat = DEMO_START_LOCATION.lat + (DEMO_GATE_LOCATION.lat - DEMO_START_LOCATION.lat) * clampedProgress;
+  const currentLng = DEMO_START_LOCATION.lng + (DEMO_GATE_LOCATION.lng - DEMO_START_LOCATION.lng) * clampedProgress;
+
+  // Calculate distance to gate
+  const distanceMeters = calculateDistance(currentLat, currentLng, DEMO_GATE_LOCATION.lat, DEMO_GATE_LOCATION.lng);
+
+  // Estimate walking time (elderly pace ~50m/min)
+  const walkingTimeMinutes = Math.ceil(distanceMeters / 50);
+
+  // Time to departure
+  const timeToDepartureMinutes = Math.max(0, Math.floor((departureTime.getTime() - Date.now()) / 60000));
+
+  // Determine alert status based on walking time vs time to departure
+  let alertStatus: AlertStatus = 'safe';
+  if (clampedProgress >= 0.95) {
+    alertStatus = 'arrived';
+  } else if (walkingTimeMinutes > timeToDepartureMinutes - 15) {
+    alertStatus = 'urgent';
+  } else if (walkingTimeMinutes > timeToDepartureMinutes - 30) {
+    alertStatus = 'warning';
+  }
+
+  // Generate directions based on progress
+  let directions = '';
+  if (clampedProgress < 0.3) {
+    directions = 'Head towards Terminal B. Follow signs for Gates B1-B30.';
+  } else if (clampedProgress < 0.6) {
+    directions = 'Continue through Terminal B. Gate B22 is ahead on your left.';
+  } else if (clampedProgress < 0.9) {
+    directions = 'Almost there! Gate B22 is just ahead.';
+  } else {
+    directions = 'You have arrived at Gate B22.';
+  }
+
+  return {
+    passenger_location: {
+      lat: currentLat,
+      lng: currentLng,
+      accuracy: 10,
+      timestamp: new Date().toISOString(),
+    },
+    gate_location: DEMO_GATE_LOCATION,
+    metrics: {
+      distance_meters: Math.round(distanceMeters),
+      walking_time_minutes: walkingTimeMinutes,
+      time_to_departure_minutes: timeToDepartureMinutes,
+      alert_status: alertStatus,
+    },
+    directions,
+    message: alertStatus === 'arrived'
+      ? 'Margaret has arrived at the gate!'
+      : `Margaret is ${Math.round(distanceMeters)} meters from the gate.`,
+    alert: alertStatus === 'urgent' ? {
+      id: 'demo-alert-001',
+      type: 'running_late',
+      message: 'Margaret may be running late for her flight!',
+      created_at: new Date().toISOString(),
+    } : null,
+  };
+}
 
 export default function HelperPage() {
   const params = useParams();
@@ -50,6 +143,13 @@ export default function HelperPage() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
+  const [locationData, setLocationData] = useState<HelperLocationResponse | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  // Demo location simulation state
+  const [demoProgress, setDemoProgress] = useState(0);
+  const demoStartTimeRef = useRef<number | null>(null);
+  const DEMO_JOURNEY_DURATION_MS = 120000; // 2 minutes to complete the journey in demo
 
   const fetchSession = useCallback(async () => {
     try {
@@ -68,13 +168,72 @@ export default function HelperPage() {
     }
   }, [linkId]);
 
+  const fetchLocation = useCallback(async () => {
+    try {
+      setLocationLoading(true);
+      const data = await getHelperLocation(linkId);
+      setLocationData(data);
+    } catch (err) {
+      // Location data is optional, don't show error
+      console.log('Location data not available');
+    } finally {
+      setLocationLoading(false);
+    }
+  }, [linkId]);
+
   useEffect(() => {
     fetchSession();
     console.log(params)
+
     // Poll for updates every 3 seconds
-    const interval = setInterval(fetchSession, 3000);
-    return () => clearInterval(interval);
-  }, [fetchSession]);
+    const sessionInterval = setInterval(fetchSession, 3000);
+    // Poll location every 5 seconds
+    const locationInterval = setInterval(fetchLocation, 5000);
+
+    return () => {
+      clearInterval(sessionInterval);
+      clearInterval(locationInterval);
+    };
+  }, [fetchSession, fetchLocation]);
+
+  // Demo location simulation effect
+  useEffect(() => {
+    if (!demoMode) {
+      // Reset demo when exiting demo mode
+      demoStartTimeRef.current = null;
+      setDemoProgress(0);
+      return;
+    }
+
+    // Start the demo journey
+    if (demoStartTimeRef.current === null) {
+      demoStartTimeRef.current = Date.now();
+    }
+
+    // Update demo location every second
+    const demoInterval = setInterval(() => {
+      if (demoStartTimeRef.current === null) return;
+
+      const elapsed = Date.now() - demoStartTimeRef.current;
+      const progress = Math.min(elapsed / DEMO_JOURNEY_DURATION_MS, 1);
+      setDemoProgress(progress);
+
+      // Loop the demo after completion (restart after 5 seconds at gate)
+      if (progress >= 1) {
+        setTimeout(() => {
+          demoStartTimeRef.current = Date.now();
+          setDemoProgress(0);
+        }, 5000);
+      }
+    }, 1000);
+
+    return () => clearInterval(demoInterval);
+  }, [demoMode]);
+
+  // Generate demo location data when in demo mode
+  const effectiveLocationData = demoMode
+    ? generateDemoLocation(demoProgress, new Date(DEMO_RESERVATION.flights[0].departure_time))
+    : locationData;
 
   const handleSendSuggestion = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,22 +300,48 @@ export default function HelperPage() {
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         {/* Demo Mode Banner */}
         {demoMode && !reservation && (
-          <div className="bg-purple-100 border border-purple-300 rounded-xl p-3 flex items-center justify-between">
-            <span className="text-purple-800 text-sm font-medium">
-              Viewing demo data. Real data will appear when your family member looks up their reservation.
-            </span>
-            <button
-              onClick={() => setDemoMode(false)}
-              className="text-purple-600 hover:text-purple-800 text-sm font-medium"
-            >
-              Hide Demo
-            </button>
+          <div className="bg-purple-100 border border-purple-300 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-purple-800 font-medium">
+                Demo Mode Active
+              </span>
+              <button
+                onClick={() => setDemoMode(false)}
+                className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+              >
+                Exit Demo
+              </button>
+            </div>
+            <p className="text-purple-700 text-sm">
+              Simulating Margaret walking to Gate B22. Watch the map update as she moves towards the gate.
+              {demoProgress >= 1 && ' She has arrived! Demo will restart shortly.'}
+            </p>
+            <div className="mt-2 bg-purple-200 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-purple-600 h-full transition-all duration-1000"
+                style={{ width: `${demoProgress * 100}%` }}
+              />
+            </div>
           </div>
         )}
 
         {/* Dashboard with Passenger Info and Flight Status */}
         {(reservation || demoMode) ? (
-          <HelperDashboard reservation={reservation || DEMO_RESERVATION} />
+          <>
+            <HelperDashboard reservation={reservation || DEMO_RESERVATION} />
+
+            {/* Location Tracking Map */}
+            <LocationMap
+              passengerLocation={effectiveLocationData?.passenger_location ?? null}
+              gateLocation={effectiveLocationData?.gate_location ?? null}
+              metrics={effectiveLocationData?.metrics ?? null}
+              directions={effectiveLocationData?.directions ?? ''}
+              message={effectiveLocationData?.message ?? 'Waiting for location updates...'}
+              alert={effectiveLocationData?.alert ?? null}
+              onRefresh={demoMode ? undefined : fetchLocation}
+              loading={demoMode ? false : locationLoading}
+            />
+          </>
         ) : (
           <section className="bg-yellow-50 rounded-2xl p-6 border border-yellow-200">
             <div className="flex items-center justify-between mb-3">

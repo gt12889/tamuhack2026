@@ -110,6 +110,15 @@ class Session(models.Model):
         null=True, blank=True, related_name='sessions'
     )
     helper_link = models.CharField(max_length=20, blank=True, null=True, unique=True)
+    helper_link_expires_at = models.DateTimeField(blank=True, null=True)
+    helper_link_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ('session', 'Session-based (30 min)'),
+            ('persistent', 'Persistent (until flight departure)'),
+        ],
+        default='session'
+    )
     context = models.JSONField(default=dict)  # Store conversation context
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -141,3 +150,84 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:50]}..."
+
+
+class FamilyAction(models.Model):
+    """Actions taken by family helpers on behalf of elderly passengers."""
+    ACTION_TYPES = [
+        ('change_flight', 'Change Flight'),
+        ('cancel_flight', 'Cancel Flight'),
+        ('select_seat', 'Select Seat'),
+        ('add_bags', 'Add Bags'),
+        ('request_wheelchair', 'Request Wheelchair'),
+    ]
+
+    STATUS_CHOICES = [
+        ('executed', 'Executed'),
+        ('failed', 'Failed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='family_actions')
+    action_type = models.CharField(max_length=20, choices=ACTION_TYPES)
+    action_data = models.JSONField(default=dict)  # Store action-specific data
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='executed')
+    family_notes = models.TextField(blank=True)  # Optional notes from family helper
+    result_message = models.TextField(blank=True)  # Result or error message
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action_type} - {self.status}"
+
+    @property
+    def display_name(self):
+        return dict(self.ACTION_TYPES).get(self.action_type, self.action_type)
+
+
+class PassengerLocation(models.Model):
+    """GPS location tracking for elderly passengers navigating airports."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='locations')
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    accuracy = models.FloatField(null=True, blank=True)  # GPS accuracy in meters
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['session', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f"Location for session {self.session_id} at {self.timestamp}"
+
+
+class LocationAlert(models.Model):
+    """Alerts triggered by location tracking when passenger is running late."""
+    ALERT_TYPES = [
+        ('running_late', 'Running Late'),
+        ('urgent', 'Urgent - May Miss Flight'),
+        ('arrived', 'Arrived at Gate'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='location_alerts')
+    alert_type = models.CharField(max_length=20, choices=ALERT_TYPES)
+    message = models.TextField()
+    distance_to_gate = models.FloatField(null=True, blank=True)  # meters
+    estimated_walking_time = models.IntegerField(null=True, blank=True)  # minutes
+    time_to_departure = models.IntegerField(null=True, blank=True)  # minutes
+    acknowledged = models.BooleanField(default=False)
+    voice_call_sent = models.BooleanField(default=False)
+    email_sent = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.alert_type} alert for session {self.session_id}"

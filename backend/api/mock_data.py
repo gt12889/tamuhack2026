@@ -33,7 +33,8 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
     # NOTE: confirmation_code max_length=6 in database schema
     reservations = [
         {
-            'confirmation_code': 'DEMO12',
+            # Primary demo reservation: PIT -> DFW, Monday January 19, 2026
+            'confirmation_code': 'CZYBYU',
             'passenger': {
                 'first_name': 'Margaret',
                 'last_name': 'Johnson',
@@ -43,12 +44,12 @@ def get_demo_reservations() -> List[Dict[str, Any]]:
             },
             'flights': [
                 {
-                    'flight_number': 'AA1234',
-                    'origin': 'DFW',
-                    'destination': 'ORD',
-                    'departure_time': (now + timedelta(days=1, hours=14)).isoformat(),
-                    'arrival_time': (now + timedelta(days=1, hours=17)).isoformat(),
-                    'gate': 'A12',
+                    'flight_number': 'AA1845',
+                    'origin': 'PIT',
+                    'destination': 'DFW',
+                    'departure_time': '2026-01-19T07:06:00-05:00',  # 7:06 AM EST
+                    'arrival_time': '2026-01-19T09:50:00-06:00',  # 9:50 AM CST
+                    'gate': 'B22',
                     'seat': '14A',
                     'status': 'scheduled',
                 }
@@ -379,6 +380,8 @@ AIRPORT_CODES = {
     'washington': 'DCA',
     'dca': 'DCA',
     'reagan': 'DCA',
+    'pittsburgh': 'PIT',
+    'pit': 'PIT',
 }
 
 CITY_NAMES = {
@@ -397,4 +400,5 @@ CITY_NAMES = {
     'CLT': 'Charlotte',
     'PHL': 'Philadelphia',
     'DCA': 'Washington D.C.',
+    'PIT': 'Pittsburgh',
 }

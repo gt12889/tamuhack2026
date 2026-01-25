@@ -71,10 +71,6 @@ urlpatterns = [
     path('retell/function', views.retell_function_call, name='retell_function_call'),
     path('retell/functions', views.retell_function_definitions, name='retell_function_definitions'),
 
-    # Email endpoints (Resend)
-    path('email/status', views.email_status, name='email_status'),
-    path('email/booking-confirmation', views.send_booking_confirmation_email, name='send_booking_confirmation_email'),
-    path('email/flight-change', views.send_flight_change_email, name='send_flight_change_email'),
 
     # Outbound Reminder endpoints (Retell outbound calls)
     path('reminders/status', views.reminder_status, name='reminder_status'),
@@ -82,4 +78,12 @@ urlpatterns = [
     path('reminders/departure', views.send_departure_reminders, name='send_departure_reminders'),
     path('reminders/manual', views.send_manual_reminder, name='send_manual_reminder'),
     path('reminders/upcoming', views.get_upcoming_flights_for_reminders, name='get_upcoming_flights_for_reminders'),
+
+    # Location tracking endpoints
+    path('location/update', views.update_location, name='update_location'),
+    path('location/alert', views.trigger_location_alert, name='trigger_location_alert'),
+    path('location/<uuid:session_id>/history', views.get_location_history, name='get_location_history'),
+    path('location/<uuid:session_id>/alerts', views.get_location_alerts, name='get_location_alerts'),
+    path('location/alerts/<uuid:alert_id>/acknowledge', views.acknowledge_alert, name='acknowledge_alert'),
+    path('helper/<str:link_id>/location', views.get_helper_location, name='get_helper_location'),
 ]

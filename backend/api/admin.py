@@ -1,7 +1,7 @@
 """Admin configuration for AA Voice Concierge."""
 
 from django.contrib import admin
-from .models import Passenger, Flight, Reservation, FlightSegment, Session, Message
+from .models import Passenger, Flight, Reservation, FlightSegment, Session, Message, FamilyAction, PassengerLocation, LocationAlert
 
 
 @admin.register(Passenger)
@@ -42,3 +42,26 @@ class MessageAdmin(admin.ModelAdmin):
 
     def content_preview(self, obj):
         return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
+
+
+@admin.register(FamilyAction)
+class FamilyActionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'session', 'action_type', 'status', 'created_at']
+    list_filter = ['action_type', 'status']
+    search_fields = ['session__id', 'action_type']
+
+
+@admin.register(PassengerLocation)
+class PassengerLocationAdmin(admin.ModelAdmin):
+    list_display = ['id', 'session', 'latitude', 'longitude', 'accuracy', 'timestamp']
+    list_filter = ['timestamp']
+    search_fields = ['session__id']
+    ordering = ['-timestamp']
+
+
+@admin.register(LocationAlert)
+class LocationAlertAdmin(admin.ModelAdmin):
+    list_display = ['id', 'session', 'alert_type', 'acknowledged', 'voice_call_sent', 'email_sent', 'created_at']
+    list_filter = ['alert_type', 'acknowledged', 'voice_call_sent', 'email_sent']
+    search_fields = ['session__id', 'message']
+    ordering = ['-created_at']
