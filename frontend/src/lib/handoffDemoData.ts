@@ -330,3 +330,176 @@ export function getDemoHandoffCounts(): { pending: number; in_progress: number; 
     resolved: handoffs.filter((h) => h.status === 'resolved').length,
   };
 }
+
+// Helper-specific handoff for family helper demo mode
+const HELPER_HANDOFF_ID = 'demo-helper-meemaw-handoff';
+
+// Transcript for MeeMaw scenario (fee waiver request during urgent rebooking)
+const MEEMAW_TRANSCRIPT: HandoffTranscriptMessage[] = [
+  {
+    id: 'hm-1',
+    role: 'ai',
+    content: "Hello! Welcome to American Airlines. I'm your voice assistant. How can I help you today?",
+    timestamp: new Date(Date.now() - 420000).toISOString(),
+  },
+  {
+    id: 'hm-2',
+    role: 'user',
+    content: "Hi, this is Margaret. I need to change my flight to Chicago. My grandson is in the hospital.",
+    timestamp: new Date(Date.now() - 400000).toISOString(),
+  },
+  {
+    id: 'hm-3',
+    role: 'ai',
+    content: "I'm so sorry to hear about your grandson, Margaret. Let me look up your reservation. Can you provide your confirmation code?",
+    timestamp: new Date(Date.now() - 380000).toISOString(),
+  },
+  {
+    id: 'hm-4',
+    role: 'user',
+    content: "It's DFW123. I'm at the airport right now at Terminal A.",
+    timestamp: new Date(Date.now() - 360000).toISOString(),
+  },
+  {
+    id: 'hm-5',
+    role: 'ai',
+    content: "Thank you, Margaret. I found your reservation - flight AA2847 from DFW to ORD, departing at 3:30 PM from Gate B22. I see there's an earlier flight at 1:15 PM, but there would be a $200 change fee.",
+    timestamp: new Date(Date.now() - 340000).toISOString(),
+  },
+  {
+    id: 'hm-6',
+    role: 'user',
+    content: "Oh dear, that's quite a lot. This is a family emergency - my grandson was in an accident. I'm a Gold member, can the fee be waived?",
+    timestamp: new Date(Date.now() - 320000).toISOString(),
+  },
+  {
+    id: 'hm-7',
+    role: 'ai',
+    content: "I completely understand, Margaret. For fee waivers due to family emergencies, I need to connect you with one of our customer care specialists who can authorize this. I'm transferring you now and have shared all your details with them.",
+    timestamp: new Date(Date.now() - 300000).toISOString(),
+  },
+];
+
+// Create or get the MeeMaw helper handoff for demo mode
+export function createHelperDemoHandoff(): HandoffDossier {
+  // Check if already exists
+  if (demoHandoffStore.has(HELPER_HANDOFF_ID)) {
+    return demoHandoffStore.get(HELPER_HANDOFF_ID)!;
+  }
+
+  const dossier: HandoffDossier = {
+    handoff_id: HELPER_HANDOFF_ID,
+    session_id: 'demo-session-dfw',
+    status: 'pending',
+    priority: 'urgent',
+
+    conversation_summary:
+      "Elderly passenger Margaret (MeeMaw) needs to change her flight from DFW to ORD due to a family emergency - her grandson is hospitalized. She's requesting a fee waiver for the $200 change fee, citing her Gold AAdvantage status and the emergency situation. She's currently at Terminal A and needs to get to Gate B22.",
+
+    ai_actions_taken: [
+      'Looked up reservation DFW123',
+      'Found earlier flight option at 1:15 PM',
+      'Explained standard $200 change fee',
+      'Recognized family emergency keywords',
+      'Family helper is monitoring location via helper link',
+    ],
+
+    sentiment_score: 'urgent',
+    sentiment_reason: 'Family medical emergency with elderly passenger navigating airport alone',
+
+    metadata: {
+      confirmation_code: 'DFW123',
+      flight_number: 'AA2847',
+      flight_id: 'flight-dfw-001',
+      passenger_name: 'Margaret Thompson (MeeMaw)',
+      passenger_email: 'meemaw@email.com',
+      passenger_phone: '(555) 867-5309',
+      aadvantage_number: 'GOLD-789012',
+      issue_type: 'emergency_change_fee_waiver',
+    },
+
+    reservation: {
+      id: 'res-dfw-001',
+      confirmation_code: 'DFW123',
+      passenger: {
+        id: 'pax-meemaw-001',
+        first_name: 'Margaret',
+        last_name: 'Thompson',
+        email: 'meemaw@email.com',
+        phone: '(555) 867-5309',
+        aadvantage_number: 'GOLD-789012',
+        preferences: {
+          language: 'en',
+          seat_preference: 'aisle',
+        },
+      },
+      flights: [
+        {
+          id: 'flight-dfw-001',
+          flight_number: 'AA2847',
+          origin: 'DFW',
+          destination: 'ORD',
+          departure_time: new Date(Date.now() + 7200000).toISOString(), // 2 hours from now
+          arrival_time: new Date(Date.now() + 7200000 + 10800000).toISOString(), // 3 hours flight
+          gate: 'B22',
+          status: 'scheduled',
+          seat: '8D',
+        },
+      ],
+      status: 'confirmed',
+      created_at: new Date(Date.now() - 604800000).toISOString(),
+    },
+
+    transcript: MEEMAW_TRANSCRIPT,
+
+    handoff_reason: 'authorization_required',
+    handoff_reason_detail:
+      'Elderly passenger requesting emergency fee waiver - requires supervisor authorization. Family member is actively monitoring via helper link.',
+
+    suggested_first_response:
+      "Hi Margaret, this is [Agent Name] from American Airlines Customer Care. I've reviewed your situation and I want to help get you to your grandson as quickly as possible. Given the family emergency and your Gold status with us, I'm authorized to waive the change fee. Let me rebook you on that 1:15 PM flight right now.",
+
+    suggested_actions: [
+      'Waive the $200 change fee due to family emergency',
+      'Rebook to earlier flight AA1847 at 1:15 PM',
+      'Assign aisle seat for easier mobility',
+      'Arrange wheelchair assistance to new gate if needed',
+      'Note: Family helper is tracking her location via helper link',
+    ],
+
+    created_at: new Date().toISOString(),
+    bridge_message:
+      "I'm connecting you with a specialist who can help with your fee waiver request. I've shared all your details and the emergency situation with them. They'll be with you in just a moment, Margaret.",
+  };
+
+  demoHandoffStore.set(HELPER_HANDOFF_ID, dossier);
+  return dossier;
+}
+
+// Get MeeMaw handoff if it exists
+export function getHelperDemoHandoff(): HandoffDossier | null {
+  return demoHandoffStore.get(HELPER_HANDOFF_ID) || null;
+}
+
+// Check if MeeMaw handoff is active (pending or in_progress)
+export function isHelperHandoffActive(): boolean {
+  const handoff = demoHandoffStore.get(HELPER_HANDOFF_ID);
+  if (!handoff) return false;
+  return handoff.status === 'pending' || handoff.status === 'agent_joined' || handoff.status === 'in_progress';
+}
+
+// Simulate agent joining the MeeMaw handoff
+export function simulateAgentJoinHelperHandoff(): HandoffDossier | null {
+  const handoff = demoHandoffStore.get(HELPER_HANDOFF_ID);
+  if (!handoff) return null;
+
+  handoff.status = 'agent_joined';
+  handoff.agent_joined_at = new Date().toISOString();
+  demoHandoffStore.set(HELPER_HANDOFF_ID, handoff);
+  return handoff;
+}
+
+// Reset helper handoff for demo restart
+export function resetHelperDemoHandoff(): void {
+  demoHandoffStore.delete(HELPER_HANDOFF_ID);
+}

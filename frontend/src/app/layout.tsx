@@ -7,6 +7,13 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'AA Voice Concierge',
   description: 'Voice-first flight assistance for American Airlines passengers',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', type: 'image/x-icon' },
+    ],
+    apple: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

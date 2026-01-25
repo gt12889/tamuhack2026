@@ -29,6 +29,12 @@ class ElevenLabsWebhookHandler:
     - create_booking: Create a new flight booking
     - get_flight_options: Search for available flights
     - get_reservation_status: Check reservation status
+    - get_directions: Get directions to airport amenities (restrooms, food, etc.)
+    - create_family_helper_link: Create a link for family to track passenger location
+    - check_flight_delays: Check if a flight has delays or cancellations
+    - get_gate_directions: Get directions to a specific gate
+    - request_wheelchair: Request wheelchair assistance
+    - add_bags: Add checked bags to a reservation
     """
 
     def __init__(self):
@@ -55,6 +61,11 @@ class ElevenLabsWebhookHandler:
             'get_flight_options': self._fn_get_flight_options,
             'get_reservation_status': self._fn_get_reservation_status,
             'get_directions': self._fn_get_directions,
+            'create_family_helper_link': self._fn_create_family_helper_link,
+            'check_flight_delays': self._fn_check_flight_delays,
+            'get_gate_directions': self._fn_get_gate_directions,
+            'request_wheelchair': self._fn_request_wheelchair,
+            'add_bags': self._fn_add_bags,
         }
 
         handler = function_handlers.get(tool_name)
@@ -571,6 +582,215 @@ class ElevenLabsWebhookHandler:
             'landmark': selected['landmark'],
         }
 
+    def _fn_create_family_helper_link(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a family helper link so a family member can track and assist the passenger.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            passenger_phone: Optional phone number to send the link to
+
+        Returns:
+            The helper link URL
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+
+        if not code:
+            return {
+                'success': False,
+                'error': 'I need your confirmation code to create a helper link.',
+                'spoken_response': 'I need your confirmation code first to create a family helper link. What is your confirmation code?',
+            }
+
+        # Generate a helper link ID
+        import secrets
+        link_id = ''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(8))
+
+        # In production, this would save to the database
+        helper_url = f"https://aa-voice.vercel.app/help/{link_id}"
+
+        return {
+            'success': True,
+            'helper_link': helper_url,
+            'link_id': link_id,
+            'confirmation_code': code,
+            'spoken_response': f"I've created a family helper link. You can share this link with a family member: {helper_url}. They'll be able to see your flight details and location to help guide you through the airport. Would you like me to explain how it works?",
+        }
+
+    def _fn_check_flight_delays(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Check if a flight has any delays or schedule changes.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            flight_number: Or the flight number directly
+
+        Returns:
+            Flight status and any delay information
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+        flight_number = args.get('flight_number', '').upper().strip()
+
+        # Look up the reservation first
+        if code:
+            demo_reservations = get_demo_reservations()
+            for res_data in demo_reservations:
+                if res_data['confirmation_code'].upper() == code:
+                    flight = res_data['flights'][0] if res_data['flights'] else None
+                    if flight:
+                        status = flight.get('status', 'on_time')
+                        delay_minutes = flight.get('delay_minutes', 0)
+
+                        if status == 'delayed' or delay_minutes > 0:
+                            return {
+                                'success': True,
+                                'flight_number': flight['flight_number'],
+                                'status': 'delayed',
+                                'delay_minutes': delay_minutes,
+                                'new_departure_time': flight.get('new_departure_time'),
+                                'spoken_response': f"Your flight {flight['flight_number']} is currently delayed by {delay_minutes} minutes. The new departure time is {flight.get('new_departure_time', 'being updated')}. I apologize for the inconvenience.",
+                            }
+                        elif status == 'cancelled':
+                            return {
+                                'success': True,
+                                'flight_number': flight['flight_number'],
+                                'status': 'cancelled',
+                                'spoken_response': f"I'm sorry, but your flight {flight['flight_number']} has been cancelled. Would you like me to help you find an alternative flight?",
+                            }
+                        else:
+                            return {
+                                'success': True,
+                                'flight_number': flight['flight_number'],
+                                'status': 'on_time',
+                                'spoken_response': f"Good news! Your flight {flight['flight_number']} is currently on time and scheduled to depart as planned.",
+                            }
+
+        return {
+            'success': True,
+            'status': 'on_time',
+            'spoken_response': "Your flight is currently on time with no delays reported.",
+        }
+
+    def _fn_get_gate_directions(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get directions to a specific gate.
+
+        Args:
+            gate: The gate number (e.g., "B22")
+            current_location: Where the passenger currently is
+
+        Returns:
+            Step-by-step directions to the gate
+        """
+        gate = args.get('gate', '').upper().strip()
+        current_location = args.get('current_location', '').lower().strip()
+
+        if not gate:
+            return {
+                'success': False,
+                'error': 'Which gate do you need directions to?',
+            }
+
+        # Parse terminal from gate
+        terminal = gate[0] if gate else 'B'
+
+        # DFW-specific directions
+        directions_map = {
+            'A': {
+                'from_entrance': 'From the entrance, go through security, then follow signs to your gate number.',
+                'from_security': 'After security, turn right and follow the concourse. Gates are numbered sequentially.',
+            },
+            'B': {
+                'from_entrance': 'From Terminal A, take the Skylink train to Terminal B, then follow signs to your gate.',
+                'from_security': 'Take the Skylink train from Terminal A to Terminal B. Exit and turn left for gates B15-B30.',
+                'from_skylink': 'Exit the Skylink, take the escalator down, turn left and follow signs to your gate.',
+            },
+        }
+
+        term_directions = directions_map.get(terminal, directions_map['B'])
+
+        if 'security' in current_location:
+            directions = term_directions.get('from_security', term_directions.get('from_entrance'))
+        elif 'skylink' in current_location:
+            directions = term_directions.get('from_skylink', term_directions.get('from_security'))
+        else:
+            directions = term_directions.get('from_entrance')
+
+        return {
+            'success': True,
+            'gate': gate,
+            'terminal': terminal,
+            'directions': directions,
+            'spoken_response': f"To get to Gate {gate}: {directions} Look for the gate numbers on the signs above. Gate {gate} should take about 10 to 15 minutes to reach.",
+        }
+
+    def _fn_request_wheelchair(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Request wheelchair assistance for the passenger.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            pickup_location: Where to send the wheelchair
+
+        Returns:
+            Confirmation of wheelchair request
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+        pickup_location = args.get('pickup_location', 'current gate')
+
+        if not code:
+            return {
+                'success': False,
+                'error': 'I need your confirmation code to request wheelchair assistance.',
+            }
+
+        return {
+            'success': True,
+            'requested': True,
+            'confirmation_code': code,
+            'pickup_location': pickup_location,
+            'estimated_wait': '10-15 minutes',
+            'spoken_response': f"I've requested wheelchair assistance for you. Someone will meet you at {pickup_location} within 10 to 15 minutes. Please stay where you are and they'll come to you. Is there anything else I can help with?",
+        }
+
+    def _fn_add_bags(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Add checked bags to the reservation.
+
+        Args:
+            confirmation_code: The reservation confirmation code
+            bag_count: Number of bags to add
+
+        Returns:
+            Confirmation and any fees
+        """
+        code = args.get('confirmation_code', '').upper().strip()
+        bag_count = args.get('bag_count', 1)
+
+        if not code:
+            return {
+                'success': False,
+                'error': 'I need your confirmation code to add bags.',
+            }
+
+        try:
+            bag_count = int(bag_count)
+        except:
+            bag_count = 1
+
+        # Standard bag fees
+        fee_per_bag = 35
+        total_fee = bag_count * fee_per_bag
+
+        return {
+            'success': True,
+            'confirmation_code': code,
+            'bags_added': bag_count,
+            'fee_per_bag': f'${fee_per_bag}',
+            'total_fee': f'${total_fee}',
+            'spoken_response': f"I've added {bag_count} checked bag{'s' if bag_count > 1 else ''} to your reservation. The fee is ${fee_per_bag} per bag, so your total is ${total_fee}. You can pay at the check-in counter or kiosk. Anything else I can help with?",
+        }
+
 
 # Singleton instance
 elevenlabs_webhook_handler = ElevenLabsWebhookHandler()
@@ -708,6 +928,92 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
                 }
             },
             "required": ["destination_type"]
+        }
+    },
+    {
+        "name": "create_family_helper_link",
+        "description": "Create a helper link that can be shared with a family member so they can track the passenger's location in the airport and help guide them. Use this when the passenger mentions they're traveling alone, need help navigating, or want a family member to be able to see their location.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                }
+            },
+            "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "check_flight_delays",
+        "description": "Check if a flight has any delays, cancellations, or schedule changes. Use this when the passenger asks about delays or if their flight is on time.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                },
+                "flight_number": {
+                    "type": "string",
+                    "description": "Or the flight number directly (e.g., AA123)"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "get_gate_directions",
+        "description": "Get step-by-step directions to a specific gate at DFW airport. Use this when the passenger needs to find their gate.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "gate": {
+                    "type": "string",
+                    "description": "The gate number (e.g., 'B22', 'A15')"
+                },
+                "current_location": {
+                    "type": "string",
+                    "description": "Where the passenger currently is (e.g., 'security', 'entrance', 'Terminal A')"
+                }
+            },
+            "required": ["gate"]
+        }
+    },
+    {
+        "name": "request_wheelchair",
+        "description": "Request wheelchair assistance for a passenger who needs mobility help. Use this when the passenger mentions difficulty walking, needs wheelchair assistance, or requests help getting around the airport.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                },
+                "pickup_location": {
+                    "type": "string",
+                    "description": "Where to send the wheelchair (e.g., 'Gate B22', 'entrance', 'current location')"
+                }
+            },
+            "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "add_bags",
+        "description": "Add checked bags to the passenger's reservation. Use this when the passenger wants to check bags or asks about adding luggage to their flight.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code"
+                },
+                "bag_count": {
+                    "type": "integer",
+                    "description": "Number of bags to add (default 1)"
+                }
+            },
+            "required": ["confirmation_code"]
         }
     }
 ]

@@ -20,7 +20,14 @@ import {
   getWaypointByProgress,
   interpolatePosition,
 } from '@/lib/dfwDemoData';
-import type { Message, Reservation, HelperLocationResponse, AlertStatus, IROPStatus } from '@/types';
+import {
+  createHelperDemoHandoff,
+  getHelperDemoHandoff,
+  isHelperHandoffActive,
+  updateDemoHandoffStatus,
+  resetHelperDemoHandoff,
+} from '@/lib/handoffDemoData';
+import type { Message, Reservation, HelperLocationResponse, AlertStatus, IROPStatus, HandoffDossier } from '@/types';
 
 // Dynamically import MapboxLocationMap with SSR disabled (mapbox-gl is client-only)
 const MapboxLocationMap = dynamic(
@@ -105,6 +112,10 @@ export default function HelperPage() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [iropStatus, setIropStatus] = useState<IROPStatus | null>(null);
   const [iropLoading, setIropLoading] = useState(false);
+
+  // Demo handoff simulation state
+  const [demoHandoff, setDemoHandoff] = useState<HandoffDossier | null>(null);
+  const [handoffTriggered, setHandoffTriggered] = useState(false);
 
   // Demo location simulation state
   const [demoProgress, setDemoProgress] = useState(0);
@@ -208,12 +219,48 @@ export default function HelperPage() {
     };
   }, [linkId, fetchSession, fetchLocation, fetchIROPStatus]);
 
+  // Trigger handoff simulation in demo mode
+  const triggerDemoHandoff = useCallback(() => {
+    if (!demoMode) return;
+    const handoff = createHelperDemoHandoff();
+    setDemoHandoff(handoff);
+    setHandoffTriggered(true);
+  }, [demoMode]);
+
+  // Simulate agent joining the handoff
+  const simulateAgentJoin = useCallback(() => {
+    if (!demoHandoff) return;
+    const updated = updateDemoHandoffStatus(demoHandoff.handoff_id, 'agent_joined');
+    if (updated) setDemoHandoff(updated);
+  }, [demoHandoff]);
+
+  // Simulate handoff resolution
+  const simulateResolveHandoff = useCallback(() => {
+    if (!demoHandoff) return;
+    const updated = updateDemoHandoffStatus(demoHandoff.handoff_id, 'resolved');
+    if (updated) setDemoHandoff(updated);
+  }, [demoHandoff]);
+
+  // Check for existing handoff when entering demo mode
+  useEffect(() => {
+    if (demoMode) {
+      const existing = getHelperDemoHandoff();
+      if (existing && isHelperHandoffActive()) {
+        setDemoHandoff(existing);
+        setHandoffTriggered(true);
+      }
+    }
+  }, [demoMode]);
+
   // Demo location simulation effect
   useEffect(() => {
     if (!demoMode) {
       // Reset demo when exiting demo mode
       demoStartTimeRef.current = null;
       setDemoProgress(0);
+      // Reset handoff state but keep in store for agent console
+      setHandoffTriggered(false);
+      setDemoHandoff(null);
       return;
     }
 
@@ -345,13 +392,13 @@ export default function HelperPage() {
                     Exit Demo
                   </button>
                 </div>
-                
+
                 {/* Description */}
                 <p className="text-purple-700 text-sm mb-3">
                   Watching MeeMaw navigate from Terminal A to Gate B22 at DFW Airport.
                   {demoProgress >= 1 && ' She has arrived! Demo will restart shortly.'}
                 </p>
-                
+
                 {/* Current Location */}
                 {currentWaypoint && (
                   <div className="mb-3 p-2 bg-purple-200 rounded-lg">
@@ -363,7 +410,7 @@ export default function HelperPage() {
                     </p>
                   </div>
                 )}
-                
+
                 {/* Main Progress Bar */}
                 <div className="mb-2 bg-purple-200 rounded-full h-2 overflow-hidden">
                   <div
@@ -371,7 +418,7 @@ export default function HelperPage() {
                     style={{ width: `${demoProgress * 100}%` }}
                   />
                 </div>
-                
+
                 {/* Waypoint Progress */}
                 <div className="flex items-center gap-1">
                   {DFW_JOURNEY_WAYPOINTS.map((wp, idx) => {
@@ -389,6 +436,169 @@ export default function HelperPage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Agent Handoff Simulation - Demo Mode */}
+            {demoMode && (
+              <div className={`rounded-xl p-4 shadow-sm border ${
+                handoffTriggered && demoHandoff?.status === 'pending'
+                  ? 'bg-yellow-50 border-yellow-300'
+                  : handoffTriggered && (demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress')
+                  ? 'bg-blue-50 border-blue-300'
+                  : handoffTriggered && demoHandoff?.status === 'resolved'
+                  ? 'bg-green-50 border-green-300'
+                  : 'bg-orange-50 border-orange-300'
+              }`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    handoffTriggered && demoHandoff?.status === 'pending'
+                      ? 'bg-yellow-200'
+                      : handoffTriggered && (demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress')
+                      ? 'bg-blue-200'
+                      : handoffTriggered && demoHandoff?.status === 'resolved'
+                      ? 'bg-green-200'
+                      : 'bg-orange-200'
+                  }`}>
+                    <svg className={`w-5 h-5 ${
+                      handoffTriggered && demoHandoff?.status === 'pending'
+                        ? 'text-yellow-700'
+                        : handoffTriggered && (demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress')
+                        ? 'text-blue-700'
+                        : handoffTriggered && demoHandoff?.status === 'resolved'
+                        ? 'text-green-700'
+                        : 'text-orange-700'
+                    }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className={`font-bold ${
+                      handoffTriggered && demoHandoff?.status === 'pending'
+                        ? 'text-yellow-800'
+                        : handoffTriggered && (demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress')
+                        ? 'text-blue-800'
+                        : handoffTriggered && demoHandoff?.status === 'resolved'
+                        ? 'text-green-800'
+                        : 'text-orange-800'
+                    }`}>
+                      {!handoffTriggered
+                        ? 'Agent Handoff Demo'
+                        : demoHandoff?.status === 'pending'
+                        ? 'Waiting for Agent'
+                        : demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress'
+                        ? 'Agent Connected'
+                        : 'Issue Resolved'}
+                    </h3>
+                    <p className={`text-sm ${
+                      handoffTriggered && demoHandoff?.status === 'pending'
+                        ? 'text-yellow-700'
+                        : handoffTriggered && (demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress')
+                        ? 'text-blue-700'
+                        : handoffTriggered && demoHandoff?.status === 'resolved'
+                        ? 'text-green-700'
+                        : 'text-orange-700'
+                    }`}>
+                      {!handoffTriggered
+                        ? 'Simulate MeeMaw requesting help with a fee waiver'
+                        : demoHandoff?.status === 'pending'
+                        ? 'MeeMaw needs help with a change fee waiver'
+                        : demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress'
+                        ? 'An agent is helping MeeMaw with her request'
+                        : 'The fee waiver was approved!'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Not triggered - show trigger button */}
+                {!handoffTriggered && (
+                  <div className="space-y-3">
+                    <p className="text-orange-700 text-sm">
+                      In this demo scenario, MeeMaw needs to change her flight due to a family emergency
+                      and is requesting a fee waiver. Click below to simulate the AI handing off to a human agent.
+                    </p>
+                    <button
+                      onClick={triggerDemoHandoff}
+                      className="w-full px-4 py-3 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-colors"
+                    >
+                      Simulate Handoff Request
+                    </button>
+                  </div>
+                )}
+
+                {/* Triggered - pending status */}
+                {handoffTriggered && demoHandoff?.status === 'pending' && (
+                  <div className="space-y-3">
+                    <div className="bg-yellow-100 rounded-lg p-3">
+                      <p className="text-yellow-800 text-sm font-medium mb-1">AI Bridge Message to MeeMaw:</p>
+                      <p className="text-yellow-700 text-sm italic">"{demoHandoff.bridge_message}"</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href="/agent"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 px-4 py-2 bg-yellow-600 text-white font-bold rounded-lg hover:bg-yellow-700 transition-colors text-center"
+                      >
+                        Open Agent Console
+                      </a>
+                      <button
+                        onClick={simulateAgentJoin}
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Simulate Agent Join
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Agent joined/in progress */}
+                {handoffTriggered && (demoHandoff?.status === 'agent_joined' || demoHandoff?.status === 'in_progress') && (
+                  <div className="space-y-3">
+                    <div className="bg-blue-100 rounded-lg p-3">
+                      <p className="text-blue-800 text-sm font-medium mb-1">Suggested Agent Response:</p>
+                      <p className="text-blue-700 text-sm italic">"{demoHandoff?.suggested_first_response}"</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={`/agent/${demoHandoff?.handoff_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors text-center"
+                      >
+                        View Agent Screen
+                      </a>
+                      <button
+                        onClick={simulateResolveHandoff}
+                        className="flex-1 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Resolve Issue
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Resolved */}
+                {handoffTriggered && demoHandoff?.status === 'resolved' && (
+                  <div className="space-y-3">
+                    <div className="bg-green-100 rounded-lg p-3">
+                      <p className="text-green-800 text-sm">
+                        The agent approved MeeMaw's fee waiver and rebooked her on the earlier flight.
+                        She's now heading to her new gate!
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        resetHelperDemoHandoff();
+                        setDemoHandoff(null);
+                        setHandoffTriggered(false);
+                      }}
+                      className="w-full px-4 py-2 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      Reset Handoff Demo
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

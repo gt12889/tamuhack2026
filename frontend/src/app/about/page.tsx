@@ -127,7 +127,7 @@ export default function AboutPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white overflow-hidden">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Header */}
       <header className="bg-aa-blue text-white py-4 px-6 sticky top-0 z-50 shadow-lg">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -157,7 +157,6 @@ export default function AboutPage() {
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-gradient-to-br from-aa-blue/5 via-white to-aa-red/5" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-aa-blue/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-aa-red/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -180,7 +179,7 @@ export default function AboutPage() {
           {/* Main Title */}
           <h1 className="text-5xl md:text-7xl font-black text-gray-900 mb-6 leading-tight">
             Voice Concierge for
-            <span className="block bg-gradient-to-r from-aa-blue to-blue-600 bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-aa-blue to-blue-600 bg-clip-text text-transparent pb-2">
               Elderly Travelers
             </span>
           </h1>
