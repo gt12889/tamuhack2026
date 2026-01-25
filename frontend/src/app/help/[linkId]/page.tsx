@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   getHelperSession,
   sendHelperSuggestion,
@@ -10,7 +11,7 @@ import {
   helperAcceptRebooking,
   helperAcknowledgeDisruption,
 } from '@/lib/api';
-import { HelperDashboard, MapboxLocationMap, DisruptionAlert } from '@/components/helper';
+import { HelperDashboard, DisruptionAlert } from '@/components/helper';
 import {
   DFW_DEMO_RESERVATION,
   DFW_GATE_LOCATION,
@@ -20,6 +21,12 @@ import {
   interpolatePosition,
 } from '@/lib/dfwDemoData';
 import type { Message, Reservation, HelperLocationResponse, AlertStatus, IROPStatus } from '@/types';
+
+// Dynamically import MapboxLocationMap with SSR disabled (mapbox-gl is client-only)
+const MapboxLocationMap = dynamic(
+  () => import('@/components/helper/MapboxLocationMap').then((mod) => mod.MapboxLocationMap),
+  { ssr: false, loading: () => <div className="h-80 bg-gray-100 rounded-2xl animate-pulse" /> }
+);
 
 // Generate DFW demo location data with waypoint-based movement
 function generateDFWDemoLocation(progress: number, departureTime: Date): HelperLocationResponse {
@@ -387,6 +394,8 @@ export default function HelperPage() {
               alert={effectiveLocationData?.alert ?? null}
               onRefresh={demoMode ? undefined : fetchLocation}
               loading={demoMode ? false : locationLoading}
+              waypoints={demoMode ? DFW_JOURNEY_WAYPOINTS : undefined}
+              currentWaypointId={demoMode ? currentWaypoint?.id : undefined}
             />
           </>
         ) : (

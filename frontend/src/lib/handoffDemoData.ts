@@ -204,3 +204,129 @@ export function addDemoHandoffMessage(
   demoHandoffStore.set(handoffId, dossier);
   return message;
 }
+
+// Demo handoff scenarios for the console
+const DEMO_SCENARIOS: Array<{
+  id: string;
+  reason: HandoffReason;
+  priority: 'normal' | 'high' | 'urgent';
+  sentiment: SentimentScore;
+  summary: string;
+  passengerName: string;
+  confirmationCode: string;
+  flightNumber: string;
+  createdMinutesAgo: number;
+}> = [
+  {
+    id: 'demo-handoff-emergency-001',
+    reason: 'authorization_required',
+    priority: 'urgent',
+    sentiment: 'urgent',
+    summary: 'Customer needs emergency same-day flight change due to family medical situation. Requesting fee waiver.',
+    passengerName: 'Margaret Johnson',
+    confirmationCode: 'CZYBYU',
+    flightNumber: 'AA1845',
+    createdMinutesAgo: 2,
+  },
+  {
+    id: 'demo-handoff-refund-002',
+    reason: 'customer_request',
+    priority: 'high',
+    sentiment: 'frustrated',
+    summary: 'Customer upset about flight cancellation. Wants full refund and compensation for hotel costs.',
+    passengerName: 'Robert Chen',
+    confirmationCode: 'TEST45',
+    flightNumber: 'AA567',
+    createdMinutesAgo: 5,
+  },
+  {
+    id: 'demo-handoff-upgrade-003',
+    reason: 'complex_request',
+    priority: 'normal',
+    sentiment: 'neutral',
+    summary: 'Executive Platinum member requesting upgrade to first class for anniversary trip.',
+    passengerName: 'Sarah Williams',
+    confirmationCode: 'ABUEL1',
+    flightNumber: 'AA234',
+    createdMinutesAgo: 8,
+  },
+  {
+    id: 'demo-handoff-complaint-004',
+    reason: 'customer_request',
+    priority: 'high',
+    sentiment: 'angry',
+    summary: 'Customer missed connection due to delayed first flight. Very upset, demanding rebooking and compensation.',
+    passengerName: 'James Thompson',
+    confirmationCode: 'SENR02',
+    flightNumber: 'AA789',
+    createdMinutesAgo: 12,
+  },
+  {
+    id: 'demo-handoff-medical-005',
+    reason: 'authorization_required',
+    priority: 'urgent',
+    sentiment: 'urgent',
+    summary: 'Passenger requires wheelchair assistance and oxygen. Special accommodations need supervisor approval.',
+    passengerName: 'Dorothy Williams',
+    confirmationCode: 'FAML03',
+    flightNumber: 'AA456',
+    createdMinutesAgo: 15,
+  },
+];
+
+// Get all demo handoffs for the console listing
+export function getDemoHandoffsList(): HandoffDossier[] {
+  // Initialize demo handoffs if not already done
+  DEMO_SCENARIOS.forEach((scenario) => {
+    if (!demoHandoffStore.has(scenario.id)) {
+      const dossier: HandoffDossier = {
+        handoff_id: scenario.id,
+        session_id: `session-${scenario.id}`,
+        status: 'pending',
+        priority: scenario.priority,
+        conversation_summary: scenario.summary,
+        ai_actions_taken: ['Looked up reservation', 'Attempted to resolve automatically', 'Determined human assistance required'],
+        sentiment_score: scenario.sentiment,
+        sentiment_reason: `Customer sentiment detected as ${scenario.sentiment}`,
+        metadata: {
+          confirmation_code: scenario.confirmationCode,
+          flight_number: scenario.flightNumber,
+          passenger_name: scenario.passengerName,
+          passenger_email: `${scenario.passengerName.toLowerCase().replace(' ', '.')}@email.com`,
+          passenger_phone: '(555) 000-0000',
+          issue_type: scenario.reason,
+        },
+        reservation: null,
+        transcript: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            content: `Help needed with ${scenario.flightNumber}`,
+            timestamp: new Date(Date.now() - scenario.createdMinutesAgo * 60000).toISOString(),
+          },
+        ],
+        handoff_reason: scenario.reason,
+        handoff_reason_detail: scenario.summary,
+        suggested_first_response: 'Hello, I see you need assistance. Let me help you with that.',
+        suggested_actions: [],
+        created_at: new Date(Date.now() - scenario.createdMinutesAgo * 60000).toISOString(),
+      };
+      demoHandoffStore.set(scenario.id, dossier);
+    }
+  });
+
+  // Return all handoffs from the store
+  return Array.from(demoHandoffStore.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+}
+
+// Get counts by status
+export function getDemoHandoffCounts(): { pending: number; in_progress: number; resolved: number } {
+  const handoffs = getDemoHandoffsList();
+  return {
+    pending: handoffs.filter((h) => h.status === 'pending').length,
+    in_progress: handoffs.filter((h) => h.status === 'agent_joined' || h.status === 'in_progress').length,
+    resolved: handoffs.filter((h) => h.status === 'resolved').length,
+  };
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import Map, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
 import type { MapRef } from 'react-map-gl/mapbox';
 import type { LocationData, GateLocation, LocationMetrics, LocationAlert, AlertStatus, DFWWaypoint } from '@/types';
@@ -61,12 +61,25 @@ export function MapboxLocationMap({
 }: MapboxLocationMapProps) {
   const mapRef = useRef<MapRef>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [userHasInteracted, setUserHasInteracted] = useState(false);
+  const [initialCenterDone, setInitialCenterDone] = useState(false);
 
-  // Center map on passenger or gate when locations change
+  // Track user interactions (zoom, pan, etc.)
+  const handleMapInteraction = useCallback(() => {
+    setUserHasInteracted(true);
+  }, []);
+
+  // Center map on passenger or gate when locations change (only if user hasn't interacted)
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
 
     const map = mapRef.current;
+
+    // Only auto-center if user hasn't manually interacted with the map
+    // OR if this is the first time we're loading locations
+    if (userHasInteracted && initialCenterDone) {
+      return; // Don't reset if user has zoomed/panned
+    }
 
     if (passengerLocation && gateLocation) {
       // Fit bounds to show both markers
@@ -80,12 +93,15 @@ export function MapboxLocationMap({
         padding: 60,
         duration: 1000,
       });
+      setInitialCenterDone(true);
     } else if (passengerLocation) {
       map.flyTo({ center: [passengerLocation.lng, passengerLocation.lat], zoom: 17 });
+      setInitialCenterDone(true);
     } else if (gateLocation) {
       map.flyTo({ center: [gateLocation.lng, gateLocation.lat], zoom: 17 });
+      setInitialCenterDone(true);
     }
-  }, [passengerLocation, gateLocation, mapLoaded]);
+  }, [passengerLocation, gateLocation, mapLoaded, userHasInteracted, initialCenterDone]);
 
   // Default center (will be overridden when locations load)
   const defaultCenter = passengerLocation
@@ -170,6 +186,9 @@ export function MapboxLocationMap({
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
           onLoad={() => setMapLoaded(true)}
+          onMoveStart={handleMapInteraction}
+          onZoomStart={handleMapInteraction}
+          onDragStart={handleMapInteraction}
         >
           <NavigationControl position="top-right" />
 
@@ -255,8 +274,8 @@ export function MapboxLocationMap({
                       className={`w-6 h-6 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-xs ${isActive ? 'ring-2 ring-offset-1' : ''}`}
                       style={{
                         backgroundColor: style.color,
-                        ringColor: style.color,
-                      }}
+                        '--tw-ring-color': style.color,
+                      } as React.CSSProperties}
                     >
                       {style.icon}
                     </div>

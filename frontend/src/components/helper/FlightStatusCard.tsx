@@ -130,7 +130,8 @@ export function FlightStatusCard({ flight }: FlightStatusCardProps) {
     return () => clearInterval(interval);
   }, [flight.departure_time]);
 
-  const statusConfig = getStatusConfig(flight.status);
+  const flightStatus = flight.status || 'scheduled';
+  const statusConfig = getStatusConfig(flightStatus);
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -149,7 +150,7 @@ export function FlightStatusCard({ flight }: FlightStatusCardProps) {
         </div>
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border}`}>
           {statusConfig.icon}
-          {(flight.status || 'scheduled').charAt(0).toUpperCase() + (flight.status || 'scheduled').slice(1)}
+          {flightStatus.charAt(0).toUpperCase() + flightStatus.slice(1)}
         </span>
       </div>
 
@@ -198,7 +199,7 @@ export function FlightStatusCard({ flight }: FlightStatusCardProps) {
       </div>
 
       {/* Countdown timer */}
-      {flight.status !== 'cancelled' && flight.status !== 'departed' && (
+      {flightStatus !== 'cancelled' && flightStatus !== 'departed' && (
         <div className={`rounded-xl p-4 text-center ${
           isUrgent
             ? 'bg-red-50 border-2 border-red-200'
@@ -207,14 +208,14 @@ export function FlightStatusCard({ flight }: FlightStatusCardProps) {
           <span className={`text-xs font-medium uppercase tracking-wide ${
             isUrgent ? 'text-red-600' : 'text-purple-600'
           }`}>
-            {flight.status === 'boarding' ? 'Now Boarding' : 'Departs in'}
+            {flightStatus === 'boarding' ? 'Now Boarding' : 'Departs in'}
           </span>
           <p className={`text-2xl font-bold mt-1 ${
             isUrgent ? 'text-red-700' : 'text-purple-800'
           }`}>
             {countdown}
           </p>
-          {isUrgent && flight.status !== 'boarding' && (
+          {isUrgent && flightStatus !== 'boarding' && (
             <p className="text-xs text-red-600 mt-1">Time to head to the gate!</p>
           )}
         </div>
