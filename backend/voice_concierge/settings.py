@@ -129,6 +129,7 @@ REST_FRAMEWORK = {
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', '')
 RETELL_API_KEY = os.getenv('RETELL_API_KEY', '')
+RETELL_REMINDER_AGENT_ID = os.getenv('RETELL_REMINDER_AGENT_ID', '')
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
 RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', 'AA Voice Concierge <noreply@yourdomain.com>')
 
