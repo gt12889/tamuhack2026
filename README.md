@@ -1,6 +1,6 @@
 # Elder Strolls
 
-Voice-first travel assistance for elderly passengers.
+Voice-first travel assistance for elderly passengers
 
 **TAMUHack 2026** | Gemini | ElevenLabs | Vultr
 
