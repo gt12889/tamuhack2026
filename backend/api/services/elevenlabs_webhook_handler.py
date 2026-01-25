@@ -35,6 +35,7 @@ class ElevenLabsWebhookHandler:
     - get_gate_directions: Get directions to a specific gate
     - request_wheelchair: Request wheelchair assistance
     - add_bags: Add checked bags to a reservation
+    - request_human_agent: Transfer to a human agent when AI cannot help
     """
 
     def __init__(self):
@@ -66,6 +67,7 @@ class ElevenLabsWebhookHandler:
             'get_gate_directions': self._fn_get_gate_directions,
             'request_wheelchair': self._fn_request_wheelchair,
             'add_bags': self._fn_add_bags,
+            'request_human_agent': self._fn_request_human_agent,
         }
 
         handler = function_handlers.get(tool_name)
@@ -344,10 +346,23 @@ class ElevenLabsWebhookHandler:
             if not origin: missing.append('origin')
             if not destination: missing.append('destination')
             if not date: missing.append('date')
+
+            # Build spoken_response based on what's missing
+            if not origin:
+                spoken_response = "I'd be happy to help you book a flight. Where will you be flying from?"
+            elif not destination:
+                origin_city = CITY_NAMES.get(origin, origin)
+                spoken_response = f"Great, flying from {origin_city}. Where would you like to go?"
+            else:  # missing date
+                origin_city = CITY_NAMES.get(origin, origin)
+                dest_city = CITY_NAMES.get(destination, destination)
+                spoken_response = f"Flying from {origin_city} to {dest_city}. What date would you like to travel?"
+
             return {
                 'success': False,
                 'error': f'Missing required fields: {", ".join(missing)}',
                 'needs': missing,
+                'spoken_response': spoken_response,
             }
 
         # Parse date
@@ -367,9 +382,12 @@ class ElevenLabsWebhookHandler:
         flights = get_alternative_flights(origin, destination, target_date.strftime('%Y-%m-%d'))
 
         if not flights:
+            origin_city = CITY_NAMES.get(origin, origin)
+            dest_city = CITY_NAMES.get(destination, destination)
             return {
                 'success': False,
-                'error': f'No flights found from {CITY_NAMES.get(origin, origin)} to {CITY_NAMES.get(destination, destination)} on {target_date.strftime("%B %d")}',
+                'error': f'No flights found from {origin_city} to {dest_city} on {target_date.strftime("%B %d")}',
+                'spoken_response': f"I'm sorry, I couldn't find any flights from {origin_city} to {dest_city} on {target_date.strftime('%B %d')}. Would you like me to check a different date?",
             }
 
         # If flight selected and name provided, create booking
@@ -379,6 +397,11 @@ class ElevenLabsWebhookHandler:
 
             selected = next((f for f in flights if f.get('id') == selected_flight_id), flights[0])
             dep_time = parse(selected['departure_time'])
+            origin_city = CITY_NAMES.get(selected['origin'], selected['origin'])
+            dest_city = CITY_NAMES.get(selected['destination'], selected['destination'])
+
+            # Spell out the confirmation code for clarity
+            spelled_code = '-'.join(list(confirmation_code))
 
             return {
                 'success': True,
@@ -387,12 +410,13 @@ class ElevenLabsWebhookHandler:
                 'passenger_name': f'{first_name} {last_name}',
                 'flight_number': selected['flight_number'],
                 'origin': selected['origin'],
-                'origin_city': CITY_NAMES.get(selected['origin'], selected['origin']),
+                'origin_city': origin_city,
                 'destination': selected['destination'],
-                'destination_city': CITY_NAMES.get(selected['destination'], selected['destination']),
+                'destination_city': dest_city,
                 'departure_date': dep_time.strftime('%B %d, %Y'),
                 'departure_time': dep_time.strftime('%I:%M %p'),
                 'message': f'Booking confirmed! Your confirmation code is {confirmation_code}',
+                'spoken_response': f"Wonderful, {first_name}! Your flight is booked. You're confirmed on flight {selected['flight_number']} from {origin_city} to {dest_city}, departing {dep_time.strftime('%B %d')} at {dep_time.strftime('%I:%M %p')}. Your confirmation code is {spelled_code}. Please write that down. Is there anything else I can help you with?",
             }
 
         # Return flight options
@@ -406,12 +430,30 @@ class ElevenLabsWebhookHandler:
                 'price': flight.get('price', '$249'),
             })
 
+        origin_city = CITY_NAMES.get(origin, origin)
+        dest_city = CITY_NAMES.get(destination, destination)
+
+        # Check if we already have a selected flight but need name
+        if selected_flight_id and not (first_name and last_name):
+            selected = next((f for f in flights if f.get('id') == selected_flight_id), flights[0])
+            dep_time = parse(selected['departure_time'])
+            spoken_response = f"Great choice! The {dep_time.strftime('%I:%M %p')} flight on {selected['flight_number']}. Now I just need your name for the booking. What is your first and last name?"
+            needs = ['first_name', 'last_name']
+        else:
+            # Build spoken response for presenting flight options
+            options_text = []
+            for i, opt in enumerate(options, 1):
+                options_text.append(f"Option {i}: {opt['departure_time']} for {opt['price']}")
+            spoken_response = f"I found {len(options)} flights from {origin_city} to {dest_city}. {'. '.join(options_text)}. Which flight works best for you?"
+            needs = ['selected_flight_id', 'first_name', 'last_name'] if not (first_name and last_name) else ['selected_flight_id']
+
         return {
             'success': True,
             'booked': False,
             'options': options,
-            'needs': ['selected_flight_id', 'first_name', 'last_name'] if not (first_name and last_name) else ['selected_flight_id'],
+            'needs': needs,
             'message': f'Found {len(options)} flights. The earliest is at {options[0]["departure_time"]} for {options[0]["price"]}.',
+            'spoken_response': spoken_response,
         }
 
     def _fn_get_flight_options(self, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -451,11 +493,15 @@ class ElevenLabsWebhookHandler:
 
         flights = get_alternative_flights(origin, destination, target_date.strftime('%Y-%m-%d'))
 
+        origin_city = CITY_NAMES.get(origin, origin)
+        dest_city = CITY_NAMES.get(destination, destination)
+
         if not flights:
             return {
                 'success': True,
                 'found': False,
-                'message': f'No flights available from {origin} to {destination} on {target_date.strftime("%B %d")}',
+                'message': f'No flights available from {origin_city} to {dest_city} on {target_date.strftime("%B %d")}',
+                'spoken_response': f"I'm sorry, I couldn't find any flights from {origin_city} to {dest_city} on {target_date.strftime('%B %d')}. Would you like me to check a different date?",
             }
 
         options = []
@@ -469,12 +515,19 @@ class ElevenLabsWebhookHandler:
                 'price': flight.get('price', '$249'),
             })
 
+        # Build spoken response for presenting options
+        options_text = []
+        for i, opt in enumerate(options[:3], 1):  # Limit spoken to top 3 for clarity
+            options_text.append(f"Option {i}: {opt['departure_time']} for {opt['price']}")
+        spoken_response = f"I found {len(options)} flights from {origin_city} to {dest_city} on {target_date.strftime('%B %d')}. {'. '.join(options_text)}. Would you like to book one of these?"
+
         return {
             'success': True,
             'found': True,
             'count': len(options),
             'options': options,
             'date': target_date.strftime('%B %d'),
+            'spoken_response': spoken_response,
         }
 
     def _fn_get_reservation_status(self, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -816,6 +869,51 @@ class ElevenLabsWebhookHandler:
             'spoken_response': f"I've added {bag_count} checked bag{'s' if bag_count > 1 else ''} to your reservation. The fee is ${fee_per_bag} per bag, so your total is ${total_fee}. You can pay at the check-in counter or kiosk. Anything else I can help with?",
         }
 
+    def _fn_request_human_agent(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Request a handoff to a human agent when AI cannot help.
+
+        Args:
+            reason: Why the handoff is needed
+            confirmation_code: Optional reservation code for context
+            urgency: 'low', 'medium', or 'high'
+
+        Returns:
+            Handoff confirmation and instructions
+        """
+        reason = args.get('reason', 'Customer requested human assistance')
+        code = args.get('confirmation_code', '').upper().strip()
+        urgency = args.get('urgency', 'medium').lower()
+
+        # Map urgency to wait times
+        wait_times = {
+            'low': '5 to 10 minutes',
+            'medium': '3 to 5 minutes',
+            'high': '1 to 2 minutes',
+        }
+        wait_time = wait_times.get(urgency, '3 to 5 minutes')
+
+        # Log the handoff request
+        logger.info(f"Human agent handoff requested: reason='{reason}', code='{code}', urgency='{urgency}'")
+
+        # Build context for the human agent
+        context_parts = []
+        if code:
+            context_parts.append(f"Confirmation code: {code}")
+        context_parts.append(f"Reason: {reason}")
+        context_parts.append(f"Urgency: {urgency}")
+
+        return {
+            'success': True,
+            'handoff_initiated': True,
+            'reason': reason,
+            'confirmation_code': code if code else None,
+            'urgency': urgency,
+            'estimated_wait': wait_time,
+            'context_for_agent': ' | '.join(context_parts),
+            'spoken_response': f"I understand you need additional help. I'm connecting you to one of our customer service agents now. The estimated wait time is {wait_time}. Please stay on the line, and an agent will be with you shortly. They'll have all the information from our conversation to help you quickly.",
+        }
+
 
 # Singleton instance
 elevenlabs_webhook_handler = ElevenLabsWebhookHandler()
@@ -1039,6 +1137,29 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
                 }
             },
             "required": ["confirmation_code"]
+        }
+    },
+    {
+        "name": "request_human_agent",
+        "description": "Transfer the call to a human customer service agent. Use this when: (1) the passenger explicitly asks to speak to a person/human/agent, (2) you cannot resolve their issue after 2-3 attempts, (3) the request involves complex refunds/complaints/legal issues, (4) the passenger is frustrated or upset, (5) you are unsure how to help. Always offer this option if the passenger seems stuck.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "Brief reason for the handoff (e.g., 'refund request', 'complaint', 'unable to resolve booking issue')"
+                },
+                "confirmation_code": {
+                    "type": "string",
+                    "description": "The passenger's confirmation code if available"
+                },
+                "urgency": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high"],
+                    "description": "Urgency level: 'high' for frustrated/urgent passengers, 'medium' for standard requests, 'low' for general inquiries"
+                }
+            },
+            "required": ["reason"]
         }
     }
 ]
