@@ -11,7 +11,7 @@ from rest_framework import viewsets
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Session, Message, Reservation, Passenger, Flight, FlightSegment
+from .models import Session, Message, Reservation, Passenger, Flight, FlightSegment, FamilyAction
 from .serializers import (
     ReservationSerializer,
     SessionSerializer,
@@ -19,8 +19,15 @@ from .serializers import (
     PassengerSerializer,
     FlightSerializer,
     FlightSegmentSerializer,
+    FamilyActionSerializer,
+    ChangeFlightActionSerializer,
+    CancelFlightActionSerializer,
+    SelectSeatActionSerializer,
+    AddBagsActionSerializer,
+    RequestWheelchairActionSerializer,
 )
 from .services import GeminiService, ElevenLabsService, retell_service, resend_service
+from .services.family_action_service import family_action_service
 from .mock_data import (
     get_demo_reservations,
     get_alternative_flights,
@@ -44,9 +51,11 @@ def get_or_create_mock_reservation(confirmation_code: str):
 
     for res_data in demo_data:
         if res_data['confirmation_code'].upper() == confirmation_code.upper():
-            # Check if already in DB
+            # Check if already in DB - use prefetch to avoid N+1 queries
             try:
-                return Reservation.objects.get(confirmation_code=confirmation_code.upper())
+                return Reservation.objects.select_related('passenger').prefetch_related(
+                    'flight_segments__flight'
+                ).get(confirmation_code=confirmation_code.upper())
             except Reservation.DoesNotExist:
                 pass
 
@@ -154,7 +163,12 @@ def send_message(request):
         )
 
     try:
-        session = Session.objects.get(id=session_id)
+        # Use select_related and prefetch_related to avoid N+1 queries
+        session = Session.objects.select_related(
+            'reservation__passenger'
+        ).prefetch_related(
+            'reservation__flight_segments__flight'
+        ).get(id=session_id)
     except Session.DoesNotExist:
         return Response(
             {'error': 'Session not found'},
@@ -510,8 +524,14 @@ def synthesize_voice(request):
 
 @api_view(['POST'])
 def create_helper_link(request):
-    """Create a shareable helper link for family assistance."""
+    """Create a shareable helper link for family assistance.
+
+    Request body:
+        session_id: UUID of the session
+        mode: 'session' (30 min expiry) or 'persistent' (until flight departure)
+    """
     session_id = request.data.get('session_id')
+    mode = request.data.get('mode', 'session')
 
     try:
         session = Session.objects.get(id=session_id)
@@ -523,17 +543,38 @@ def create_helper_link(request):
 
     if not session.helper_link:
         session.helper_link = secrets.token_urlsafe(8)
-        session.save()
+
+    # Set helper link mode and expiry
+    session.helper_link_mode = mode
+
+    if mode == 'persistent' and session.reservation:
+        # Set expiry to flight departure time
+        first_segment = session.reservation.flight_segments.first()
+        if first_segment and first_segment.flight.departure_time:
+            session.helper_link_expires_at = first_segment.flight.departure_time
+        else:
+            # Fallback: 24 hours from now
+            session.helper_link_expires_at = timezone.now() + timedelta(hours=24)
+    else:
+        # Session-based expiry (use session expiry)
+        session.helper_link_expires_at = session.expires_at
+
+    session.save()
 
     return Response({
         'helper_link': session.helper_link,
-        'expires_at': session.expires_at.isoformat(),
+        'mode': session.helper_link_mode,
+        'expires_at': session.helper_link_expires_at.isoformat() if session.helper_link_expires_at else session.expires_at.isoformat(),
     })
 
 
 @api_view(['GET'])
 def get_helper_session(request, link_id):
-    """Get session for family helper view."""
+    """Get session for family helper view.
+
+    Returns session data with available actions and action history.
+    For persistent mode, checks helper_link_expires_at instead of session.expires_at.
+    """
     try:
         session = Session.objects.get(helper_link=link_id)
     except Session.DoesNotExist:
@@ -542,7 +583,13 @@ def get_helper_session(request, link_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
-    if session.expires_at < timezone.now():
+    # Check expiry based on mode
+    if session.helper_link_mode == 'persistent':
+        expiry_time = session.helper_link_expires_at or session.expires_at
+    else:
+        expiry_time = session.expires_at
+
+    if expiry_time < timezone.now():
         return Response(
             {'error': 'Helper link has expired'},
             status=status.HTTP_410_GONE
@@ -554,10 +601,18 @@ def get_helper_session(request, link_id):
 
     messages = MessageSerializer(session.messages.all(), many=True).data
 
+    # Get available actions and action history
+    available_actions = family_action_service.get_available_actions(session)
+    action_history = family_action_service.get_action_history(session)
+
     return Response({
         'session': SessionSerializer(session).data,
         'reservation': reservation_data,
         'messages': messages,
+        'available_actions': available_actions,
+        'action_history': action_history,
+        'helper_link_mode': session.helper_link_mode,
+        'helper_link_expires_at': expiry_time.isoformat(),
     })
 
 
@@ -587,6 +642,274 @@ def send_helper_suggestion(request, link_id):
     )
 
     return Response({'success': True})
+
+
+def _get_valid_helper_session(link_id: str):
+    """Helper function to validate and return session for helper link."""
+    try:
+        session = Session.objects.get(helper_link=link_id)
+    except Session.DoesNotExist:
+        return None, Response(
+            {'error': 'Helper link not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Check expiry based on mode
+    if session.helper_link_mode == 'persistent':
+        expiry_time = session.helper_link_expires_at or session.expires_at
+    else:
+        expiry_time = session.expires_at
+
+    if expiry_time < timezone.now():
+        return None, Response(
+            {'error': 'Helper link has expired'},
+            status=status.HTTP_410_GONE
+        )
+
+    return session, None
+
+
+@api_view(['GET'])
+def get_helper_actions(request, link_id):
+    """Get available actions and action history for a helper link."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    available_actions = family_action_service.get_available_actions(session)
+    action_history = family_action_service.get_action_history(session)
+
+    return Response({
+        'available_actions': available_actions,
+        'action_history': action_history,
+    })
+
+
+@api_view(['POST'])
+def helper_change_flight(request, link_id):
+    """Execute a flight change action from family helper."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    serializer = ChangeFlightActionSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = family_action_service.execute_change_flight(
+        session=session,
+        new_flight_id=serializer.validated_data['new_flight_id'],
+        notes=serializer.validated_data.get('notes', ''),
+    )
+
+    if result.get('success'):
+        return Response(result)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def helper_cancel_flight(request, link_id):
+    """Execute a flight cancellation action from family helper."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    serializer = CancelFlightActionSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = family_action_service.execute_cancel_flight(
+        session=session,
+        reason=serializer.validated_data.get('reason', ''),
+        notes=serializer.validated_data.get('notes', ''),
+    )
+
+    if result.get('success'):
+        return Response(result)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def helper_select_seat(request, link_id):
+    """Execute a seat selection action from family helper."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    serializer = SelectSeatActionSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = family_action_service.execute_select_seat(
+        session=session,
+        seat=serializer.validated_data['seat'],
+        flight_segment_id=str(serializer.validated_data.get('flight_segment_id', '')) or None,
+        notes=serializer.validated_data.get('notes', ''),
+    )
+
+    if result.get('success'):
+        return Response(result)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def helper_add_bags(request, link_id):
+    """Execute an add baggage action from family helper."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    serializer = AddBagsActionSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = family_action_service.execute_add_bags(
+        session=session,
+        bag_count=serializer.validated_data['bag_count'],
+        notes=serializer.validated_data.get('notes', ''),
+    )
+
+    if result.get('success'):
+        return Response(result)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def helper_request_wheelchair(request, link_id):
+    """Execute a wheelchair assistance request from family helper."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    serializer = RequestWheelchairActionSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    result = family_action_service.execute_request_wheelchair(
+        session=session,
+        assistance_type=serializer.validated_data.get('assistance_type', 'wheelchair'),
+        notes=serializer.validated_data.get('notes', ''),
+    )
+
+    if result.get('success'):
+        return Response(result)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def helper_get_flights(request, link_id):
+    """Get available flights for flight change action."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    if not session.reservation:
+        return Response(
+            {'error': 'No reservation found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get the first flight segment to find route
+    first_segment = session.reservation.flight_segments.first()
+    if not first_segment:
+        return Response(
+            {'error': 'No flight segment found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get alternative flights for the day after current flight
+    target_date = first_segment.flight.departure_time + timedelta(days=1)
+
+    alternatives = get_alternative_flights(
+        first_segment.flight.origin,
+        first_segment.flight.destination,
+        target_date.strftime('%Y-%m-%d')
+    )
+
+    return Response({
+        'current_flight': {
+            'flight_number': first_segment.flight.flight_number,
+            'origin': first_segment.flight.origin,
+            'destination': first_segment.flight.destination,
+            'departure_time': first_segment.flight.departure_time.isoformat(),
+            'arrival_time': first_segment.flight.arrival_time.isoformat() if first_segment.flight.arrival_time else None,
+        },
+        'alternative_flights': alternatives,
+    })
+
+
+@api_view(['GET'])
+def helper_get_seats(request, link_id):
+    """Get available seats for seat selection action."""
+    session, error_response = _get_valid_helper_session(link_id)
+    if error_response:
+        return error_response
+
+    if not session.reservation:
+        return Response(
+            {'error': 'No reservation found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Get the first flight segment
+    first_segment = session.reservation.flight_segments.first()
+    if not first_segment:
+        return Response(
+            {'error': 'No flight segment found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Generate mock seat map (in production, this would come from the airline's system)
+    # Typical narrowbody aircraft layout: 3-3 configuration
+    rows = range(1, 31)
+    columns = ['A', 'B', 'C', 'D', 'E', 'F']
+
+    # Simulate some occupied seats
+    occupied = {'3A', '3B', '5C', '8F', '12A', '12B', '12C', '15D', '20A', '20F', '25C'}
+    current_seat = first_segment.seat
+
+    seats = []
+    for row in rows:
+        for col in columns:
+            seat_id = f"{row}{col}"
+            seat_type = 'aisle' if col in ['C', 'D'] else ('window' if col in ['A', 'F'] else 'middle')
+            is_exit_row = row in [11, 12, 21]
+            is_extra_legroom = row <= 5 or is_exit_row
+
+            seats.append({
+                'id': seat_id,
+                'row': row,
+                'column': col,
+                'type': seat_type,
+                'available': seat_id not in occupied,
+                'is_current': seat_id == current_seat,
+                'is_exit_row': is_exit_row,
+                'is_extra_legroom': is_extra_legroom,
+                'price_difference': 35 if is_extra_legroom else 0,
+            })
+
+    return Response({
+        'flight_number': first_segment.flight.flight_number,
+        'current_seat': current_seat,
+        'seats': seats,
+        'cabin_config': '3-3',
+        'total_rows': 30,
+    })
 
 
 @api_view(['GET'])
