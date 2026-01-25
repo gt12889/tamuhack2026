@@ -230,7 +230,6 @@ def send_message(request):
     # Handle flight change intent
     elif intent == 'change_flight' and session.reservation:
         session.state = 'changing'
-        session.save()
 
         # Get alternative flights
         first_segment = session.reservation.flight_segments.first()
@@ -246,53 +245,55 @@ def send_message(request):
 
             if alternatives:
                 opt1 = alternatives[0]
-                from dateutil.parser import parse
                 time1 = parse(opt1['departure_time']).strftime('%I:%M %p')
                 reply = f"I found some flights for you. There's one at {time1}. Would you like me to book that for you?"
+
+                # Store original and new flight in session for email
+                session.context['original_flight'] = {
+                    'flight_number': first_segment.flight.flight_number,
+                    'origin': first_segment.flight.origin,
+                    'destination': first_segment.flight.destination,
+                    'departure_time': first_segment.flight.departure_time.isoformat(),
+                    'arrival_time': first_segment.flight.arrival_time.isoformat() if first_segment.flight.arrival_time else '',
+                    'seat': first_segment.seat or 'Not assigned',
+                }
+                session.context['new_flight'] = opt1  # Store the offered flight
+
+        session.save()
 
     # Handle confirmation
     elif intent == 'confirm_action' and session.state == 'changing':
         session.state = 'complete'
         session.save()
 
-        # Generate trip summary using Gemini
+        # Get the original and new flight from session context
+        original_flight = session.context.get('original_flight', {})
+        new_flight = session.context.get('new_flight', {})
+
+        # Generate change summary using Gemini (with correct new flight data)
         trip_summary = None
-        
-        if session.reservation:
-            reservation_data = ReservationSerializer(session.reservation).data
-            summary_result = gemini_service.generate_trip_summary(
-                reservation_data=reservation_data,
+
+        if session.reservation and new_flight:
+            summary_result = gemini_service.generate_change_summary(
+                original_flight=original_flight,
+                new_flight=new_flight,
                 language=detected_language
             )
             trip_summary = summary_result.get('summary', '')
 
-            # Send booking confirmation email
+            # Send flight CHANGE confirmation email (not booking)
             reservation = session.reservation
             if reservation.passenger and reservation.passenger.email:
                 passenger = reservation.passenger
                 passenger_name = f"{passenger.first_name} {passenger.last_name}"
-                
-                # Build flight details from reservation
-                flight_details = []
-                for segment in reservation.flight_segments.all():
-                    flight = segment.flight
-                    flight_details.append({
-                        'flight_number': flight.flight_number,
-                        'origin': flight.origin,
-                        'destination': flight.destination,
-                        'departure_time': flight.departure_time.isoformat() if flight.departure_time else '',
-                        'arrival_time': flight.arrival_time.isoformat() if flight.arrival_time else '',
-                        'gate': flight.gate or 'TBD',
-                        'seat': segment.seat or 'Not assigned',
-                        'status': flight.status,
-                    })
-                
-                # Send email via Resend
-                email_result = resend_service.send_booking_confirmation(
+
+                # Send flight change email with correct old/new flight data
+                email_result = resend_service.send_flight_change_confirmation(
                     to_email=passenger.email,
                     passenger_name=passenger_name,
                     confirmation_code=reservation.confirmation_code,
-                    flight_details=flight_details,
+                    original_flight=original_flight,
+                    new_flight=new_flight,
                     language=detected_language
                 )
                 email_sent = email_result is not None
@@ -300,9 +301,9 @@ def send_message(request):
             if trip_summary:
                 reply = trip_summary
             elif detected_language == 'es':
-                reply = "¡Perfecto! Todo listo. Su nuevo vuelo ha sido reservado. Le envío los detalles a su correo. ¿Hay algo más en que pueda ayudarle?"
+                reply = "¡Perfecto! Todo listo. Su vuelo ha sido cambiado. Le envío los detalles a su correo. ¿Hay algo más en que pueda ayudarle?"
             else:
-                reply = "Perfect! You're all set. Your new flight has been booked. I'm sending the details to your email. Is there anything else I can help with?"
+                reply = "Perfect! You're all set. Your flight has been changed. I'm sending the details to your email. Is there anything else I can help with?"
         else:
             if detected_language == 'es':
                 reply = "¡Perfecto! Todo listo. ¿Hay algo más en que pueda ayudarle?"

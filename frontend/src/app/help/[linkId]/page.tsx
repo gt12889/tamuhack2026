@@ -6,6 +6,39 @@ import { getHelperSession, sendHelperSuggestion } from '@/lib/api';
 import { HelperDashboard } from '@/components/helper';
 import type { Message, Reservation } from '@/types';
 
+// Demo reservation data for testing the dashboard
+const DEMO_RESERVATION: Reservation = {
+  id: 'demo-res-001',
+  confirmation_code: 'DEMO123',
+  passenger: {
+    id: 'demo-pax-001',
+    first_name: 'Margaret',
+    last_name: 'Johnson',
+    email: 'margaret.johnson@email.com',
+    phone: '(555) 123-4567',
+    aadvantage_number: '1234567890',
+    preferences: {
+      language: 'en',
+      seat_preference: 'window',
+    },
+  },
+  flights: [
+    {
+      id: 'demo-flight-001',
+      flight_number: 'AA1234',
+      origin: 'DFW',
+      destination: 'ORD',
+      departure_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
+      arrival_time: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(), // 5 hours from now
+      gate: 'B22',
+      status: 'scheduled',
+      seat: '14A',
+    },
+  ],
+  status: 'confirmed',
+  created_at: new Date().toISOString(),
+};
+
 export default function HelperPage() {
   const params = useParams();
   const linkId = params.linkId as string;
@@ -16,12 +49,17 @@ export default function HelperPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   const fetchSession = useCallback(async () => {
     try {
       const data = await getHelperSession(linkId);
       setMessages(data.messages as Message[]);
       setReservation(data.reservation);
+      // Auto-disable demo mode when real data arrives
+      if (data.reservation) {
+        setDemoMode(false);
+      }
       setError(null);
     } catch (err) {
       setError('This helper link is invalid or has expired.');
@@ -101,30 +139,77 @@ export default function HelperPage() {
       </header>
 
       <div className="max-w-5xl mx-auto p-6 space-y-6">
+        {/* Demo Mode Banner */}
+        {demoMode && !reservation && (
+          <div className="bg-purple-100 border border-purple-300 rounded-xl p-3 flex items-center justify-between">
+            <span className="text-purple-800 text-sm font-medium">
+              Viewing demo data. Real data will appear when your family member looks up their reservation.
+            </span>
+            <button
+              onClick={() => setDemoMode(false)}
+              className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+            >
+              Hide Demo
+            </button>
+          </div>
+        )}
+
         {/* Dashboard with Passenger Info and Flight Status */}
-        {reservation && <HelperDashboard reservation={reservation} />}
+        {(reservation || demoMode) ? (
+          <HelperDashboard reservation={reservation || DEMO_RESERVATION} />
+        ) : (
+          <section className="bg-yellow-50 rounded-2xl p-6 border border-yellow-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold text-yellow-800">Waiting for Reservation</h2>
+              </div>
+              <button
+                onClick={() => setDemoMode(true)}
+                className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700"
+              >
+                Load Demo Data
+              </button>
+            </div>
+            <p className="text-yellow-700">
+              Your family member hasn't looked up their reservation yet. Once they provide their
+              confirmation code (like <span className="font-mono font-bold">DEMO123</span>),
+              you'll see their flight details here.
+            </p>
+          </section>
+        )}
 
         {/* Conversation */}
         <section className="bg-white rounded-2xl p-6 shadow-sm">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Conversation</h2>
           <div className="space-y-4 max-h-96 overflow-y-auto">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`p-4 rounded-xl ${
-                  msg.role === 'user'
-                    ? 'bg-gray-100 ml-8'
-                    : msg.role === 'family'
-                    ? 'bg-purple-100 mr-8 border-2 border-purple-300'
-                    : 'bg-aa-blue text-white mr-8'
-                }`}
-              >
-                <p className="text-sm font-medium mb-1 opacity-70">
-                  {msg.role === 'user' ? 'Your family member' : msg.role === 'family' ? 'You suggested' : 'AA Assistant'}
-                </p>
-                <p className="text-base">{msg.content}</p>
-              </div>
-            ))}
+            {messages.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                No messages yet. The conversation will appear here once your family member starts talking.
+              </p>
+            ) : (
+              messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`p-4 rounded-xl ${
+                    msg.role === 'user'
+                      ? 'bg-gray-100 ml-8'
+                      : msg.role === 'family'
+                      ? 'bg-purple-100 mr-8 border-2 border-purple-300'
+                      : 'bg-aa-blue text-white mr-8'
+                  }`}
+                >
+                  <p className="text-sm font-medium mb-1 opacity-70">
+                    {msg.role === 'user' ? 'Your family member' : msg.role === 'family' ? 'You suggested' : 'AA Assistant'}
+                  </p>
+                  <p className="text-base">{msg.content}</p>
+                </div>
+              ))
+            )}
           </div>
         </section>
 
