@@ -163,7 +163,7 @@ export function useElevenLabsConversation({
       // Request microphone access
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Start the conversation session with correct callback signatures
+      // Start the conversation session with callbacks matching @elevenlabs/types Callbacks interface
       const conversation = await Conversation.startSession({
         signedUrl: signedUrlResponse.signed_url,
         onConnect: (_props: { conversationId: string }) => {
@@ -173,35 +173,26 @@ export function useElevenLabsConversation({
           if (onConnect) onConnect();
         },
         onDisconnect: (_details: any) => {
+          console.log('[ElevenLabs] Disconnected:', _details);
           setIsConnected(false);
           conversationRef.current = null;
           if (onDisconnect) onDisconnect();
         },
-        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; type?: string; isFinal?: boolean }) => {
-          console.log('[ElevenLabs] Raw message received:', JSON.stringify(payload, null, 2));
-          if (onMessage) {
-            // Handle different payload formats from ElevenLabs SDK versions
-            // Newer: { role: 'user'|'agent', message: string }
-            // Older: { source: 'user'|'ai', message: string }
-            // Some versions: { text: string, type: string }
-            const content = payload.message || payload.text || '';
-            const role = payload.role === 'agent' || payload.source === 'ai' ? 'agent' : 'user';
-            const isFinal = typeof payload.isFinal === 'boolean'
-              ? payload.isFinal
-              : payload.type
-              ? !/partial|interim|delta/i.test(payload.type)
-              : true;
-
-            if (content) {
-              console.log('[ElevenLabs] Calling onMessage with:', { role, content, isFinal });
-              onMessage({ role, content, isFinal });
-            }
+        // MessagePayload: { message: string; source: "user" | "ai"; role: "user" | "agent" }
+        onMessage: (payload: { message: string; source: 'user' | 'ai'; role: 'user' | 'agent' }) => {
+          console.log('[ElevenLabs] onMessage received:', JSON.stringify(payload, null, 2));
+          if (onMessage && payload.message) {
+            // role is "user" or "agent" directly from SDK
+            console.log('[ElevenLabs] Forwarding message:', { role: payload.role, content: payload.message });
+            onMessage({ role: payload.role, content: payload.message, isFinal: true });
           }
         },
         onModeChange: (modePayload: { mode: 'speaking' | 'listening' }) => {
+          console.log('[ElevenLabs] onModeChange:', modePayload);
           if (onModeChange) onModeChange(modePayload);
         },
         onStatusChange: (statusPayload: { status: string }) => {
+          console.log('[ElevenLabs] onStatusChange:', statusPayload);
           // Update connection state based on status
           if (statusPayload.status === 'connected') {
             setIsConnected(true);
@@ -214,10 +205,15 @@ export function useElevenLabsConversation({
           }
         },
         onError: (message: string, _context?: any) => {
+          console.error('[ElevenLabs] onError:', message, _context);
           setError(message);
           setIsConnecting(false);
           setIsConnected(false);
           if (onError) onError(message);
+        },
+        // Debug callback to see all events
+        onDebug: (props: any) => {
+          console.log('[ElevenLabs] onDebug:', JSON.stringify(props, null, 2));
         },
       });
 
