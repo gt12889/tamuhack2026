@@ -1,0 +1,105 @@
+.gallery {
+  position: relative;
+  overflow: hidden;
+  padding: 4rem 1.5rem 5rem;
+  background: radial-gradient(circle at top, #f5f3ff 0%, #ffffff 55%, #f8fafc 100%);
+}
+
+.header {
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto 3rem;
+}
+
+.headerTitle {
+  font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.headerSubtitle {
+  margin-top: 0.75rem;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.halo {
+  position: absolute;
+  inset: -20% 0 0 0;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.22) 0%, rgba(99, 102, 241, 0.08) 40%, transparent 65%);
+  pointer-events: none;
+}
+
+.arc {
+  position: relative;
+  width: min(760px, 90vw);
+  height: clamp(320px, 38vw, 380px);
+  margin: 0 auto;
+}
+
+.item {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, -50%)
+    rotate(calc((var(--i) - 2) * 18deg))
+    translateY(-240px)
+    rotate(calc((var(--i) - 2) * -18deg));
+  width: 180px;
+}
+
+.card {
+  border-radius: 20px;
+  padding: 1.25rem;
+  background: #ffffff;
+  box-shadow: 0 20px 40px -24px rgba(15, 23, 42, 0.3);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  backdrop-filter: blur(6px);
+}
+
+.cardVisual {
+  height: 110px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(14, 165, 233, 0.8));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.cardTitle {
+  margin-top: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.98rem;
+}
+
+.cardBody {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.base {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(760px, 90vw);
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), rgba(148, 163, 184, 0.05), rgba(99, 102, 241, 0.15));
+}
+
+@media (max-width: 640px) {
+  .item {
+    width: 150px;
+    transform: translate(-50%, -50%)
+      rotate(calc((var(--i) - 2) * 16deg))
+      translateY(-200px)
+      rotate(calc((var(--i) - 2) * -16deg));
+  }
+}

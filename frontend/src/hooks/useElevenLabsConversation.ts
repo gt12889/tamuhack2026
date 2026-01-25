@@ -32,7 +32,7 @@ interface UseElevenLabsConversationOptions {
   sessionId?: string;
   onConnect?: () => void;
   onDisconnect?: () => void;
-  onMessage?: (message: { role: 'agent' | 'user'; content: string }) => void;
+  onMessage?: (message: { role: 'agent' | 'user'; content: string; isFinal?: boolean }) => void;
   onModeChange?: (mode: { mode: 'speaking' | 'listening' }) => void;
   onError?: (error: string) => void;
 }
@@ -177,7 +177,7 @@ export function useElevenLabsConversation({
           conversationRef.current = null;
           if (onDisconnect) onDisconnect();
         },
-        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; type?: string }) => {
+        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; type?: string; isFinal?: boolean }) => {
           console.log('[ElevenLabs] Raw message received:', JSON.stringify(payload, null, 2));
           if (onMessage) {
             // Handle different payload formats from ElevenLabs SDK versions
@@ -186,10 +186,15 @@ export function useElevenLabsConversation({
             // Some versions: { text: string, type: string }
             const content = payload.message || payload.text || '';
             const role = payload.role === 'agent' || payload.source === 'ai' ? 'agent' : 'user';
+            const isFinal = typeof payload.isFinal === 'boolean'
+              ? payload.isFinal
+              : payload.type
+              ? !/partial|interim|delta/i.test(payload.type)
+              : true;
 
             if (content) {
-              console.log('[ElevenLabs] Calling onMessage with:', { role, content });
-              onMessage({ role, content });
+              console.log('[ElevenLabs] Calling onMessage with:', { role, content, isFinal });
+              onMessage({ role, content, isFinal });
             }
           }
         },
