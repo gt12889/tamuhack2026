@@ -1,16 +1,18 @@
 """
 Outbound call reminder service for flight notifications.
-Uses Retell AI to call passengers with gate and departure reminders.
+Uses Retell AI or ElevenLabs + Twilio to call passengers with gate and departure reminders.
 """
 
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from django.utils import timezone
+from django.conf import settings
 from django.db.models import Q
 
 from ..models import Reservation, FlightSegment, Passenger
 from .retell_service import retell_service
+from .elevenlabs_service import ElevenLabsService
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,10 @@ logger = logging.getLogger(__name__)
 class ReminderService:
     """
     Service for scheduling and making outbound reminder calls.
+
+    Supports two providers:
+    - Retell AI (direct phone calls)
+    - ElevenLabs + Twilio (Conversational AI)
 
     Reminder Types:
     - Gate closing reminder (30 min before departure)
@@ -32,11 +38,15 @@ class ReminderService:
         'final_boarding': 15,     # 15 min final call
     }
 
-    # Agent ID for reminder calls (set in Retell dashboard)
-    REMINDER_AGENT_ID = None  # Will be set from settings or created
+    # Provider options: 'retell' or 'elevenlabs'
+    PROVIDER_RETELL = 'retell'
+    PROVIDER_ELEVENLABS = 'elevenlabs'
 
     def __init__(self):
         self.retell = retell_service
+        self.elevenlabs = ElevenLabsService()
+        # Default to elevenlabs if configured, otherwise retell
+        self.default_provider = getattr(settings, 'REMINDER_CALL_PROVIDER', 'elevenlabs')
 
     def get_upcoming_flights(
         self,
@@ -99,6 +109,7 @@ class ReminderService:
         flight_info: Dict[str, Any],
         reminder_type: str = 'gate_closing',
         language: str = 'en',
+        provider: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Create an outbound reminder call to a passenger.
@@ -109,49 +120,72 @@ class ReminderService:
             flight_info: Flight details dict
             reminder_type: Type of reminder
             language: Language preference (en/es)
+            provider: 'retell' or 'elevenlabs' (defaults to settings)
 
         Returns:
             Call details or None on failure
         """
-        if not self.retell.is_configured():
-            logger.warning("Retell not configured for outbound calls")
-            return None
-
         if not passenger_phone:
             logger.warning(f"No phone number for passenger {passenger_name}")
             return None
 
-        # Build reminder message context
-        metadata = {
-            'reminder_type': reminder_type,
-            'passenger_name': passenger_name,
-            'flight_number': flight_info.get('flight_number'),
-            'origin': flight_info.get('origin'),
-            'destination': flight_info.get('destination'),
-            'departure_time': flight_info.get('departure_time'),
-            'gate': flight_info.get('gate'),
-            'seat': flight_info.get('seat'),
-            'language': language,
-            'message_type': 'outbound_reminder',
-        }
+        provider = provider or self.default_provider
 
-        # Get or create reminder agent
-        agent_id = self._get_reminder_agent_id()
-        if not agent_id:
-            logger.error("No reminder agent configured")
-            return None
+        # Try ElevenLabs first (preferred for voice quality)
+        if provider == self.PROVIDER_ELEVENLABS:
+            if self.elevenlabs.is_outbound_configured():
+                result = self.elevenlabs.create_reminder_call(
+                    phone_number=passenger_phone,
+                    passenger_name=passenger_name,
+                    flight_info=flight_info,
+                    reminder_type=reminder_type,
+                    language=language,
+                )
+                if result:
+                    logger.info(f"ElevenLabs reminder call initiated to {passenger_name} for flight {flight_info.get('flight_number')}")
+                    return {**result, 'provider': 'elevenlabs'}
+            else:
+                logger.warning("ElevenLabs not configured, falling back to Retell")
+                provider = self.PROVIDER_RETELL
 
-        # Make the outbound call
-        result = self.retell.create_phone_call(
-            agent_id=agent_id,
-            to_number=passenger_phone,
-            metadata=metadata,
-        )
+        # Fallback to Retell
+        if provider == self.PROVIDER_RETELL:
+            if not self.retell.is_configured():
+                logger.warning("Retell not configured for outbound calls")
+                return None
 
-        if result:
-            logger.info(f"Reminder call initiated to {passenger_name} for flight {flight_info.get('flight_number')}")
+            # Build reminder message context
+            metadata = {
+                'reminder_type': reminder_type,
+                'passenger_name': passenger_name,
+                'flight_number': flight_info.get('flight_number'),
+                'origin': flight_info.get('origin'),
+                'destination': flight_info.get('destination'),
+                'departure_time': flight_info.get('departure_time'),
+                'gate': flight_info.get('gate'),
+                'seat': flight_info.get('seat'),
+                'language': language,
+                'message_type': 'outbound_reminder',
+            }
 
-        return result
+            # Get or create reminder agent
+            agent_id = self._get_reminder_agent_id()
+            if not agent_id:
+                logger.error("No reminder agent configured")
+                return None
+
+            # Make the outbound call
+            result = self.retell.create_phone_call(
+                agent_id=agent_id,
+                to_number=passenger_phone,
+                metadata=metadata,
+            )
+
+            if result:
+                logger.info(f"Retell reminder call initiated to {passenger_name} for flight {flight_info.get('flight_number')}")
+                return {**result, 'provider': 'retell'}
+
+        return None
 
     def send_gate_closing_reminders(self) -> List[Dict[str, Any]]:
         """
