@@ -5,7 +5,7 @@ import MetaBox from "./MetaBox";
 import Svg, { Path } from "react-native-svg";
 
 export default function FlightStatusCard({flight}:any) {
-    const [countdown, setCountdown] = useState<string>("");
+    const [countdown, setCountdown] = useState<string>("1");
     const[isUrgent, setIsUrgent] = useState(false);
 
 
@@ -115,7 +115,6 @@ const getStatusConfig = (status: FlightStatus) => {
 
   useEffect(()=>{
     const updateCountdown = () =>{
-        const updateCountdown = () => {
       const now = new Date();
       const departure = new Date(flight.departure_time);
       const diff = departure.getTime() - now.getTime();
@@ -144,10 +143,6 @@ const getStatusConfig = (status: FlightStatus) => {
 
     
 
-
-
-    }
-
     updateCountdown();
     const interval = setInterval(updateCountdown, 60000); // Update every minute
 
@@ -157,7 +152,7 @@ const getStatusConfig = (status: FlightStatus) => {
 
 
 
-  }, [flight.departure_time])
+  }, [])
 
   const statusConfig = getStatusConfig(flight.status);
   return (
@@ -195,12 +190,14 @@ const getStatusConfig = (status: FlightStatus) => {
       </View>
 
       {flight.status !== "cancelled" && flight.status !== "departed" && (
+  <View style={[styles.containerPadding]}>
   <View
     style={[
       styles.container,
       isUrgent ? styles.urgentContainer : styles.normalContainer,
     ]}
   >
+
     <Text
       style={[
         styles.label,
@@ -223,12 +220,14 @@ const getStatusConfig = (status: FlightStatus) => {
       <Text style={styles.urgentHint}>Time to head to the gate!</Text>
     )}
   </View>
+  </View>
 )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  containerPadding:{paddingTop:16},
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,

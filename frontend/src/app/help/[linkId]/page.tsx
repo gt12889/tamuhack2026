@@ -75,7 +75,7 @@ function generateDFWDemoLocation(progress: number, departureTime: Date): HelperL
 
 export default function HelperPage() {
   const params = useParams();
-  const linkId = params.linkId as string;
+  const linkId = params.code as string;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [reservation, setReservation] = useState<Reservation | null>(null);
@@ -124,7 +124,7 @@ export default function HelperPage() {
 
   useEffect(() => {
     fetchSession();
-    fetchLocation();
+    console.log(params)
 
     // Poll for updates every 3 seconds
     const sessionInterval = setInterval(fetchSession, 3000);
