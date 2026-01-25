@@ -91,8 +91,10 @@ export default function HelperPage() {
   const [transcriptPlaying, setTranscriptPlaying] = useState(false);
   const [demoProgress, setDemoProgress] = useState(0);
   const [journeyComplete, setJourneyComplete] = useState(false);
+  const [demoMessages, setDemoMessages] = useState<Message[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const demoStartTimeRef = useRef<number | null>(null);
+  const demoMessageIdRef = useRef(0);
   const DEMO_JOURNEY_DURATION_MS = 120000;
 
   // Auto-enable demo mode for demo links
@@ -380,6 +382,20 @@ export default function HelperPage() {
                   onReset={() => setTranscriptPlaying(false)}
                   onEvent={(event) => {
                     if (event === 'handoff' && !handoffTriggered) triggerDemoHandoff();
+                  }}
+                  onMessage={(msg) => {
+                    demoMessageIdRef.current += 1;
+                    const newMsg: Message = {
+                      id: `demo-msg-${demoMessageIdRef.current}`,
+                      role: msg.role === 'agent' ? 'assistant' : 'user',
+                      content: msg.content,
+                      timestamp: new Date().toISOString(),
+                    };
+                    setDemoMessages((prev) => [...prev, newMsg]);
+                  }}
+                  onMessagesReset={() => {
+                    setDemoMessages([]);
+                    demoMessageIdRef.current = 0;
                   }}
                   className="h-72"
                 />
