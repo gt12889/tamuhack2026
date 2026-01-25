@@ -42,9 +42,17 @@ AIRPORT_GATES = {
         'B35': {'lat': 32.8992, 'lng': -97.0350, 'terminal': 'B'},
         'B40': {'lat': 32.8995, 'lng': -97.0345, 'terminal': 'B'},
         'B45': {'lat': 32.8998, 'lng': -97.0340, 'terminal': 'B'},
-        # Terminal C
-        'C1': {'lat': 32.8950, 'lng': -97.0400, 'terminal': 'C'},
-        'C5': {'lat': 32.8952, 'lng': -97.0395, 'terminal': 'C'},
+        # Terminal C - Gates along concourse (from user-provided coordinates)
+        'C1': {'lat': 32.899709, 'lng': -97.037636, 'terminal': 'C'},
+        'C2': {'lat': 32.899611, 'lng': -97.03717, 'terminal': 'C'},
+        'C3': {'lat': 32.899459, 'lng': -97.036613, 'terminal': 'C'},
+        'C4': {'lat': 32.899057, 'lng': -97.036303, 'terminal': 'C'},
+        'C5': {'lat': 32.898023, 'lng': -97.035912, 'terminal': 'C'},
+        'C6': {'lat': 32.897664, 'lng': -97.035744, 'terminal': 'C'},
+        'C7': {'lat': 32.896969, 'lng': -97.035692, 'terminal': 'C'},
+        'C8': {'lat': 32.896219, 'lng': -97.035832, 'terminal': 'C'},
+        'C9': {'lat': 32.895103, 'lng': -97.037386, 'terminal': 'C'},
+        # Additional C gates (keeping existing for other gates not on this path)
         'C10': {'lat': 32.8955, 'lng': -97.0390, 'terminal': 'C'},
         'C15': {'lat': 32.8958, 'lng': -97.0385, 'terminal': 'C'},
         'C20': {'lat': 32.8960, 'lng': -97.0380, 'terminal': 'C'},

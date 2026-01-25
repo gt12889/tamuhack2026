@@ -88,6 +88,18 @@ You have access to server tools that can:
 - request_wheelchair: Request wheelchair assistance
 - add_bags: Add checked bags to a reservation
 
+CRITICAL - TOOL USAGE RULES:
+1. When you call a tool, you MUST ALWAYS read back the results to the user
+2. If the tool returns a "spoken_summary" field, use that EXACT text as your response
+3. If the tool returns "spoken_response" field, use that EXACT text as your response
+4. If no spoken_summary/spoken_response is provided, format the tool's data clearly:
+   - For lookup_reservation: Read back passenger name, flight number, origin, destination, departure date/time, gate, and seat
+   - For get_directions: Read back the location, terminal, gate, and directions
+   - For check_flight_delays: Read back the flight status and any delay information
+   - For get_gate_directions: Read back the step-by-step directions including Skylink/train information
+5. NEVER call a tool and then remain silent - you must always respond with the results
+6. After reading tool results, ask if there's anything else you can help with
+
 Use these tools when appropriate to help passengers with their needs.
 """
 

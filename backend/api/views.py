@@ -705,10 +705,10 @@ def create_helper_link(request):
 
     Request body:
         session_id: UUID of the session
-        mode: 'session' (30 min expiry) or 'persistent' (until flight departure)
+        mode: 'session' (30 min expiry), 'persistent' (until flight departure), or 'demo' (2 hours)
     """
     session_id = request.data.get('session_id')
-    mode = request.data.get('mode', 'session')
+    mode = request.data.get('mode', 'demo')  # Default to demo mode for 2-hour persistence
 
     try:
         session = Session.objects.get(id=session_id)
@@ -724,7 +724,10 @@ def create_helper_link(request):
     # Set helper link mode and expiry
     session.helper_link_mode = mode
 
-    if mode == 'persistent' and session.reservation:
+    if mode == 'demo':
+        # Demo mode: 2 hours from now
+        session.helper_link_expires_at = timezone.now() + timedelta(hours=2)
+    elif mode == 'persistent' and session.reservation:
         # Set expiry to flight departure time
         first_segment = session.reservation.flight_segments.first()
         if first_segment and first_segment.flight.departure_time:
@@ -761,7 +764,8 @@ def get_helper_session(request, link_id):
         )
 
     # Check expiry based on mode
-    if session.helper_link_mode == 'persistent':
+    # Both 'persistent' and 'demo' modes use helper_link_expires_at
+    if session.helper_link_mode in ('persistent', 'demo'):
         expiry_time = session.helper_link_expires_at or session.expires_at
     else:
         expiry_time = session.expires_at
@@ -836,7 +840,8 @@ def _get_valid_helper_session(link_id: str):
         )
 
     # Check expiry based on mode
-    if session.helper_link_mode == 'persistent':
+    # Both 'persistent' and 'demo' modes use helper_link_expires_at
+    if session.helper_link_mode in ('persistent', 'demo'):
         expiry_time = session.helper_link_expires_at or session.expires_at
     else:
         expiry_time = session.expires_at
@@ -1917,27 +1922,24 @@ def update_location(request):
 @api_view(['POST'])
 def create_area_mapping_link(request):
     """Create a helper link specifically for area mapping/navigation.
-    
-    This creates a persistent helper link that can be used for airport navigation
+
+    This creates a demo helper link (2 hours) that can be used for airport navigation
     and area mapping without requiring a full session.
-    
+
     Request body (optional):
         airport_code: Airport code (e.g., 'DFW')
         gate: Gate number (e.g., 'B22')
-        expires_in_hours: Hours until link expires (default: 48)
+        expires_in_hours: Hours until link expires (default: 2 for demo)
     """
-    import secrets
-    from datetime import timedelta
-    
     airport_code = request.data.get('airport_code', 'DFW')
     gate = request.data.get('gate', 'B22')
-    expires_in_hours = request.data.get('expires_in_hours', 48)
-    
+    expires_in_hours = request.data.get('expires_in_hours', 2)  # Default to 2 hours for demo
+
     # Create a minimal session for area mapping
     session = Session.objects.create(
         state='viewing',
         helper_link=secrets.token_urlsafe(12),
-        helper_link_mode='persistent',
+        helper_link_mode='demo',  # Use demo mode for 2-hour persistence
         helper_link_expires_at=timezone.now() + timedelta(hours=expires_in_hours),
         expires_at=timezone.now() + timedelta(hours=expires_in_hours),
     )

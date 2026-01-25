@@ -825,7 +825,7 @@ elevenlabs_webhook_handler = ElevenLabsWebhookHandler()
 ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     {
         "name": "lookup_reservation",
-        "description": "Look up a flight reservation by confirmation code. Use this when the customer provides their confirmation code.",
+        "description": "Look up a flight reservation by confirmation code. Use this when the customer provides their confirmation code. IMPORTANT: After calling this tool, you MUST read back the flight details to the user including passenger name, flight number, origin, destination, departure date/time, gate, and seat. Use the 'spoken_summary' field from the result if provided.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -935,7 +935,7 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     },
     {
         "name": "get_directions",
-        "description": "Get directions to nearby airport amenities like restrooms, food, water fountains, charging stations, medical assistance, or information desks. Use this when the passenger asks where to find something in the airport.",
+        "description": "Get directions to nearby airport amenities like restrooms, food, water fountains, charging stations, medical assistance, or information desks. Use this when the passenger asks where to find something in the airport. IMPORTANT: After calling this tool, you MUST read back the directions to the user including the location, terminal, and gate information.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -957,7 +957,7 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     },
     {
         "name": "create_family_helper_link",
-        "description": "Create a helper link that can be shared with a family member so they can track the passenger's location in the airport and help guide them. Use this when the passenger mentions they're traveling alone, need help navigating, or want a family member to be able to see their location.",
+        "description": "Create a helper link that can be shared with a family member so they can track the passenger's location in the airport and help guide them. Use this when the passenger mentions they're traveling alone, need help navigating, or want a family member to be able to see their location. IMPORTANT: After calling this tool, you MUST provide the helper link URL to the user and explain how to share it. Use the 'spoken_response' field from the result if provided.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -971,7 +971,7 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     },
     {
         "name": "check_flight_delays",
-        "description": "Check if a flight has any delays, cancellations, or schedule changes. Use this when the passenger asks about delays or if their flight is on time.",
+        "description": "Check if a flight has any delays, cancellations, or schedule changes. Use this when the passenger asks about delays or if their flight is on time. IMPORTANT: After calling this tool, you MUST read back the flight status to the user. Use the 'spoken_response' field from the result if provided.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -989,7 +989,7 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     },
     {
         "name": "get_gate_directions",
-        "description": "Get step-by-step directions to a specific gate at DFW airport. Use this when the passenger needs to find their gate.",
+        "description": "Get step-by-step directions to a specific gate at DFW airport. Use this when the passenger needs to find their gate. IMPORTANT: After calling this tool, you MUST read back the step-by-step directions to the user including Skylink/train information and estimated time. Use the 'spoken_response' field from the result if provided.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -1007,7 +1007,7 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     },
     {
         "name": "request_wheelchair",
-        "description": "Request wheelchair assistance for a passenger who needs mobility help. Use this when the passenger mentions difficulty walking, needs wheelchair assistance, or requests help getting around the airport.",
+        "description": "Request wheelchair assistance for a passenger who needs mobility help. Use this when the passenger mentions difficulty walking, needs wheelchair assistance, or requests help getting around the airport. IMPORTANT: After calling this tool, you MUST confirm to the user that wheelchair assistance has been requested and provide the estimated wait time. Use the 'spoken_response' field from the result if provided.",
         "parameters": {
             "type": "object",
             "properties": {

@@ -19,6 +19,7 @@ import {
   getWaypointByProgress,
   interpolatePosition,
   getDirectionsToPOI,
+  getNearbyPOIs,
 } from '@/lib/dfwDemoData';
 import {
   createHelperDemoHandoff,
@@ -97,12 +98,13 @@ export default function HelperPage() {
   const [demoHandoff, setDemoHandoff] = useState<HandoffDossier | null>(null);
   const [handoffTriggered, setHandoffTriggered] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState(DEMO_SCENARIOS[0]);
-  const [transcriptPlaying, setTranscriptPlaying] = useState(false);
+  const [simulationPlaying, setSimulationPlaying] = useState(false); // Controls both transcript and journey
   const [demoProgress, setDemoProgress] = useState(0);
   const [journeyComplete, setJourneyComplete] = useState(false);
   const [demoMessages, setDemoMessages] = useState<Message[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const demoStartTimeRef = useRef<number | null>(null);
+  const pausedProgressRef = useRef<number>(0); // Store progress when paused
   const demoMessageIdRef = useRef(0);
   const DEMO_JOURNEY_DURATION_MS = 120000;
 
@@ -242,31 +244,45 @@ export default function HelperPage() {
   useEffect(() => {
     if (!demoMode) {
       demoStartTimeRef.current = null;
+      pausedProgressRef.current = 0;
       setDemoProgress(0);
       setJourneyComplete(false);
       setHandoffTriggered(false);
       setDemoHandoff(null);
       return;
     }
-    if (demoStartTimeRef.current === null) demoStartTimeRef.current = Date.now();
+
+    // Only run journey when simulation is playing
+    if (!simulationPlaying || journeyComplete) return;
+
+    // Initialize or resume from paused progress
+    if (demoStartTimeRef.current === null) {
+      demoStartTimeRef.current = Date.now() - (pausedProgressRef.current * DEMO_JOURNEY_DURATION_MS);
+    }
+
     const demoInterval = setInterval(() => {
-      if (demoStartTimeRef.current === null || journeyComplete) return;
+      if (demoStartTimeRef.current === null || journeyComplete || !simulationPlaying) return;
       const elapsed = Date.now() - demoStartTimeRef.current;
       const progress = Math.min(elapsed / DEMO_JOURNEY_DURATION_MS, 1);
       setDemoProgress(progress);
+      pausedProgressRef.current = progress;
       if (progress >= 1) {
         setJourneyComplete(true);
-        // Don't auto-restart - user must manually restart
+        setSimulationPlaying(false);
       }
     }, 1000);
     return () => clearInterval(demoInterval);
-  }, [demoMode, journeyComplete]);
+  }, [demoMode, journeyComplete, simulationPlaying]);
 
-  // Manual restart function for journey
-  const restartJourney = useCallback(() => {
-    demoStartTimeRef.current = Date.now();
+  // Manual restart function for entire simulation (journey + transcript)
+  const restartSimulation = useCallback(() => {
+    demoStartTimeRef.current = null;
+    pausedProgressRef.current = 0;
     setDemoProgress(0);
     setJourneyComplete(false);
+    setSimulationPlaying(false);
+    setDemoMessages([]);
+    demoMessageIdRef.current = 0;
   }, []);
 
   const currentWaypoint = demoMode ? getWaypointByProgress(demoProgress).current : null;
@@ -282,100 +298,115 @@ export default function HelperPage() {
     const name = passengerDisplayName;
     const currentLat = effectiveLocationData?.passenger_location?.lat || 32.9010;
     const currentLng = effectiveLocationData?.passenger_location?.lng || -97.0408;
+    const timeLeft = effectiveLocationData?.metrics?.time_to_departure_minutes || 45;
+    const walkTimeToGate = effectiveLocationData?.metrics?.walking_time_minutes || 10;
+    const bufferTime = timeLeft - walkTimeToGate; // Time available for detours
+
+    // Helper to check if there's time for a stop (activity time in minutes)
+    const hasTimeFor = (activityMinutes: number, detourMeters: number): { hasTime: boolean; reasoning: string } => {
+      const detourWalkTime = Math.ceil(detourMeters / 80); // ~80m/min walking
+      const totalNeeded = walkTimeToGate + detourWalkTime + activityMinutes + 10; // +10 min buffer for boarding
+      const hasTime = timeLeft >= totalNeeded;
+      if (hasTime) {
+        return { hasTime: true, reasoning: `With ${timeLeft} minutes until departure and ${bufferTime} minutes of buffer, you have time!` };
+      } else {
+        return { hasTime: false, reasoning: `With only ${bufferTime} minutes of buffer before boarding, it might be tight.` };
+      }
+    };
 
     // Gate/directions related
     if (lowerSuggestion.includes('gate') || lowerSuggestion.includes('direction') || lowerSuggestion.includes('where')) {
       const distanceToGate = effectiveLocationData?.metrics?.distance_meters;
-      const walkTime = effectiveLocationData?.metrics?.walking_time_minutes;
       return {
         passengerResponse: `Oh, thank you dear! I was just asking about that.`,
-        agentResponse: `I can help with that! ${name}, your gate is ${scenarioReservation.flights[0]?.gate || 'B22'}. ${distanceToGate ? `It's about ${distanceToGate} meters away, roughly ${walkTime} minutes walk.` : 'Follow the signs for Terminal B.'}`,
+        agentResponse: `${name}, your gate is ${scenarioReservation.flights[0]?.gate || 'B22'}. ${distanceToGate ? `It's ${distanceToGate} meters away (about ${walkTimeToGate} min walk). You have ${timeLeft} minutes until departure - ${bufferTime > 15 ? "plenty of time!" : "keep moving at a steady pace."}` : 'Follow the signs for Terminal B.'}`,
       };
     }
 
     // Time related
     if (lowerSuggestion.includes('time') || lowerSuggestion.includes('hurry') || lowerSuggestion.includes('late') || lowerSuggestion.includes('rush')) {
-      const timeLeft = effectiveLocationData?.metrics?.time_to_departure_minutes;
-      const walkTime = effectiveLocationData?.metrics?.walking_time_minutes;
       return {
         passengerResponse: `You're right, I should keep moving. I don't want to miss my flight!`,
-        agentResponse: timeLeft && walkTime
-          ? `${name}, you have ${timeLeft} minutes until departure and about ${walkTime} minutes of walking left. ${timeLeft - walkTime > 15 ? "You're doing great - plenty of time!" : "Keep a steady pace and you'll make it!"}`
-          : `${name}, you have plenty of time. You're doing great!`,
+        agentResponse: `${name}, you have ${timeLeft} minutes until departure. Walk time to gate: ${walkTimeToGate} min. Buffer time: ${bufferTime} min. ${bufferTime > 20 ? "You're in great shape - time for a quick stop if needed!" : bufferTime > 10 ? "You're on track, but keep moving." : "Let's focus on getting to the gate."}`,
       };
     }
 
     // Rest/sit related
     if (lowerSuggestion.includes('rest') || lowerSuggestion.includes('sit') || lowerSuggestion.includes('break') || lowerSuggestion.includes('tired')) {
-      const timeLeft = effectiveLocationData?.metrics?.time_to_departure_minutes;
+      const { hasTime, reasoning } = hasTimeFor(5, 0); // 5 min rest, no detour
       return {
         passengerResponse: `That's a good idea, my feet are getting a bit tired.`,
-        agentResponse: timeLeft && timeLeft > 30
-          ? `There are seats at the nearby gates, ${name}. With ${timeLeft} minutes until departure, you have time for a short rest.`
-          : `${name}, there are seats nearby, but with limited time I'd suggest resting at your gate - almost there!`,
+        agentResponse: hasTime
+          ? `${name}, ${reasoning} There are seats at the nearby gates. A 5-minute rest won't hurt.`
+          : `${name}, ${reasoning} I'd suggest resting at Gate ${scenarioReservation.flights[0]?.gate || 'B22'} - you're almost there!`,
       };
     }
 
     // Help/assistance related
     if (lowerSuggestion.includes('help') || lowerSuggestion.includes('assist') || lowerSuggestion.includes('wheelchair') || lowerSuggestion.includes('staff')) {
-      const infoDesk = getDirectionsToPOI(currentLat, currentLng, 'info');
+      const infoPOIs = getNearbyPOIs(currentLat, currentLng, 'info', 500);
       return {
         passengerResponse: `Oh, should I ask for help? That might be a good idea.`,
-        agentResponse: infoDesk
-          ? `${name}, ${infoDesk.poi.name} is ${Math.round(infoDesk.distance)} meters away near ${infoDesk.poi.nearGate}. Or I can request a wheelchair - just say the word!`
-          : `${name}, I can arrange for airport assistance if you'd like. Just say the word!`,
+        agentResponse: infoPOIs.length > 0
+          ? `${name}, here are help options: ${infoPOIs.slice(0, 2).map(p => `${p.name} (${Math.round(p.distance)}m, near ${p.nearGate})`).join('; ')}. Or I can request wheelchair assistance right now!`
+          : `${name}, I can request wheelchair assistance or call for help. Just say the word!`,
       };
     }
 
     // Food/drink/coffee related
     if (lowerSuggestion.includes('food') || lowerSuggestion.includes('eat') || lowerSuggestion.includes('drink') || lowerSuggestion.includes('water') || lowerSuggestion.includes('coffee') || lowerSuggestion.includes('hungry') || lowerSuggestion.includes('snack')) {
-      const foodPOI = getDirectionsToPOI(currentLat, currentLng, 'food');
-      const waterPOI = getDirectionsToPOI(currentLat, currentLng, 'water');
-      const timeLeft = effectiveLocationData?.metrics?.time_to_departure_minutes;
+      const foodPOIs = getNearbyPOIs(currentLat, currentLng, 'food', 500);
+      const waterPOIs = getNearbyPOIs(currentLat, currentLng, 'water', 500);
 
       if (lowerSuggestion.includes('water')) {
+        const nearest = waterPOIs[0];
+        const { hasTime, reasoning } = nearest ? hasTimeFor(2, nearest.distance) : { hasTime: true, reasoning: '' };
         return {
           passengerResponse: `Good idea, I should stay hydrated.`,
-          agentResponse: waterPOI
-            ? `${name}, there's a ${waterPOI.poi.name} ${Math.round(waterPOI.distance)} meters away near ${waterPOI.poi.nearGate}. ${waterPOI.poi.description}`
-            : `${name}, there's a water fountain coming up near your gate.`,
+          agentResponse: waterPOIs.length > 0
+            ? `${name}, water options nearby: ${waterPOIs.slice(0, 2).map(p => `${p.name} (${Math.round(p.distance)}m, near ${p.nearGate})`).join('; ')}. ${hasTime ? "Quick stop - go for it!" : "The one at your gate might be better."}`
+            : `${name}, there's a water fountain at your gate - almost there!`,
         };
       }
 
+      const nearest = foodPOIs[0];
+      const { hasTime, reasoning } = nearest ? hasTimeFor(10, nearest.distance) : { hasTime: false, reasoning: '' };
       return {
         passengerResponse: `Hmm, a little snack does sound nice. Is there time?`,
-        agentResponse: foodPOI
-          ? `${name}, ${foodPOI.poi.name} is ${Math.round(foodPOI.distance)} meters away near ${foodPOI.poi.nearGate}. ${timeLeft && timeLeft > 30 ? `With ${timeLeft} minutes left, you have time for a quick stop!` : "But you might want to wait until you're at the gate."}`
-          : `${name}, there are food options near your gate. You'll pass them on the way!`,
+        agentResponse: foodPOIs.length > 0
+          ? `${name}, food options: ${foodPOIs.slice(0, 3).map(p => `${p.name} (${Math.round(p.distance)}m)`).join(', ')}. ${hasTime ? `${reasoning} A quick bite is doable!` : `${reasoning} Maybe grab something quick at Starbucks by your gate?`}`
+          : `${name}, there are food options at your gate including Starbucks and Chili's!`,
       };
     }
 
     // Bathroom related
     if (lowerSuggestion.includes('bathroom') || lowerSuggestion.includes('restroom') || lowerSuggestion.includes('toilet')) {
-      const restroomPOI = getDirectionsToPOI(currentLat, currentLng, 'restroom');
+      const restroomPOIs = getNearbyPOIs(currentLat, currentLng, 'restroom', 500);
+      const nearest = restroomPOIs[0];
+      const { hasTime, reasoning } = nearest ? hasTimeFor(5, nearest.distance) : { hasTime: true, reasoning: '' };
       return {
         passengerResponse: `Good thinking! I should stop before the flight.`,
-        agentResponse: restroomPOI
-          ? `${name}, the nearest restroom is ${Math.round(restroomPOI.distance)} meters away - ${restroomPOI.poi.description}`
-          : `${name}, there's a restroom coming up near your gate.`,
+        agentResponse: restroomPOIs.length > 0
+          ? `${name}, restrooms nearby: ${restroomPOIs.slice(0, 2).map(p => `${p.description} (${Math.round(p.distance)}m)`).join('; ')}. ${hasTime ? "You have time - go ahead!" : "The one closest to your gate might be best."}`
+          : `${name}, there's a restroom near your gate - you'll pass it on the way!`,
       };
     }
 
     // Charging/phone related
     if (lowerSuggestion.includes('charge') || lowerSuggestion.includes('phone') || lowerSuggestion.includes('battery')) {
-      const chargingPOI = getDirectionsToPOI(currentLat, currentLng, 'charging');
+      const chargingPOIs = getNearbyPOIs(currentLat, currentLng, 'charging', 500);
       return {
         passengerResponse: `Oh yes, my phone battery is getting low.`,
-        agentResponse: chargingPOI
-          ? `${name}, there's a ${chargingPOI.poi.name} ${Math.round(chargingPOI.distance)} meters away near ${chargingPOI.poi.nearGate}. There are also charging stations at your gate!`
-          : `${name}, there are charging stations at Gate ${scenarioReservation.flights[0]?.gate || 'B22'} - almost there!`,
+        agentResponse: chargingPOIs.length > 0
+          ? `${name}, charging stations: ${chargingPOIs.slice(0, 2).map(p => `${p.name} near ${p.nearGate} (${Math.round(p.distance)}m)`).join('; ')}. There are also outlets at Gate ${scenarioReservation.flights[0]?.gate || 'B22'}!`
+          : `${name}, there are charging stations at your gate - plug in when you arrive!`,
       };
     }
 
     // Default response
     return {
       passengerResponse: `Thank you for the suggestion, dear! That's very helpful.`,
-      agentResponse: `That's a great point. ${name}, your family is keeping an eye on your journey.`,
+      agentResponse: `That's a great point. ${name}, your family is keeping an eye on your journey. You have ${bufferTime} minutes of buffer time before boarding.`,
     };
   }, [passengerDisplayName, scenarioReservation, effectiveLocationData]);
 
@@ -518,7 +549,7 @@ export default function HelperPage() {
                     const scenario = DEMO_SCENARIOS.find((s) => s.id === e.target.value);
                     if (scenario) {
                       setSelectedScenario(scenario);
-                      setTranscriptPlaying(false);
+                      restartSimulation(); // Reset everything when changing scenario
                       if (handoffTriggered) {
                         resetHelperDemoHandoff();
                         setDemoHandoff(null);
@@ -552,10 +583,10 @@ export default function HelperPage() {
                 </label>
                 <DemoTranscript
                   scenario={selectedScenario}
-                  isPlaying={transcriptPlaying}
-                  onPlay={() => setTranscriptPlaying(true)}
-                  onPause={() => setTranscriptPlaying(false)}
-                  onReset={() => setTranscriptPlaying(false)}
+                  isPlaying={simulationPlaying}
+                  onPlay={() => setSimulationPlaying(true)}
+                  onPause={() => setSimulationPlaying(false)}
+                  onReset={restartSimulation}
                   onEvent={(event) => {
                     if (event === 'handoff' && !handoffTriggered) triggerDemoHandoff();
                   }}
@@ -669,7 +700,7 @@ export default function HelperPage() {
               )}
 
               {/* Journey Progress - Demo Mode */}
-              {demoMode && currentWaypoint && (
+              {demoMode && (
                 <section className={`rounded-2xl p-6 transition-colors duration-500 ${
                   journeyComplete
                     ? 'bg-green-50 border border-green-200'
@@ -685,23 +716,50 @@ export default function HelperPage() {
                         </div>
                       )}
                       <h2 className={`text-lg font-semibold ${journeyComplete ? 'text-green-800' : 'text-purple-800'}`}>
-                        {journeyComplete ? 'Journey Complete!' : 'Journey Progress'}
+                        {journeyComplete ? 'Journey Complete!' : 'Journey Simulation'}
                       </h2>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Play/Pause Button - Always visible */}
+                      {!journeyComplete && (
+                        <button
+                          onClick={() => setSimulationPlaying(!simulationPlaying)}
+                          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full transition-colors ${
+                            simulationPlaying
+                              ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                        >
+                          {simulationPlaying ? (
+                            <>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Pause
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                              {demoProgress > 0 ? 'Resume' : 'Start'}
+                            </>
+                          )}
+                        </button>
+                      )}
                       {journeyComplete ? (
                         <button
-                          onClick={restartJourney}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-full hover:bg-green-700 transition-colors"
+                          onClick={restartSimulation}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-full hover:bg-green-700 transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
-                          Restart
+                          Restart Simulation
                         </button>
                       ) : (
                         <span className="text-sm text-purple-600 font-medium bg-purple-100 px-3 py-1 rounded-full">
-                          {Math.round(demoProgress * 100)}% complete
+                          {Math.round(demoProgress * 100)}%
                         </span>
                       )}
                     </div>
@@ -709,10 +767,18 @@ export default function HelperPage() {
                   <div className="flex items-center gap-5 mb-4">
                     <div className="flex-1">
                       <p className={`text-base font-medium ${journeyComplete ? 'text-green-900' : 'text-purple-900'}`}>
-                        {journeyComplete ? `${passengerDisplayName} has arrived at Gate ${scenarioReservation.flights[0]?.gate || 'B22'}` : currentWaypoint.name}
+                        {journeyComplete
+                          ? `${passengerDisplayName} has arrived at Gate ${scenarioReservation.flights[0]?.gate || 'B22'}`
+                          : currentWaypoint
+                            ? currentWaypoint.name
+                            : `${passengerDisplayName} is ready to start journey to Gate ${scenarioReservation.flights[0]?.gate || 'B22'}`}
                       </p>
                       <p className={`text-sm mt-1 ${journeyComplete ? 'text-green-600' : 'text-purple-600'}`}>
-                        {journeyComplete ? 'Ready for boarding' : currentWaypoint.instruction}
+                        {journeyComplete
+                          ? 'Ready for boarding'
+                          : currentWaypoint
+                            ? currentWaypoint.instruction
+                            : 'Press Start to begin the simulation'}
                       </p>
                     </div>
                     {journeyComplete && (

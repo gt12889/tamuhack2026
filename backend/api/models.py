@@ -116,6 +116,7 @@ class Session(models.Model):
         choices=[
             ('session', 'Session-based (30 min)'),
             ('persistent', 'Persistent (until flight departure)'),
+            ('demo', 'Demo mode (2 hours)'),
         ],
         default='session'
     )
