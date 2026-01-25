@@ -722,9 +722,20 @@ def search_flights(request):
 @api_view(['GET'])
 def retell_status(request):
     """Check Retell AI configuration status."""
+    configured = retell_service.is_configured()
+    default_agent_id = None
+    
+    # If configured, try to get a default agent ID
+    if configured:
+        agents = retell_service.list_agents()
+        if agents and len(agents) > 0:
+            # Use the first agent as default
+            default_agent_id = agents[0].get('agent_id')
+    
     return Response({
-        'configured': retell_service.is_configured(),
+        'configured': configured,
         'service': 'Retell AI Voice Agent',
+        'default_agent_id': default_agent_id,
     })
 
 
