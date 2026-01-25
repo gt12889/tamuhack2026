@@ -176,18 +176,29 @@ def send_message(request):
     if session.reservation:
         reservation_context = ReservationSerializer(session.reservation).data
 
+    # Get language hint from session context
+    language_hint = session.context.get('detected_language') if session.context else None
+
     # Process with Gemini
     ai_response = gemini_service.process_message(
         user_message=transcript,
         conversation_history=messages,
         reservation_context=reservation_context,
         session_state=session.state,
+        language_hint=language_hint,
     )
 
     reply = ai_response['reply']
     intent = ai_response['intent']
     entities = ai_response['entities']
     action = ai_response.get('action', 'none')
+    detected_language = ai_response.get('detected_language', 'en')
+
+    # Store detected language in session context
+    if not session.context:
+        session.context = {}
+    session.context['detected_language'] = detected_language
+    session.save()
 
     # Handle specific intents
     flight_options = []
@@ -242,7 +253,28 @@ def send_message(request):
     elif intent == 'confirm_action' and session.state == 'changing':
         session.state = 'complete'
         session.save()
-        reply = "Perfect! You're all set. Your new flight has been booked. I'm sending the details to your email. Is there anything else I can help with?"
+
+        # Generate trip summary using Gemini
+        trip_summary = None
+        if session.reservation:
+            reservation_data = ReservationSerializer(session.reservation).data
+            summary_result = gemini_service.generate_trip_summary(
+                reservation_data=reservation_data,
+                language=detected_language
+            )
+            trip_summary = summary_result.get('summary', '')
+
+            if trip_summary:
+                reply = trip_summary
+            elif detected_language == 'es':
+                reply = "¡Perfecto! Todo listo. Su nuevo vuelo ha sido reservado. Le envío los detalles a su correo. ¿Hay algo más en que pueda ayudarle?"
+            else:
+                reply = "Perfect! You're all set. Your new flight has been booked. I'm sending the details to your email. Is there anything else I can help with?"
+        else:
+            if detected_language == 'es':
+                reply = "¡Perfecto! Todo listo. ¿Hay algo más en que pueda ayudarle?"
+            else:
+                reply = "Perfect! You're all set. Is there anything else I can help with?"
 
     # Handle family help request
     elif intent == 'family_help':
@@ -256,8 +288,8 @@ def send_message(request):
             'value': session.helper_link,
         })
 
-    # Generate audio response
-    audio_response = elevenlabs_service.synthesize(reply)
+    # Generate audio response with appropriate language voice
+    audio_response = elevenlabs_service.synthesize(reply, language=detected_language)
     audio_url = audio_response.get('audio_url') if audio_response else None
 
     # Save assistant message
@@ -278,6 +310,7 @@ def send_message(request):
         'entities': entities,
         'suggested_actions': suggested_actions,
         'session_state': session.state,
+        'detected_language': detected_language,
     }
 
     if session.reservation:
@@ -335,6 +368,8 @@ def change_reservation(request):
     session_id = request.data.get('session_id')
     reservation_id = request.data.get('reservation_id')
     new_flight_id = request.data.get('new_flight_id')
+    original_flight_data = request.data.get('original_flight')
+    new_flight_data = request.data.get('new_flight')
 
     try:
         session = Session.objects.get(id=session_id)
@@ -345,6 +380,9 @@ def change_reservation(request):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    # Get language preference from session
+    language = session.context.get('detected_language', 'en') if session.context else 'en'
+
     # For demo, just update the status
     reservation.status = 'changed'
     reservation.save()
@@ -352,10 +390,31 @@ def change_reservation(request):
     session.state = 'complete'
     session.save()
 
+    # Generate change summary using Gemini
+    change_summary = None
+    if original_flight_data and new_flight_data:
+        summary_result = gemini_service.generate_change_summary(
+            original_flight=original_flight_data,
+            new_flight=new_flight_data,
+            language=language
+        )
+        change_summary = summary_result.get('summary', '')
+
+    confirmation_message = change_summary or (
+        'Su vuelo ha sido cambiado exitosamente.' if language == 'es'
+        else 'Your flight has been changed successfully.'
+    )
+
+    # Generate audio for confirmation
+    audio_response = elevenlabs_service.synthesize(confirmation_message, language=language)
+    audio_url = audio_response.get('audio_url') if audio_response else None
+
     return Response({
         'success': True,
         'new_reservation': ReservationSerializer(reservation).data,
-        'confirmation_message': 'Your flight has been changed successfully.',
+        'confirmation_message': confirmation_message,
+        'audio_url': audio_url,
+        'detected_language': language,
     })
 
 
