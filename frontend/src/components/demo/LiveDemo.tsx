@@ -179,6 +179,22 @@ export function LiveDemo({
     onConnect: handleCallStart,
     onDisconnect: handleCallEnd,
     onMessage: handleMessage,
+    onUserSpeech: (transcript: string) => {
+      console.log('[LiveDemo] User speech:', transcript);
+      handleTranscript('user', transcript, true);
+    },
+    onAgentSpeech: (transcript: string) => {
+      console.log('[LiveDemo] Agent speech:', transcript);
+      handleTranscript('agent', transcript, true);
+    },
+    onModeChange: (mode) => {
+      console.log('[LiveDemo] Mode changed:', mode);
+      if (mode.mode === 'listening') {
+        setCurrentSpeaker('user');
+      } else if (mode.mode === 'speaking') {
+        setCurrentSpeaker('agent');
+      }
+    },
     onError: (err) => {
       console.error('ElevenLabs error:', err);
     },

@@ -2,6 +2,7 @@
 
 import uuid
 import secrets
+import os
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import status
@@ -1939,23 +1940,23 @@ def create_area_mapping_link(request):
     session = Session.objects.create(
         state='viewing',
         helper_link=secrets.token_urlsafe(12),
-        helper_link_mode='demo',  # Use demo mode for 2-hour persistence
+        helper_link_mode='persistent',  # Use persistent mode
         helper_link_expires_at=timezone.now() + timedelta(hours=expires_in_hours),
         expires_at=timezone.now() + timedelta(hours=expires_in_hours),
     )
     
-    # Store mapping context in session context field if available
-    if hasattr(session, 'context'):
-        session.context = {
-            'purpose': 'area_mapping',
-            'airport_code': airport_code,
-            'gate': gate,
-        }
-        session.save()
+    # Store mapping context in session context field
+    session.context = {
+        'purpose': 'area_mapping',
+        'airport_code': airport_code,
+        'gate': gate,
+    }
+    session.save()
     
-    # Get base URL from request
-    base_url = request.build_absolute_uri('/').rstrip('/')
-    helper_url = f"{base_url}/help/{session.helper_link}"
+    # Get base URL from request - use frontend URL if available, otherwise construct from request
+    # For area mapping, we want the frontend URL, not backend URL
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    helper_url = f"{frontend_url}/help/{session.helper_link}"
     
     return Response({
         'helper_link': session.helper_link,

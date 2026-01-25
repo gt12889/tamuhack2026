@@ -35,6 +35,8 @@ interface UseElevenLabsConversationOptions {
   onMessage?: (message: { role: 'agent' | 'user'; content: string }) => void;
   onModeChange?: (mode: { mode: 'speaking' | 'listening' }) => void;
   onError?: (error: string) => void;
+  onUserSpeech?: (transcript: string) => void;
+  onAgentSpeech?: (transcript: string) => void;
 }
 
 interface UseElevenLabsConversationReturn {
@@ -56,6 +58,8 @@ export function useElevenLabsConversation({
   onMessage,
   onModeChange,
   onError,
+  onUserSpeech,
+  onAgentSpeech,
 }: UseElevenLabsConversationOptions = {}): UseElevenLabsConversationReturn {
   const [isConfigured, setIsConfigured] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -177,19 +181,33 @@ export function useElevenLabsConversation({
           conversationRef.current = null;
           if (onDisconnect) onDisconnect();
         },
-        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; type?: string }) => {
+        onMessage: (payload: { message?: string; source?: string; role?: string; text?: string; type?: string; speaker?: string; transcript?: string }) => {
           console.log('[ElevenLabs] Raw message received:', JSON.stringify(payload, null, 2));
           if (onMessage) {
             // Handle different payload formats from ElevenLabs SDK versions
             // Newer: { role: 'user'|'agent', message: string }
             // Older: { source: 'user'|'ai', message: string }
             // Some versions: { text: string, type: string }
-            const content = payload.message || payload.text || '';
-            const role = payload.role === 'agent' || payload.source === 'ai' ? 'agent' : 'user';
+            // Also check for: { speaker: 'user'|'agent', transcript: string }
+            const content = payload.message || payload.text || payload.transcript || '';
+            let role: 'agent' | 'user' = 'user';
+            
+            // Determine role from various possible fields
+            if (payload.role === 'agent' || payload.source === 'ai' || payload.speaker === 'agent') {
+              role = 'agent';
+            } else if (payload.role === 'user' || payload.source === 'user' || payload.speaker === 'user') {
+              role = 'user';
+            } else if (payload.type === 'agent_message' || payload.type === 'ai_message') {
+              role = 'agent';
+            } else if (payload.type === 'user_message' || payload.type === 'user_speech') {
+              role = 'user';
+            }
 
-            if (content) {
+            if (content && content.trim()) {
               console.log('[ElevenLabs] Calling onMessage with:', { role, content });
               onMessage({ role, content });
+            } else {
+              console.warn('[ElevenLabs] Message payload has no content:', payload);
             }
           }
         },
@@ -223,7 +241,7 @@ export function useElevenLabsConversation({
       setIsConnecting(false);
       if (onError) onError(errorMsg);
     }
-  }, [agentId, defaultAgentId, sessionId, isSdkLoaded, sdkLoadError, onConnect, onDisconnect, onMessage, onModeChange, onError]);
+  }, [agentId, defaultAgentId, sessionId, isSdkLoaded, sdkLoadError, onConnect, onDisconnect, onMessage, onModeChange, onError, onUserSpeech, onAgentSpeech]);
 
   const endCall = useCallback(async () => {
     // End the conversation session
