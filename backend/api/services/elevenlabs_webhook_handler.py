@@ -15,6 +15,7 @@ from ..mock_data import (
     get_flights_for_date,
     CITY_NAMES,
 )
+from .resend_service import resend_service
 
 logger = logging.getLogger(__name__)
 
@@ -322,6 +323,7 @@ class ElevenLabsWebhookHandler:
             date: Departure date
             first_name: Passenger first name
             last_name: Passenger last name
+            email: Passenger email for confirmation (optional)
             selected_flight_id: The selected flight option
 
         Returns:
@@ -332,6 +334,8 @@ class ElevenLabsWebhookHandler:
         date = args.get('date', '')
         first_name = args.get('first_name', '')
         last_name = args.get('last_name', '')
+        user_provided_email = args.get('email', '')
+        email = user_provided_email or 't.dinh43204@gmail.com'  # Default email for demo
         selected_flight_id = args.get('selected_flight_id')
 
         # Map city names to codes
@@ -397,11 +401,43 @@ class ElevenLabsWebhookHandler:
 
             selected = next((f for f in flights if f.get('id') == selected_flight_id), flights[0])
             dep_time = parse(selected['departure_time'])
+            arr_time = parse(selected.get('arrival_time', selected['departure_time']))
             origin_city = CITY_NAMES.get(selected['origin'], selected['origin'])
             dest_city = CITY_NAMES.get(selected['destination'], selected['destination'])
 
             # Spell out the confirmation code for clarity
             spelled_code = '-'.join(list(confirmation_code))
+
+            # Send confirmation email if email provided
+            email_sent = False
+            if email:
+                try:
+                    flight_details = [{
+                        'flight_number': selected['flight_number'],
+                        'origin': origin_city,
+                        'destination': dest_city,
+                        'departure_time': selected['departure_time'],
+                        'arrival_time': selected.get('arrival_time', selected['departure_time']),
+                        'gate': selected.get('gate', 'TBD'),
+                        'seat': 'Will be assigned at check-in',
+                    }]
+                    resend_service.send_booking_confirmation(
+                        to_email=email,
+                        passenger_name=f'{first_name} {last_name}',
+                        confirmation_code=confirmation_code,
+                        flight_details=flight_details,
+                        language='en'
+                    )
+                    email_sent = True
+                    logger.info(f"Booking confirmation email sent to {email}")
+                except Exception as e:
+                    logger.error(f"Failed to send booking confirmation email: {e}")
+
+            spoken_response = f"Wonderful, {first_name}! Your flight is booked. You're confirmed on flight {selected['flight_number']} from {origin_city} to {dest_city}, departing {dep_time.strftime('%B %d')} at {dep_time.strftime('%I:%M %p')}. Your confirmation code is {spelled_code}. Please write that down."
+            # Only mention email to user if they provided one
+            if email_sent and user_provided_email:
+                spoken_response += f" I've also sent a confirmation email to {user_provided_email}."
+            spoken_response += " Is there anything else I can help you with?"
 
             return {
                 'success': True,
@@ -415,8 +451,9 @@ class ElevenLabsWebhookHandler:
                 'destination_city': dest_city,
                 'departure_date': dep_time.strftime('%B %d, %Y'),
                 'departure_time': dep_time.strftime('%I:%M %p'),
+                'email_sent': email_sent,
                 'message': f'Booking confirmed! Your confirmation code is {confirmation_code}',
-                'spoken_response': f"Wonderful, {first_name}! Your flight is booked. You're confirmed on flight {selected['flight_number']} from {origin_city} to {dest_city}, departing {dep_time.strftime('%B %d')} at {dep_time.strftime('%I:%M %p')}. Your confirmation code is {spelled_code}. Please write that down. Is there anything else I can help you with?",
+                'spoken_response': spoken_response,
             }
 
         # Return flight options
@@ -963,7 +1000,7 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
     },
     {
         "name": "create_booking",
-        "description": "Create a new flight booking. Collect origin, destination, date, and passenger name.",
+        "description": "Create a new flight booking. Collect origin, destination, date, passenger name, and optionally email for confirmation. After a successful booking, a confirmation email will be sent if email is provided.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -986,6 +1023,10 @@ ELEVENLABS_SERVER_TOOL_DEFINITIONS = [
                 "last_name": {
                     "type": "string",
                     "description": "Passenger's last name"
+                },
+                "email": {
+                    "type": "string",
+                    "description": "Passenger's email address for booking confirmation (optional but recommended)"
                 },
                 "selected_flight_id": {
                     "type": "string",

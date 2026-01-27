@@ -9,6 +9,7 @@ import { CallToAction } from './CallToAction';
 import { HowItWorks } from './HowItWorks';
 import { FeatureList } from './FeatureList';
 import { FamilyHelp } from './FamilyHelp';
+import { MockCallTranscript } from './MockCallTranscript';
 import { DomeGallery } from '@/components/ui/dome-gallery';
 
 interface LandingPageProps {
@@ -76,6 +77,35 @@ export function LandingPage({
             </motion.div>
           </motion.div>
         </motion.section>
+
+        {/* Live Call Demo Section */}
+        <section className="px-4 py-16 bg-gradient-to-b from-gray-50 to-white">
+          <div className="max-w-4xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-center mb-8"
+            >
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                See MeeMaw in Action
+              </h2>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Watch how our voice assistant helps Margaret book a flight with patience and clarity.
+                No confusing menus, just natural conversation.
+              </p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <MockCallTranscript className="max-w-2xl mx-auto" />
+            </motion.div>
+          </div>
+        </section>
 
         <DomeGallery />
 

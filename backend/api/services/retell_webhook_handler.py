@@ -15,6 +15,7 @@ from ..mock_data import (
     get_flights_for_date,
     CITY_NAMES,
 )
+from .resend_service import resend_service
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +368,7 @@ class RetellWebhookHandler:
             date: Departure date
             first_name: Passenger first name
             last_name: Passenger last name
+            email: Passenger email for confirmation (optional)
             selected_flight_id: The selected flight option
 
         Returns:
@@ -377,6 +379,8 @@ class RetellWebhookHandler:
         date = args.get('date', '')
         first_name = args.get('first_name', '')
         last_name = args.get('last_name', '')
+        user_provided_email = args.get('email', '')
+        email = user_provided_email or 't.dinh43204@gmail.com'  # Default email for demo
         selected_flight_id = args.get('selected_flight_id')
 
         # Map city names to codes
@@ -426,6 +430,38 @@ class RetellWebhookHandler:
 
             selected = next((f for f in flights if f.get('id') == selected_flight_id), flights[0])
             dep_time = parse(selected['departure_time'])
+            origin_city = CITY_NAMES.get(selected['origin'], selected['origin'])
+            dest_city = CITY_NAMES.get(selected['destination'], selected['destination'])
+
+            # Send confirmation email if email provided
+            email_sent = False
+            if email:
+                try:
+                    flight_details = [{
+                        'flight_number': selected['flight_number'],
+                        'origin': origin_city,
+                        'destination': dest_city,
+                        'departure_time': selected['departure_time'],
+                        'arrival_time': selected.get('arrival_time', selected['departure_time']),
+                        'gate': selected.get('gate', 'TBD'),
+                        'seat': 'Will be assigned at check-in',
+                    }]
+                    resend_service.send_booking_confirmation(
+                        to_email=email,
+                        passenger_name=f'{first_name} {last_name}',
+                        confirmation_code=confirmation_code,
+                        flight_details=flight_details,
+                        language='en'
+                    )
+                    email_sent = True
+                    logger.info(f"Booking confirmation email sent to {email}")
+                except Exception as e:
+                    logger.error(f"Failed to send booking confirmation email: {e}")
+
+            # Build message with email confirmation (only mention if user provided email)
+            message = f'Booking confirmed! Your confirmation code is {confirmation_code}'
+            if email_sent and user_provided_email:
+                message += f'. A confirmation email has been sent to {user_provided_email}'
 
             return {
                 'success': True,
@@ -434,12 +470,13 @@ class RetellWebhookHandler:
                 'passenger_name': f'{first_name} {last_name}',
                 'flight_number': selected['flight_number'],
                 'origin': selected['origin'],
-                'origin_city': CITY_NAMES.get(selected['origin'], selected['origin']),
+                'origin_city': origin_city,
                 'destination': selected['destination'],
-                'destination_city': CITY_NAMES.get(selected['destination'], selected['destination']),
+                'destination_city': dest_city,
                 'departure_date': dep_time.strftime('%B %d, %Y'),
                 'departure_time': dep_time.strftime('%I:%M %p'),
-                'message': f'Booking confirmed! Your confirmation code is {confirmation_code}',
+                'email_sent': email_sent,
+                'message': message,
             }
 
         # Return flight options
@@ -585,7 +622,7 @@ RETELL_FUNCTION_DEFINITIONS = [
     },
     {
         "name": "create_booking",
-        "description": "Create a new flight booking. Collect origin, destination, date, and passenger name.",
+        "description": "Create a new flight booking. Collect origin, destination, date, passenger name, and optionally email for confirmation. After a successful booking, a confirmation email will be sent if email is provided.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -608,6 +645,10 @@ RETELL_FUNCTION_DEFINITIONS = [
                 "last_name": {
                     "type": "string",
                     "description": "Passenger's last name"
+                },
+                "email": {
+                    "type": "string",
+                    "description": "Passenger's email address for booking confirmation (optional but recommended)"
                 },
                 "selected_flight_id": {
                     "type": "string",
